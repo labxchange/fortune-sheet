@@ -97,7 +97,7 @@ const CustomSort: React.FC<{}> = () => {
   return (
     <div className="fortune-sort">
       <div className="fortune-sort-title">
-        <span>
+        <span id="fortune-sort-title">
           <span>{sort.sortRangeTitle}</span>
           <span className="fortune-sort-title-range">{startCell}</span>
           <span>{sort.sortRangeTitleTo}</span>
