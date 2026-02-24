@@ -23,13 +23,22 @@ const Dialog: React.FC<Props> = ({
 }) => {
   const { context } = useContext(WorkbookContext);
   const { button } = locale(context);
+  const activateOnEnter = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.currentTarget.click();
+    }
+  };
   return (
     <div className="fortune-dialog" style={containerStyle}>
       <div className="fortune-modal-dialog-header">
         <div
           className="fortune-modal-dialog-icon-close"
           onClick={onCancel}
+          onKeyDown={activateOnEnter}
           tabIndex={0}
+          role="button"
+          aria-label={button.close}
         >
           <SVGIcon name="close" style={{ padding: 7, cursor: "pointer" }} />
         </div>
@@ -43,6 +52,7 @@ const Dialog: React.FC<Props> = ({
             <div
               className="fortune-message-box-button button-default"
               onClick={onOk}
+              onKeyDown={activateOnEnter}
               tabIndex={0}
             >
               {button.confirm}
@@ -52,6 +62,7 @@ const Dialog: React.FC<Props> = ({
               <div
                 className="fortune-message-box-button button-primary"
                 onClick={onOk}
+                onKeyDown={activateOnEnter}
                 tabIndex={0}
               >
                 {button.confirm}
@@ -59,6 +70,7 @@ const Dialog: React.FC<Props> = ({
               <div
                 className="fortune-message-box-button button-default"
                 onClick={onCancel}
+                onKeyDown={activateOnEnter}
                 tabIndex={0}
               >
                 {button.cancel}

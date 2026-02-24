@@ -27,6 +27,14 @@ const CustomSort: React.FC<{}> = () => {
   const { sort } = locale(context);
   const { hideDialog } = useDialog();
 
+  const handleSortConfirm = useCallback(() => {
+    setContext((draftCtx: Context) => {
+      sortSelection(draftCtx, ascOrDesc, parseInt(selectedValue, 10));
+      draftCtx.contextMenu = {};
+    });
+    hideDialog();
+  }, [ascOrDesc, hideDialog, selectedValue, setContext]);
+
   const col_start = context.luckysheet_select_save![0].column[0];
   const col_end = context.luckysheet_select_save![0].column[1];
   const row_start = context.luckysheet_select_save![0].row[0];
@@ -162,14 +170,15 @@ const CustomSort: React.FC<{}> = () => {
       <div className="fortune-sort-button">
         <div
           className="button-basic button-primary"
-          onClick={() => {
-            setContext((draftCtx: Context) => {
-              sortSelection(draftCtx, ascOrDesc, parseInt(selectedValue, 10));
-              draftCtx.contextMenu = {};
-            });
-            hideDialog();
+          onClick={handleSortConfirm}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleSortConfirm();
+            }
           }}
           tabIndex={0}
+          role="button"
         >
           {sort.confirm}
         </div>
