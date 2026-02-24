@@ -19,7 +19,7 @@ import { useDialog } from "../../hooks/useDialog";
 type RadioChangeEvent = React.ChangeEvent<HTMLInputElement>;
 
 const CustomSort: React.FC<{}> = () => {
-  const [rangeColChar, setRangeColChar] = useState<String[]>([]);
+  const [rangeColChar, setRangeColChar] = useState<string[]>([]);
   const [ascOrDesc, setAscOrDesc] = useState(true);
   const { context, setContext } = useContext(WorkbookContext);
   const [selectedValue, setSelectedValue] = useState<string>("0");
@@ -31,6 +31,8 @@ const CustomSort: React.FC<{}> = () => {
   const col_end = context.luckysheet_select_save![0].column[1];
   const row_start = context.luckysheet_select_save![0].row[0];
   const row_end = context.luckysheet_select_save![0].row[1];
+  const startCell = `${indexToColumnChar(col_start)}${row_start + 1}`;
+  const endCell = `${indexToColumnChar(col_end)}${row_end + 1}`;
 
   const sheetIndex = getSheetIndex(context, context.currentSheetId) as number;
 
@@ -89,11 +91,9 @@ const CustomSort: React.FC<{}> = () => {
       <div className="fortune-sort-title">
         <span>
           <span>{sort.sortRangeTitle}</span>
-          {indexToColumnChar(col_start)}
-          {row_start + 1}
+          <span className="fortune-sort-title-range">{startCell}</span>
           <span>{sort.sortRangeTitleTo}</span>
-          {indexToColumnChar(col_end)}
-          {row_end + 1}
+          <span className="fortune-sort-title-range">{endCell}</span>
         </span>
       </div>
 
@@ -113,8 +113,15 @@ const CustomSort: React.FC<{}> = () => {
               <tbody>
                 <tr>
                   <td style={{ width: "190px" }}>
-                    {sort.sortBy}
-                    <select name="sort_0" onChange={handleSelectChange}>
+                    <label htmlFor="fortune-sort-by-select">
+                      {sort.sortBy}
+                    </label>
+                    <select
+                      id="fortune-sort-by-select"
+                      name="sort_0"
+                      className="fortune-sort-by-select"
+                      onChange={handleSelectChange}
+                    >
                       {rangeColChar.map((col, index) => {
                         return (
                           <option value={index} key={index}>

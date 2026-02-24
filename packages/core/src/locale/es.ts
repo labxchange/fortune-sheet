@@ -11390,7 +11390,7 @@ export default {
     sortBy: "Ordenar por",
     addOthers: "Añadir otra columna de ordenación",
     close: "cerrar",
-    confirm: "ordenar",
+    confirm: "Ordenar",
 
     columnOperation: "Columna",
     secondaryTitle: "y después por",

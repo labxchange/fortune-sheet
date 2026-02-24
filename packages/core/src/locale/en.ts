@@ -11424,7 +11424,7 @@ export default {
     sortBy: "Sort by",
     addOthers: "Add another sort column",
     close: "close",
-    confirm: "sort",
+    confirm: "Sort",
 
     columnOperation: "Column",
     secondaryTitle: "then by",
