@@ -36,6 +36,10 @@ export function generateAPIs(
   scrollbarX: HTMLDivElement | null,
   scrollbarY: HTMLDivElement | null
 ) {
+  type ApiCall = {
+    name: string;
+    args: any[];
+  };
   return {
     applyOp: (ops: Op[]) => {
       setContext(
@@ -170,6 +174,16 @@ export function generateAPIs(
         api.deleteRowOrColumn(draftCtx, type, start, end, options)
       ),
 
+    hideRowOrColumn: (rowOrColInfo: string[], type: "row" | "column") =>
+      setContext((draftCtx) =>
+        api.hideRowOrColumn(draftCtx, rowOrColInfo, type)
+      ),
+
+    showRowOrColumn: (rowOrColInfo: string[], type: "row" | "column") =>
+      setContext((draftCtx) =>
+        api.showRowOrColumn(draftCtx, rowOrColInfo, type)
+      ),
+
     setRowHeight: (
       rowInfo: Record<string, number>,
       options: api.CommonOptions = {},
@@ -246,7 +260,18 @@ export function generateAPIs(
     getSheet: (options: api.CommonOptions = {}) =>
       api.getSheetWithLatestCelldata(context, options),
 
-    addSheet: () => setContext((draftCtx) => api.addSheet(draftCtx, settings)),
+    addSheet: (sheetId?: string) => {
+      const existingSheetIds = api
+        .getAllSheets(context)
+        .map((sheet) => sheet.id || "");
+      if (sheetId && existingSheetIds.includes(sheetId)) {
+        console.error(
+          `Failed to add new sheet: A sheet with the id "${sheetId}" already exists. Please use a unique sheet id.`
+        );
+      } else {
+        setContext((draftCtx) => api.addSheet(draftCtx, settings, sheetId));
+      }
+    },
 
     deleteSheet: (options: api.CommonOptions = {}) =>
       setContext((draftCtx) => api.deleteSheet(draftCtx, options)),
@@ -298,11 +323,9 @@ export function generateAPIs(
     handleUndo,
     handleRedo,
 
-    calculateFormula: () => {
+    calculateFormula: (id?: string, range?: SingleRange) => {
       setContext((draftCtx) => {
-        _.forEach(draftCtx.luckysheetfile, (sheet_obj) => {
-          api.calculateSheetFromula(draftCtx, sheet_obj.id as string);
-        });
+        api.calculateFormula(draftCtx, id, range);
       });
     },
 
@@ -316,6 +339,19 @@ export function generateAPIs(
       colCount?: number
     ) => {
       return api.celldataToData(celldata, rowCount, colCount);
+    },
+
+    batchCallApis: (apiCalls: ApiCall[]) => {
+      setContext((draftCtx) => {
+        apiCalls.forEach((apiCall) => {
+          const { name, args } = apiCall;
+          if (typeof (api as any)[name] === "function") {
+            (api as any)[name](draftCtx, ...args);
+          } else {
+            console.warn(`API ${name} does not exist`);
+          }
+        });
+      });
     },
   };
 }

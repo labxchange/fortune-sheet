@@ -1,4 +1,4 @@
-import _, { isPlainObject } from "lodash";
+import _ from "lodash";
 import type { Sheet as SheetType, Freezen, Range } from "../types";
 import { Context, getFlowdata } from "../context";
 import {
@@ -9,7 +9,6 @@ import {
   mergeBorder,
   mergeMoveMain,
 } from "./cell";
-import { delFunctionGroup } from "./formula";
 import clipboard from "./clipboard";
 import { getBorderInfoCompute } from "./border";
 import {
@@ -404,7 +403,7 @@ export function pasteHandlerOfPaintModel(
               c_dataVerification[`${c_r1 + h - mth}_${c_c1 + c - mtc}`];
           }
 
-          if (isPlainObject(x[c]) && x[c].mc) {
+          if (_.isPlainObject(x[c]) && x[c].mc) {
             if (x[c].mc.rs) {
               delete cfg.merge[`${x[c].mc.r}_${x[c].mc.c}`];
             }
@@ -416,7 +415,7 @@ export function pasteHandlerOfPaintModel(
             value = copyData[h - mth][c - mtc];
           }
 
-          if (isPlainObject(x[c])) {
+          if (_.isPlainObject(x[c])) {
             if (x[c].ct && x[c].ct.t === "inlineStr" && value) {
               delete value.ct;
             } else {
@@ -2053,18 +2052,6 @@ export function copy(ctx: Context) {
 }
 
 export function deleteSelectedCellText(ctx: Context): string {
-  // if (
-  //   !checkProtectionLockedRangeList(
-  //     ctx.luckysheet_select_save,
-  //     ctx.currentSheetId
-  //   )
-  // ) {
-  //   return;
-  // }
-
-  // $("#luckysheet-rightclick-menu").hide();
-  // luckysheetContainerFocus();
-
   const allowEdit = isAllowEdit(ctx);
   if (allowEdit === false) {
     return "allowEdit";
@@ -2089,16 +2076,9 @@ export function deleteSelectedCellText(ctx: Context): string {
       }
     }
     if (has_PartMC) {
-      // const locale_drag = locale().drag;
-
-      // if (isEditMode()) {
-      //   alert(locale_drag.noPartMerge);
-      // } else {
-      //   tooltip.info(locale_drag.noPartMerge, "");
-      // }
-
       return "partMC";
     }
+
     const hyperlinkMap =
       ctx.luckysheetfile[getSheetIndex(ctx, ctx.currentSheetId)!].hyperlink;
 
@@ -2107,34 +2087,23 @@ export function deleteSelectedCellText(ctx: Context): string {
       const r2 = selection[s].row[1];
       const c1 = selection[s].column[0];
       const c2 = selection[s].column[1];
+      const sheetIndex = getSheetIndex(ctx, ctx.currentSheetId);
+      if (sheetIndex !== null && ctx.luckysheetfile[sheetIndex].data) {
+        const { data = [] } = ctx.luckysheetfile[sheetIndex] ?? {};
 
-      for (let r = r1; r <= r2; r += 1) {
-        for (let c = c1; c <= c2; c += 1) {
-          // if (pivotTable.isPivotRange(r, c)) {
-          //   continue;
-          // }
+        for (let r = r1; r <= r2; r += 1) {
+          for (let c = c1; c <= c2; c += 1) {
+            // Ensure the row exists
+            if (!data[r]) data[r] = [];
 
-          if (_.isPlainObject(d[r][c])) {
-            const cell = d[r][c]!;
-            delete cell.m;
-            delete cell.v;
-
-            if (cell.f != null) {
-              delete cell.f;
-              delFunctionGroup(ctx, r, c, ctx.currentSheetId);
-
-              delete cell.spl;
+            // Replace the entire cell with an empty object
+            if (data[r] && data[r][c]) {
+              data[r][c] = {}; // Fully replace cell with empty object
             }
 
-            if (cell.ct != null && cell.ct.t === "inlineStr") {
-              delete cell.ct;
+            if (hyperlinkMap && hyperlinkMap[`${r}_${c}`]) {
+              delete hyperlinkMap[`${r}_${c}`];
             }
-          } else {
-            d[r][c] = null;
-          }
-          // 同步清除 hyperlink
-          if (hyperlinkMap && hyperlinkMap[`${r}_${c}`]) {
-            delete hyperlinkMap[`${r}_${c}`];
           }
         }
       }

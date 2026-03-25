@@ -10925,6 +10925,7 @@ export default {
     moreFormats: "More formats",
     "border-all": "Border All",
     "merge-all": "Merge All Cell",
+    format: "Format",
     font: "Font",
     "font-size": "Font size",
     bold: "Bold (Ctrl+B)",
@@ -11067,6 +11068,33 @@ export default {
     tipRowHeightLimit: "Row height must be between 0 ~ 545",
     tipColumnWidthLimit: "The column width must be between 0 ~ 2038",
     pageInfoFull: "Total ${total}，${totalPage} page，All data displayed",
+
+    sheetIsFocused: "Sheet focus lock enabled.",
+    sheetNotFocused: "Sheet focus lock disabled.",
+    sheetSrIntro:
+      "To toggle sheet focus to assist with toolbar and other non-sheet navigation, use Shift, Control, F.",
+    currentCellInput: "Current cell input",
+    newSheet: "New sheet",
+    sheetOptions: "Sheet options",
+    Dropdown: "Dropdown",
+    zoomIn: "Zoom in",
+    zoomOut: "Zoom out",
+    toggleSheetFocusShortcut: "Toggle sheet focus lock: Shift, Control, F.",
+    selectRangeShortcut: "Select range: Shift, arrow keys.",
+    autoFillDownShortcut:
+      "Auto-fill selection down from first cell: Control or Meta key, D.",
+    autoFillRightShortcut:
+      "Auto-fill selection right from first cell: Control or Meta key, R.",
+    boldTextShortcut: "Bold text: Control or Meta key, B.",
+    copyShortcut: "Copy: Control or Meta key, C.",
+    pasteShortcut: "Paste: Control or Meta key, V.",
+    undoShortcut: "Undo: Control or Meta key, Z.",
+    redoShortcut: "Redo: Control or Meta key, Shift, Z.",
+    deleteCellContentShortcut: "Delete cell content: Delete or Backspace.",
+    confirmCellEditShortcut: "Confirm cell edit and move down: Enter.",
+    moveRightShortcut: "Move right: Tab.",
+    moveLeftShortcut: "Move left: Shift, Tab.",
+    shortcuts: "Keyboard Shortcuts",
   },
   currencyDetail: [
     { name: "RMB", pos: "before", value: "¥" },
@@ -11217,7 +11245,7 @@ export default {
     { name: "Iraqi Dinar", pos: "before", value: "din" },
     { name: "Iranian Rial", pos: "before", value: "Rial" },
     { name: "New Israeli Shekel", pos: "before", value: "?" },
-    { name: "Indian Rupee", pos: "before", value: "?" },
+    { name: "Indian Rupee", pos: "before", value: "₹" },
     { name: "Indonesian Rupiah", pos: "before", value: "Rp" },
     { name: "Jordanian Dinar", pos: "before", value: "din" },
     { name: "VND", pos: "after", value: "?" },
@@ -11226,7 +11254,12 @@ export default {
     { name: "Chilean Peso", pos: "before", value: "$" },
     { name: "CFA Franc BEAC", pos: "before", value: "FCFA" },
   ],
-  defaultFmt: [
+  numberFmtList: [
+    { name: "Volts", pos: "after", value: "V" },
+    { name: "Ampere", pos: "after", value: "A" },
+    { name: "Ohms", pos: "after", value: "Ω" },
+  ],
+  defaultFmt: (currency: string) => [
     { text: "Automatic", value: "General", example: "" },
     { text: "Plain text", value: "@", example: "" },
     { text: "", value: "split", example: "" },
@@ -11234,9 +11267,17 @@ export default {
     { text: "Percent", value: "#0.00%", example: "12.21%" },
     { text: "Scientific", value: "0.00E+00", example: "1.01E+5" },
     { text: "", value: "split", example: "" },
-    { text: "Accounting", value: "$(0.00)", example: "$(1200.09)" },
+    {
+      text: "Accounting",
+      value: `${currency}(0.00)`,
+      example: `${currency}(1200.09)`,
+    },
 
-    { text: "Currency", value: "$0.00", example: "$1200.09" },
+    {
+      text: "Currency",
+      value: `${currency}0.00`,
+      example: `${currency}1200.09`,
+    },
 
     { text: "", value: "split", example: "" },
     { text: "Date", value: "yyyy-MM-dd", example: "2017-11-29" },

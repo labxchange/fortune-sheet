@@ -19,6 +19,7 @@ import { jfrefreshgrid } from "../modules/refresh";
 import { setRowHeight } from "../api";
 import { CFSplitRange } from "../modules";
 import clipboard from "../modules/clipboard";
+import { setFormulaCellInfo } from "../modules/formulaHelper";
 
 function postPasteCut(
   ctx: Context,
@@ -32,6 +33,7 @@ function postPasteCut(
   // clearTimeout(refreshCanvasTimeOut);
   for (let r = source.range.row[0]; r <= source.range.row[1]; r += 1) {
     for (let c = source.range.column[0]; c <= source.range.column[1]; c += 1) {
+      setFormulaCellInfo(ctx, { r, c, id: source.sheetId });
       if (`${r}_${c}_${source.sheetId}` in execF_rc) {
         continue;
       }
@@ -43,6 +45,7 @@ function postPasteCut(
 
   for (let r = target.range.row[0]; r <= target.range.row[1]; r += 1) {
     for (let c = target.range.column[0]; c <= target.range.column[1]; c += 1) {
+      setFormulaCellInfo(ctx, { r, c, id: source.sheetId });
       if (`${r}_${c}_${target.sheetId}` in execF_rc) {
         continue;
       }
@@ -1224,6 +1227,11 @@ function pasteHandlerOfCopyPaste(
   let mtc = 0;
   let maxcellCahe = 0;
   let maxrowCache = 0;
+
+  const file = ctx.luckysheetfile[getSheetIndex(ctx, ctx.currentSheetId)!];
+  const hiddenRows = new Set(Object.keys(file.config?.rowhidden || {}));
+  const hiddenCols = new Set(Object.keys(file.config?.colhidden || {}));
+
   for (let th = 1; th <= timesH; th += 1) {
     for (let tc = 1; tc <= timesC; tc += 1) {
       mth = minh + (th - 1) * copyh;
@@ -1237,9 +1245,12 @@ function pasteHandlerOfCopyPaste(
 
       const offsetMC: any = {};
       for (let h = mth; h < maxrowCache; h += 1) {
+        // skip if row is hidden
+        if (hiddenRows?.has(h.toString())) continue;
         const x = d[h];
 
         for (let c = mtc; c < maxcellCahe; c += 1) {
+          if (hiddenCols?.has(c.toString())) continue;
           if (
             borderInfoCompute[`${c_r1 + h - mth}_${c_c1 + c - mtc}`] &&
             !borderInfoCompute[`${c_r1 + h - mth}_${c_c1 + c - mtc}`].s
@@ -1362,6 +1373,8 @@ function pasteHandlerOfCopyPaste(
 
               if (!_.isNil(value.ct) && !_.isNil(value.ct.fa)) {
                 value.m = update(value.ct.fa, funcV[1]);
+              } else {
+                value.m = update("General", funcV[1]);
               }
             }
           }
@@ -1446,7 +1459,6 @@ function pasteHandlerOfCopyPaste(
   last.row = [minh, maxh];
   last.column = [minc, maxc];
 
-  const file = ctx.luckysheetfile[getSheetIndex(ctx, ctx.currentSheetId)!];
   file.config = cfg;
   file.luckysheet_conditionformat_save = cdformat;
   file.dataVerification = { ...file.dataVerification, ...dataVerification };
@@ -1500,6 +1512,24 @@ function pasteHandlerOfCopyPaste(
     jfrefreshgrid(ctx, d, ctx.luckysheet_select_save);
     // selectHightlightShow();
   }
+}
+
+function handleFormulaStringPaste(ctx: Context, formulaStr: string) {
+  // plaintext formula is applied only to one cell
+  const r = ctx.luckysheet_select_save![0].row[0];
+  const c = ctx.luckysheet_select_save![0].column[0];
+
+  const funcV = execfunction(ctx, formulaStr, r, c, undefined, undefined, true);
+
+  const val = funcV[1];
+
+  const d = getFlowdata(ctx);
+  if (!d) return;
+
+  if (!d[r][c]) d[r][c] = {};
+  d[r][c]!.m = val.toString();
+  d[r][c]!.v = val;
+  d[r][c]!.f = formulaStr;
 }
 
 export function handlePaste(ctx: Context, e: ClipboardEvent) {
@@ -1980,8 +2010,13 @@ export function handlePaste(ctx: Context, e: ClipboardEvent) {
         //   imageCtrl.insertImg(clipboardData.files[0]);
       } else {
         txtdata = clipboardData.getData("text/plain");
+        const isExcelFormula = txtdata.startsWith("=");
 
-        pasteHandler(ctx, txtdata);
+        if (isExcelFormula) {
+          handleFormulaStringPaste(ctx, txtdata);
+        } else {
+          pasteHandler(ctx, txtdata);
+        }
       }
     }
   } else if (ctx.luckysheetCellUpdate.length > 0) {
@@ -2020,6 +2055,10 @@ export function handlePasteByClick(
   const data = textarea?.innerHTML || textarea?.textContent;
   if (!data) return;
 
+  if (ctx.hooks.beforePaste?.(ctx.luckysheet_select_save, data) === false) {
+    return;
+  }
+
   if (
     data.indexOf("fortune-copy-action-table") > -1 &&
     ctx.luckysheet_copy_save?.copyRange != null &&
@@ -2035,7 +2074,13 @@ export function handlePasteByClick(
   } else if (data.indexOf("fortune-copy-action-image") > -1) {
     // imageCtrl.pasteImgItem();
   } else if (triggerType !== "btn") {
-    pasteHandler(ctx, data);
+    const isExcelFormula = clipboardData.startsWith("=");
+
+    if (isExcelFormula) {
+      handleFormulaStringPaste(ctx, clipboardData);
+    } else {
+      pasteHandler(ctx, clipboardData);
+    }
   } else {
     // if (isEditMode()) {
     //   alert(local_drag.pasteMustKeybordAlert);

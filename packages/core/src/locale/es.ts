@@ -10907,6 +10907,7 @@ export default {
     numberDecrease: "Menos decimales",
     numberIncrease: "Más decimales",
     moreFormats: "Más formatos",
+    format: "Formato",
     font: "Fuente",
     "font-size": "Tamaño Fuente",
     bold: "Negrita (Ctrl+B)",
@@ -11039,6 +11040,36 @@ export default {
     tipColumnWidthLimit: "El ancho de la columna debe estar entre 0 ~ 2038",
     pageInfoFull:
       "Total ${total}，página ${totalPage}，Se muestran todos los datos",
+
+    sheetIsFocused: "Bloqueo de enfoque de hoja habilitado.",
+    sheetNotFocused: "Bloqueo de enfoque de hoja desactivado.",
+    sheetSrIntro:
+      "Para alternar el foco de la hoja para ayudar con la barra de herramientas y otra navegación que no sea de hoja, use Mayús, Control, F.",
+    currentCellInput: "Entrada de celda actual",
+    newSheet: "Nueva hoja",
+    sheetOptions: "Opciones de hoja",
+    Dropdown: "Menú desplegable",
+    zoomIn: "Dar un golpe de zoom",
+    zoomOut: "alejar",
+    toggleSheetFocusShortcut:
+      "Alternar bloqueo de enfoque de hoja: Shift, Control, F.",
+    selectRangeShortcut: "Seleccionar rango: Shift, teclas de flecha.",
+    autoFillDownShortcut:
+      "Autocompletar selección hacia abajo desde la primera celda: Control o Meta, D.",
+    autoFillRightShortcut:
+      "Autocompletar selección hacia la derecha desde la primera celda: Control o Meta, R.",
+    boldTextShortcut: "Texto en negrita: Control o Meta, B.",
+    copyShortcut: "Copiar: Control o Meta, C.",
+    pasteShortcut: "Pegar: Control o Meta, V.",
+    undoShortcut: "Deshacer: Control o Meta, Z.",
+    redoShortcut: "Rehacer: Control o Meta, Shift, Z.",
+    deleteCellContentShortcut:
+      "Eliminar contenido de celda: Delete o Backspace.",
+    confirmCellEditShortcut:
+      "Confirmar edición de celda y mover hacia abajo: Enter.",
+    moveRightShortcut: "Mover a la derecha: Tab.",
+    moveLeftShortcut: "Mover a la izquierda: Shift, Tab.",
+    shortcuts: "Atajos de teclado",
   },
   currencyDetail: {
     RMB: "RMB",
@@ -11199,7 +11230,12 @@ export default {
     ChileanPeso: "Chilean Peso",
     CFAFrancBEAC: "CFA Franc BEAC",
   },
-  defaultFmt: [
+  numberFmtList: [
+    { name: "Volts", pos: "after", value: "V" },
+    { name: "Ampere", pos: "after", value: "A" },
+    { name: "Ohms", pos: "after", value: "Ω" },
+  ],
+  defaultFmt: (currency: string) => [
     { text: "Automático", value: "General", example: "" },
     { text: "Texto", value: "@", example: "" },
     { text: "", value: "split", example: "" },
@@ -11207,9 +11243,13 @@ export default {
     { text: "Porcentaje", value: "#0.00%", example: "12.21%" },
     { text: "Científico", value: "0.00E+00", example: "1.01E+5" },
     { text: "", value: "split", example: "" },
-    { text: "Contabilidad", value: "¥(0.00)", example: "¥(1200.09)" },
+    {
+      text: "Contabilidad",
+      value: `${currency}(0.00)`,
+      example: `${currency}(1200.09)`,
+    },
 
-    { text: "Moneda", value: "¥0.00", example: "¥1200.09" },
+    { text: "Moneda", value: `${currency}0.00`, example: `${currency}1200.09` },
 
     { text: "", value: "split", example: "" },
     { text: "Fecha", value: "yyyy-MM-dd", example: "2017-11-29" },

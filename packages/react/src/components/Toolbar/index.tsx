@@ -93,6 +93,8 @@ const Toolbar: React.FC<{
   } = locale(context);
   const toolbarFormat = locale(context).format;
   const sheetWidth = context.luckysheetTableContentHW[0];
+  const { currency } = settings;
+  const defaultFormat = defaultFmt(currency);
 
   const [customColor, setcustomColor] = useState("#000000");
   const [customStyle, setcustomStyle] = useState("1");
@@ -260,15 +262,15 @@ const Toolbar: React.FC<{
         );
       }
       if (name === "format") {
-        let currentFmt = defaultFmt[0].text;
+        let currentFmt = defaultFormat[0].text;
         if (cell) {
           const curr = normalizedCellAttr(cell, "ct");
-          const format = _.find(defaultFmt, (v) => v.value === curr?.fa);
+          const format = _.find(defaultFormat, (v) => v.value === curr?.fa);
           if (curr?.fa != null) {
             if (format != null) {
               currentFmt = format.text;
             } else {
-              currentFmt = defaultFmt[defaultFmt.length - 1].text;
+              currentFmt = defaultFormat[defaultFormat.length - 1].text;
             }
           }
         }
@@ -276,7 +278,7 @@ const Toolbar: React.FC<{
           <Combo text={currentFmt} key={name} tooltip={tooltip}>
             {(setOpen) => (
               <Select>
-                {defaultFmt.map(({ text, value, example }, ii) => {
+                {defaultFormat.map(({ text, value, example }, ii) => {
                   if (value === "split") {
                     return <MenuDivider key={ii} />;
                   }
@@ -308,6 +310,18 @@ const Toolbar: React.FC<{
                                   <FormatSearch
                                     onCancel={hideDialog}
                                     type="currency"
+                                  />
+                                );
+                                setOpen(false);
+                              },
+                            },
+                            {
+                              text: toolbarFormat.moreNumber,
+                              onclick: () => {
+                                showDialog(
+                                  <FormatSearch
+                                    onCancel={hideDialog}
+                                    type="number"
                                   />
                                 );
                                 setOpen(false);
@@ -1416,7 +1430,7 @@ const Toolbar: React.FC<{
       refs.cellInput,
       refs.fxInput,
       refs.globalCache,
-      defaultFmt,
+      defaultFormat,
       align,
       handleUndo,
       handleRedo,
@@ -1445,54 +1459,58 @@ const Toolbar: React.FC<{
       customColor,
       customStyle,
       toolbarFormat.moreCurrency,
+      toolbarFormat.moreNumber,
     ]
   );
 
   return (
-    <div
-      ref={containerRef}
-      className="fortune-toolbar"
-      aria-label={toolbar.toolbar}
-    >
-      {settings.customToolbarItems.map((n) => {
-        return (
-          <CustomButton
-            tooltip={n.tooltip}
-            onClick={n.onClick}
-            key={n.key}
-            icon={n.icon}
-            iconName={n.iconName}
-          >
-            {n.children}
-          </CustomButton>
-        );
-      })}
-      {settings.customToolbarItems?.length > 0 ? (
-        <Divider key="customDivider" />
-      ) : null}
-      {(toolbarWrapIndex === -1
-        ? settings.toolbarItems
-        : settings.toolbarItems.slice(0, toolbarWrapIndex + 1)
-      ).map((name, i) => getToolbarItem(name, i))}
-      {toolbarWrapIndex !== -1 &&
-      toolbarWrapIndex < settings.toolbarItems.length - 1 ? (
-        <Button
-          iconId="more"
-          tooltip={toolbar.toolMore}
-          onClick={() => {
-            if (moreItemsOpen) {
-              setMoreItems(null);
-            } else {
-              setMoreItems(
-                settings.toolbarItems
-                  .slice(toolbarWrapIndex + 1)
-                  .map((name, i) => getToolbarItem(name, i))
-              );
-            }
-          }}
-        />
-      ) : null}
-    </div>
+    <header>
+      <div
+        ref={containerRef}
+        className="fortune-toolbar"
+        role="toolbar"
+        aria-label={toolbar.toolbar}
+      >
+        {settings.customToolbarItems.map((n) => {
+          return (
+            <CustomButton
+              tooltip={n.tooltip}
+              onClick={n.onClick}
+              key={n.key}
+              icon={n.icon}
+              iconName={n.iconName}
+            >
+              {n.children}
+            </CustomButton>
+          );
+        })}
+        {settings.customToolbarItems?.length > 0 ? (
+          <Divider key="customDivider" />
+        ) : null}
+        {(toolbarWrapIndex === -1
+          ? settings.toolbarItems
+          : settings.toolbarItems.slice(0, toolbarWrapIndex + 1)
+        ).map((name, i) => getToolbarItem(name, i))}
+        {toolbarWrapIndex !== -1 &&
+        toolbarWrapIndex < settings.toolbarItems.length - 1 ? (
+          <Button
+            iconId="more"
+            tooltip={toolbar.toolMore}
+            onClick={() => {
+              if (moreItemsOpen) {
+                setMoreItems(null);
+              } else {
+                setMoreItems(
+                  settings.toolbarItems
+                    .slice(toolbarWrapIndex + 1)
+                    .map((name, i) => getToolbarItem(name, i))
+                );
+              }
+            }}
+          />
+        ) : null}
+      </div>
+    </header>
   );
 };
 

@@ -19,6 +19,7 @@ import {
 } from "@fortune-sheet/core";
 import _ from "lodash";
 import React, { useContext, useRef, useCallback, useLayoutEffect } from "react";
+import regeneratorRuntime from "regenerator-runtime";
 import WorkbookContext, { SetContextOptions } from "../../context";
 import { useAlert } from "../../hooks/useAlert";
 import { useDialog } from "../../hooks/useDialog";
@@ -60,14 +61,27 @@ const ContextMenu: React.FC = () => {
           </Menu>
         );
       }
-      if (name === "paste") {
+      if (name === "paste" && regeneratorRuntime) {
         return (
           <Menu
             key={name}
             onClick={async () => {
-              const clipboardText = await navigator.clipboard.readText();
+              let clipboardText = "";
+              const sessionClipboardText =
+                sessionStorage.getItem("localClipboard") || "";
+
+              try {
+                clipboardText = await navigator.clipboard.readText();
+              } catch (err) {
+                console.warn(
+                  "Clipboard access blocked. Attempting to use sessionStorage fallback."
+                );
+              }
+
+              const finalText = clipboardText || sessionClipboardText;
+
               setContext((draftCtx) => {
-                handlePasteByClick(draftCtx, clipboardText);
+                handlePasteByClick(draftCtx, finalText);
                 draftCtx.contextMenu = {};
               });
             }}
@@ -674,7 +688,7 @@ const ContextMenu: React.FC = () => {
         draftCtx.contextMenu.y = top;
       });
     }
-  }, [contextMenu.x, contextMenu.y, setContext]);
+  }, [contextMenu.x, contextMenu.y, refs.workbookContainer, setContext]);
 
   if (_.isEmpty(context.contextMenu)) return null;
 

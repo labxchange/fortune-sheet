@@ -77,14 +77,7 @@ const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
         };
       });
     },
-    [
-      filterOptions,
-      getContainer,
-      refs.scrollbarX,
-      refs.scrollbarY,
-      refs.workbookContainer,
-      setContext,
-    ]
+    [filterOptions, getContainer, refs.scrollbarX, refs.scrollbarY, setContext]
   );
 
   const freezeType = frozen?.type;

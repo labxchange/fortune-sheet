@@ -41,6 +41,7 @@ import {
 import { showLinkCard } from "./hyperlink";
 import { cfSplitRange } from "./conditionalFormat";
 import { getCellTextInfo } from "./text";
+import { setFormulaCellInfo } from "./formulaHelper";
 
 type ToolbarItemClickHandler = (
   ctx: Context,
@@ -901,6 +902,14 @@ export function autoSelectionFormula(
 
   if (!isfalse) {
     ctx.formulaCache.execFunctionExist.reverse();
+    ctx.formulaCache.execFunctionExist.forEach((formulaCell) => {
+      setFormulaCellInfo(
+        ctx,
+        { r: formulaCell.r, c: formulaCell.c, id: ctx.currentSheetId },
+        flowdata
+      );
+    });
+
     // @ts-ignore
     execFunctionGroup(ctx, null, null, null, null, flowdata);
     ctx.formulaCache.execFunctionGlobalData = null;
@@ -935,7 +944,9 @@ export function handleCurrencyFormat(ctx: Context, cellInput: HTMLDivElement) {
   const flowdata = getFlowdata(ctx);
   if (!flowdata) return;
 
-  updateFormat(ctx, cellInput, flowdata, "ct", "¥ #.00");
+  const currency = ctx.currency || "¥";
+
+  updateFormat(ctx, cellInput, flowdata, "ct", `${currency} #.00`);
 }
 
 export function handlePercentageFormat(

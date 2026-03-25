@@ -10924,6 +10924,7 @@ export default {
     "number-decrease": "दशमलव स्थान घटाएँ",
     "number-increase": "दशमलव स्थान बढ़ाएँ",
     moreFormats: "अधिक फॉर्मेट",
+    format: "प्रारूप",
     "border-all": "सभी सीमाएँ",
     "merge-all": "सभी सेल मिलाएँ",
     font: "फ़ॉन्ट",
@@ -11069,6 +11070,36 @@ export default {
     tipRowHeightLimit: "पंक्ति की ऊँचाई 0 ~ 545 के बीच होनी चाहिए",
     tipColumnWidthLimit: "कॉलम की चौड़ाई 0 ~ 2038 के बीच होनी चाहिए",
     pageInfoFull: "कुल ${total}，${totalPage} पृष्ठ，सभी डेटा प्रदर्शित",
+
+    sheetIsFocused: "शीट फोकस लॉक सक्षम।",
+    sheetNotFocused: "शीट फ़ोकस लॉक अक्षम किया गया.",
+    sheetSrIntro:
+      "टूलबार और अन्य गैर-शीट नेविगेशन में सहायता के लिए शीट फ़ोकस को टॉगल करने के लिए, Shift, Control, F का उपयोग करें।",
+    currentCellInput: "वर्तमान सेल इनपुट",
+    newSheet: "नई शीट",
+    sheetOptions: "शीट विकल्प",
+    Dropdown: "ड्रॉप डाउन",
+    zoomIn: "ज़ूम इन",
+    zoomOut: "ज़ूम आउट",
+    toggleSheetFocusShortcut:
+      "Alternar bloqueo de enfoque de hoja: Shift, Control, F.",
+    selectRangeShortcut: "Seleccionar rango: Shift, teclas de flecha.",
+    autoFillDownShortcut:
+      "Autocompletar selección hacia abajo desde la primera celda: Control o Meta, D.",
+    autoFillRightShortcut:
+      "Autocompletar selección hacia la derecha desde la primera celda: Control o Meta, R.",
+    boldTextShortcut: "Texto en negrita: Control o Meta, B.",
+    copyShortcut: "Copiar: Control o Meta, C.",
+    pasteShortcut: "Pegar: Control o Meta, V.",
+    undoShortcut: "Deshacer: Control o Meta, Z.",
+    redoShortcut: "Rehacer: Control o Meta, Shift, Z.",
+    deleteCellContentShortcut:
+      "Eliminar contenido de celda: Delete o Backspace.",
+    confirmCellEditShortcut:
+      "Confirmar edición de celda y mover hacia abajo: Enter.",
+    moveRightShortcut: "Mover a la derecha: Tab.",
+    moveLeftShortcut: "Mover a la izquierda: Shift, Tab.",
+    shortcuts: "कुंजीपटल अल्प मार्ग",
   },
   currencyDetail: [
     { name: "चीनी युआन", pos: "before", value: "¥" },
@@ -11232,7 +11263,12 @@ export default {
     { name: "चिली पेसो", pos: "before", value: "$" },
     { name: "सीएफए फ्रैंक बीईएसी", pos: "before", value: "FCFA" },
   ],
-  defaultFmt: [
+  numberFmtList: [
+    { name: "Volts", pos: "after", value: "V" },
+    { name: "Ampere", pos: "after", value: "A" },
+    { name: "Ohms", pos: "after", value: "Ω" },
+  ],
+  defaultFmt: (currency: string) => [
     { text: "स्वचालित", value: "General", example: "" },
     { text: "सादा टेक्स्ट", value: "@", example: "" },
     { text: "", value: "split", example: "" },
@@ -11240,9 +11276,13 @@ export default {
     { text: "प्रतिशत", value: "#0.00%", example: "12.21%" },
     { text: "वैज्ञानिक", value: "0.00E+00", example: "1.01E+5" },
     { text: "", value: "split", example: "" },
-    { text: "लेखांकन", value: "$(0.00)", example: "$(1200.09)" },
+    {
+      text: "लेखांकन",
+      value: `${currency}(0.00)`,
+      example: `${currency}(1200.09)`,
+    },
 
-    { text: "मुद्रा", value: "$0.00", example: "$1200.09" },
+    { text: "मुद्रा", value: `${currency}0.00`, example: `${currency}1200.09` },
 
     { text: "", value: "split", example: "" },
     { text: "दिनांक", value: "yyyy-MM-dd", example: "2017-11-29" },

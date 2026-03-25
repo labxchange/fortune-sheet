@@ -53,6 +53,7 @@ export type Context = {
   rangeDialog?: RangeDialogProps; // 坐标选区鼠标选择
   // 提醒弹窗
   warnDialog?: string;
+  currency?: string;
   dataVerification?: {
     selectStatus: boolean;
     selectRange: [];
@@ -61,6 +62,7 @@ export type Context = {
     optionLabel_zh_tw: any; // 中文提示消息
     optionLabel_es: any; // 中文提示消息
     optionLabel_hi: any;
+    optionLabel_ru: any;
     dataRegulation?: DataRegulationProps; // 数据验证规则
   };
   // 数据验证下拉列表
@@ -216,6 +218,8 @@ export type Context = {
   // 只读模式公式被引用单元格强制高光
   forceFormulaRef?: Boolean;
 
+  sheetFocused: boolean; // property to track sheet focus for keyboard navigation
+
   getRefs: () => RefValues;
 };
 
@@ -226,7 +230,8 @@ export function defaultContext(refs: RefValues): Context {
     defaultrowNum: 84,
     addDefaultRows: 50,
     fullscreenmode: true,
-    devicePixelRatio: (globalThis || window).devicePixelRatio,
+    devicePixelRatio: (typeof globalThis !== "undefined" ? globalThis : window)
+      .devicePixelRatio,
 
     contextMenu: {},
     sheetTabContextMenu: {},
@@ -236,6 +241,7 @@ export function defaultContext(refs: RefValues): Context {
     config: {},
     // 提醒弹窗
     warnDialog: undefined,
+    currency: "¥",
     rangeDialog: {
       show: false,
       rangeTxt: "",
@@ -266,6 +272,27 @@ export function defaultContext(refs: RefValues): Context {
         noLaterThan: "not later than",
         identificationNumber: "identification number",
         phoneNumber: "phone number",
+      },
+      optionLabel_ru: {
+        number: "числовое",
+        number_integer: "целое число",
+        number_decimal: "десятичное число",
+        between: "между",
+        notBetween: "не между",
+        equal: "равно",
+        notEqualTo: "не равно",
+        moreThanThe: "больше",
+        lessThan: "меньше",
+        greaterOrEqualTo: "больше или равно",
+        lessThanOrEqualTo: "меньше или равно",
+        include: "содержит",
+        exclude: "не содержит",
+        earlierThan: "раньше",
+        noEarlierThan: "не раньше",
+        laterThan: "позже",
+        noLaterThan: "не позже",
+        identificationNumber: "идентификационный номер",
+        phoneNumber: "номер телефона",
       },
       optionLabel_hi: {
         number: "संख्यात्मक",
@@ -466,6 +493,8 @@ export function defaultContext(refs: RefValues): Context {
     luckysheetPaintModelOn: false,
     luckysheetPaintSingle: false,
 
+    sheetFocused: true,
+
     // 默认单元格
     defaultCell: {
       bl: 0,
@@ -651,7 +680,7 @@ export function updateContextWithCanvas(
     placeholder.clientHeight,
   ];
   ctx.cellmainHeight = placeholder.clientHeight - ctx.columnHeaderHeight;
-  ctx.cellmainWidth = canvas.clientWidth - ctx.rowHeaderWidth;
+  ctx.cellmainWidth = placeholder.clientWidth - ctx.rowHeaderWidth;
 
   canvas.style.width = `${ctx.luckysheetTableContentHW[0]}px`;
   canvas.style.height = `${ctx.luckysheetTableContentHW[1]}px`;

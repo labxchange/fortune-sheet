@@ -473,20 +473,15 @@ export function getCellTextInfo(
           });
           similarIndex += 1;
         } else {
-          const newValueArray = newValue.split("");
-          for (let n = 0; n < newValueArray.length; n += 1) {
-            const nv = newValueArray[n];
-
-            inlineStringArr.push({
-              fontset: scfontset,
-              fc: !fc ? "#000" : fc,
-              cl: !cl ? 0 : cl,
-              un: !un ? 0 : un,
-              v: nv,
-              si: similarIndex,
-              fs: !fs ? 11 : fs,
-            });
-          }
+          inlineStringArr.push({
+            fontset: scfontset,
+            fc: !fc ? "#000" : fc,
+            cl: !cl ? 0 : cl,
+            un: !un ? 0 : un,
+            v: newValue,
+            si: similarIndex,
+            fs: !fs ? 11 : fs,
+          });
 
           if (x !== splitArr.length - 1) {
             inlineStringArr.push({
@@ -1067,6 +1062,7 @@ export function getCellTextInfo(
         }
       } else {
         value = value.toString();
+        let parsedTextHeight = 0;
         while (i <= value.length) {
           const str = value.substring(anchor, i);
           const measureText = getMeasureText(str, renderCtx, sheetCtx);
@@ -1197,8 +1193,10 @@ export function getCellTextInfo(
                 });
 
                 splitIndex += 1;
-
                 spaceOrTwoByte = null;
+
+                parsedTextHeight += preTextHeight;
+                if (parsedTextHeight >= cellHeight) break;
               } else {
                 spaceOrTwoByte = null;
                 anchor = i - 1;
@@ -1215,10 +1213,10 @@ export function getCellTextInfo(
                   desc: preMeasureText.actualBoundingBoxDescent,
                   fs: fontSize,
                 });
-
-                // console.log(2);
-
                 splitIndex += 1;
+
+                parsedTextHeight += preTextHeight;
+                if (parsedTextHeight >= cellHeight) break;
               }
             } else if (i === value.length) {
               if (_.isNil(text_all_split[splitIndex])) {

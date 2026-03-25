@@ -1,3 +1,4 @@
+import _ from "lodash";
 import {
   colLocationByIndex,
   Context,
@@ -39,9 +40,9 @@ export function dataRangeSelection(
     ctx.luckysheetCellUpdate = [row_index, col_index];
 
     const range = getRangeByTxt(ctx, rangT);
-    const r = range[0].row;
-    const c = range[0].column;
-
+    const r = range[0]?.row;
+    const c = range[0]?.column;
+    if (_.isNil(r) || _.isNil(c)) return;
     const row_pre = rowLocationByIndex(r[0], ctx.visibledatarow)[0];
     const row = rowLocationByIndex(r[1], ctx.visibledatarow)[1];
     const col_pre = colLocationByIndex(c[0], ctx.visibledatacolumn)[0];
@@ -69,9 +70,12 @@ export function getDropdownList(ctx: Context, txt: string) {
   const list: (string | number | boolean)[] = [];
   if (iscelldata(txt)) {
     const range = getcellrange(ctx, txt);
-    const index = getSheetIndex(ctx, range.sheetId) as number;
+    const index = getSheetIndex(
+      ctx,
+      range?.sheetId || ctx.currentSheetId
+    ) as number;
     const d = ctx.luckysheetfile[index].data;
-    if (!d) return [];
+    if (!d || !range) return [];
     for (let r = range.row[0]; r <= range.row[1]; r += 1) {
       for (let c = range.column[0]; c <= range.column[1]; c += 1) {
         if (!d[r]) {
@@ -357,49 +361,7 @@ export function getFailureText(ctx: Context, item: any) {
   const { lang } = ctx;
 
   const { type, type2, value1, value2 } = item;
-  if (lang === "en") {
-    const optionLabel_en = ctx.dataVerification?.optionLabel_en;
-    if (type === "dropdown") {
-      failureText += "what you selected is not an option in the drop-down list";
-    } else if (type === "checkbox") {
-    } else if (
-      type === "number" ||
-      type === "number_integer" ||
-      type === "number_decimal"
-    ) {
-      failureText += `what you entered is not a ${optionLabel_en[item.type]} ${
-        optionLabel_en[item.type2]
-      } ${item.value1}`;
-
-      if (item.type2 === "between" || item.type2 === "notBetween") {
-        failureText += ` and ${item.value2}`;
-      }
-    } else if (type === "text_content") {
-      failureText += `what you entered is not text that ${
-        optionLabel_en[item.type2]
-      } ${item.value1}`;
-    } else if (type === "text_length") {
-      failureText += `the text you entered is not length ${
-        optionLabel_en[item.type2]
-      } ${item.value1}`;
-
-      if (item.type2 === "between" || item.type2 === "notBetween") {
-        failureText += ` and ${item.value2}`;
-      }
-    } else if (type === "date") {
-      failureText += `the date you entered is not ${
-        optionLabel_en[item.type2]
-      } ${item.value1}`;
-
-      if (type2 === "between" || type2 === "notBetween") {
-        failureText += ` and ${item.value2}`;
-      }
-    } else if (type === "validity") {
-      failureText += `what you entered is not a correct ${
-        optionLabel_en[item.type2]
-      }`;
-    }
-  } else if (lang === "zh" || lang === "zh-CN") {
+  if (lang === "zh" || lang === "zh-CN") {
     const optionLabel_zh = ctx.dataVerification?.optionLabel_zh;
     if (type === "dropdown") {
       failureText += "你选择的不是下拉列表中的选项";
@@ -556,6 +518,91 @@ export function getFailureText(ctx: Context, item: any) {
         optionLabel_hi[item.type2]
       } नहीं है।`;
     }
+  } else if (lang === "ru") {
+    const optionLabel_ru = ctx.dataVerification?.optionLabel_ru;
+    if (type === "dropdown") {
+      failureText += "выбранный вами вариант отсутствует в выпадающем списке";
+    } else if (type === "checkbox") {
+    } else if (
+      type === "number" ||
+      type === "number_integer" ||
+      type === "number_decimal"
+    ) {
+      failureText += `введённое значение не является ${
+        optionLabel_ru[item.type]
+      } ${optionLabel_ru[item.type2]} ${item.value1}`;
+
+      if (item.type2 === "between" || item.type2 === "notBetween") {
+        failureText += ` и ${item.value2}`;
+      }
+    } else if (type === "text_content") {
+      failureText += `введённый текст не соответствует условию: ${
+        optionLabel_ru[item.type2]
+      } ${item.value1}`;
+    } else if (type === "text_length") {
+      failureText += `длина введённого текста не ${
+        optionLabel_ru[item.type2]
+      } ${item.value1} `;
+
+      if (item.type2 === "between" || item.type2 === "notBetween") {
+        failureText += `и ${item.value2}`;
+      }
+    } else if (type === "date") {
+      failureText += `введённая дата не ${
+        optionLabel_ru[item.type2][item.type2]
+      } ${item.value1} `;
+
+      if (type2 === "between" || type2 === "notBetween") {
+        failureText += `и ${item.value2}`;
+      }
+    } else if (type === "validity") {
+      failureText += `введённое значение некорректно: ${
+        optionLabel_ru[item.type2][item.type2]
+      } `;
+    }
+  } else {
+    // default language english (en, en-US, en-GB, etc.)
+    const optionLabel_en = ctx.dataVerification?.optionLabel_en;
+    if (type === "dropdown") {
+      failureText += "what you selected is not an option in the drop-down list";
+    } else if (type === "checkbox") {
+    } else if (
+      type === "number" ||
+      type === "number_integer" ||
+      type === "number_decimal"
+    ) {
+      failureText += `what you entered is not a ${optionLabel_en[item.type]} ${
+        optionLabel_en[item.type2]
+      } ${item.value1}`;
+
+      if (item.type2 === "between" || item.type2 === "notBetween") {
+        failureText += ` and ${item.value2}`;
+      }
+    } else if (type === "text_content") {
+      failureText += `what you entered is not text that ${
+        optionLabel_en[item.type2]
+      } ${item.value1}`;
+    } else if (type === "text_length") {
+      failureText += `the text you entered is not length ${
+        optionLabel_en[item.type2]
+      } ${item.value1}`;
+
+      if (item.type2 === "between" || item.type2 === "notBetween") {
+        failureText += ` and ${item.value2}`;
+      }
+    } else if (type === "date") {
+      failureText += `the date you entered is not ${
+        optionLabel_en[item.type2]
+      } ${item.value1}`;
+
+      if (type2 === "between" || type2 === "notBetween") {
+        failureText += ` and ${item.value2}`;
+      }
+    } else if (type === "validity") {
+      failureText += `what you entered is not a correct ${
+        optionLabel_en[item.type2]
+      }`;
+    }
   }
   return failureText;
 }
@@ -707,6 +754,33 @@ export function getHintText(ctx: Context, item: any) {
       } else if (type === "validity") {
         hintValue += `Por favor, introduzca lo correcto.${optionLabel_es[type2]}`;
       }
+    } else if (lang === "ru") {
+      const optionLabel_ru = ctx.dataVerification?.optionLabel_ru;
+
+      if (type === "dropdown") {
+        hintValue += "пожалуйста, выберите вариант из выпадающего списка";
+      } else if (type === "checkbox") {
+      } else if (
+        type === "number" ||
+        type === "number_integer" ||
+        type === "number_decimal"
+      ) {
+        hintValue += `пожалуйста, введите ${optionLabel_ru[type]} значение, которое ${optionLabel_ru[type2]} ${item.value1}`;
+
+        if (type2 === "between" || type2 === "notBetween") {
+          hintValue += ` и ${value2}`;
+        }
+      } else if (type === "text_content") {
+        hintValue += `пожалуйста, введите текст, который ${optionLabel_ru[type2]} ${value1}`;
+      } else if (type === "date") {
+        hintValue += `пожалуйста, введите дату, которая ${optionLabel_ru[type2]} ${value1}`;
+
+        if (type2 === "between" || type2 === "notBetween") {
+          hintValue += ` и ${value2}`;
+        }
+      } else if (type === "validity") {
+        hintValue += `пожалуйста, введите корректный ${optionLabel_ru[type2]}`;
+      }
     }
   }
 
@@ -770,6 +844,8 @@ export function cellFocus(
     const { lang } = ctx;
     if (lang === "en") {
       hintText = '<span style="color:#f5a623;">Hint: </span>';
+    } else if (lang === "ru") {
+      hintText = '<span style="color:#f5a623;">Подсказка: </span>';
     } else if (lang === "zh" || lang === "zh-CN") {
       hintText = '<span style="color:#f5a623;">提示：</span>';
     } else if (lang === "zh-TW") {
@@ -797,6 +873,8 @@ export function cellFocus(
     const { lang } = ctx;
     if (lang === "en") {
       failureText = '<span style="color:#f72626;">Failure: </span>';
+    } else if (lang === "ru") {
+      failureText = '<span style="color:#f72626;">Ошибка: </span>';
     } else if (lang === "zh" || lang === "zh-CN") {
       failureText = '<span style="color:#f72626;">失效：</span>';
     } else if (lang === "zh-TW") {
@@ -853,12 +931,13 @@ export function confirmMessage(
     ctx.warnDialog = generalDialog.noSeletionError;
     return false;
   }
-  let str = range[range.length - 1].row[0];
-  let edr = range[range.length - 1].row[1];
-  let stc = range[range.length - 1].column[0];
-  let edc = range[range.length - 1].column[1];
+  let str = range[range.length - 1]?.row[0];
+  let edr = range[range.length - 1]?.row[1];
+  let stc = range[range.length - 1]?.column[0];
+  let edc = range[range.length - 1]?.column[1];
   const d = getFlowdata(ctx);
-  if (!d) return false;
+  if (!d || _.isNil(str) || _.isNil(edr) || _.isNil(stc) || _.isNil(edc))
+    return false;
   if (str < 0) {
     str = 0;
   }
