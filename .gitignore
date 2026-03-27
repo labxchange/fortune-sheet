@@ -138,3 +138,9 @@ dist
 
 # storybook
 /storybook-static
+
+**/dist
+!packages/core/dist/
+!packages/core/dist/**
+!packages/react/dist/
+!packages/react/dist/**
