@@ -216,6 +216,9 @@ declare function locale(ctx: Context): {
         confirmCellEditShortcut: string;
         moveRightShortcut: string;
         moveLeftShortcut: string;
+        contextMenuShortcut: string;
+        rowContextMenuShortcut: string;
+        columnContextMenuShortcut: string;
         shortcuts: string;
     };
     currencyDetail: {

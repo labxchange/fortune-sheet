@@ -216,6 +216,9 @@ declare const _default: {
         confirmCellEditShortcut: string;
         moveRightShortcut: string;
         moveLeftShortcut: string;
+        contextMenuShortcut: string;
+        rowContextMenuShortcut: string;
+        columnContextMenuShortcut: string;
         shortcuts: string;
     };
     currencyDetail: {

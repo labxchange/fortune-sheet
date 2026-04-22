@@ -1,4 +1,4 @@
-import { defaultContext, defaultSettings, getSheetIndex, colLocationByIndex, fixPositionOnFrozenCells, colLocation, getFlowdata, isAllowEdit, handleColumnHeaderMouseDown, handleColSizeHandleMouseDown, handleColFreezeHandleMouseDown, handleContextMenu, selectTitlesMap, selectTitlesRange, fixColumnStyleOverflowInFreeze, rowLocationByIndex, rowLocation, handleRowHeaderMouseDown, handleRowSizeHandleMouseDown, handleRowFreezeHandleMouseDown, fixRowStyleOverflowInFreeze, locale, getStyleByCell, getCellValue, createRangeHightlight, isInlineStringCell, getInlineStringHTML, valueShowEs, escapeHTMLTag, escapeScriptTag, moveToEnd, isShowHidenCR, getrangeseleciton, cancelNormalSelected, moveHighlightCell, israngeseleciton, handleFormulaInput, onSearchDialogMoveStart, replaceAll, replace, searchAll, searchNext, normalizeSelection, scrollToHighlightCell, isLinkValid, getRangetxt, goToLink, replaceHtml, removeHyperlink, onRangeSelectionModalMoveStart, saveHyperlink, createFilterOptions, onImageMoveStart, onImageResizeStart, showComments, setEditingComment, onCommentBoxMoveStart, onCommentBoxResizeStart, confirmMessage, getRangeByTxt, getDropdownList, setCellValue, setConditionRules, mergeBorder, setDropcownValue, handleCellAreaMouseDown, handleCellAreaDoubleClick, selectAll, showLinkCard, getCellRowColumn, getCellHyperlink, handleOverlayMouseMove, handleOverlayMouseUp, handleKeydownForZoom, handleOverlayTouchStart, handleOverlayTouchMove, handleOverlayTouchEnd, insertRowCol, api, drawArrow, onCellsMoveStart, createDropCellRange, updateContextWithSheetData, updateContextWithCanvas, initFreeze, Canvas, handleGlobalWheel, setCaretPosition, getDataArr, updateMoreCell, getRegStr, getOptionValue, getSelectRange, applyLocation, updateItem, update, normalizedCellAttr, updateFormat, handleTextSize, handleHorizontalAlign, handleVerticalAlign, handleScreenShot, showImgChooser, insertImage, editComment, deleteComment, showHideComment, showHideAllComments, newComment, handleSum, autoSelectionFormula, handleMerge, handleBorder, handleFreeze, handleSort, createFilter, clearFilter, toolbarItemSelectedFunc, toolbarItemClickHandler, handleTextColor, handleTextBackground, getInlineStringNoStyle, rangeHightlightselected, updateCell, editSheetName, cancelActiveImgItem, MAX_ZOOM_RATIO, MIN_ZOOM_RATIO, addSheet, indexToColumnChar, sortSelection, handleCopy, deleteRowCol, hideSelected, showSelected, removeActiveImage, deleteSelectedCellText, jfrefreshgrid, handleLink, handlePasteByClick, deleteSheet, opToPatch, orderbydatafiler, getFilterColumnValues, getFilterColumnColors, saveFilter, calcSelectionInfo, patchToOp, filterPatch, inverseRowColOptions, ensureSheetIndex, setFormulaCellInfoMap, initSheetIndex, handleGlobalKeyDown, handlePaste, groupValuesRefresh } from '@fortune-sheet/core';
+import { defaultContext, defaultSettings, getSheetIndex, colLocationByIndex, fixPositionOnFrozenCells, colLocation, getFlowdata, isAllowEdit, handleColumnHeaderMouseDown, handleColSizeHandleMouseDown, handleColFreezeHandleMouseDown, handleContextMenu, selectTitlesMap, selectTitlesRange, fixColumnStyleOverflowInFreeze, rowLocationByIndex, rowLocation, handleRowHeaderMouseDown, handleRowSizeHandleMouseDown, handleRowFreezeHandleMouseDown, fixRowStyleOverflowInFreeze, locale, getStyleByCell, getCellValue, createRangeHightlight, isInlineStringCell, getInlineStringHTML, valueShowEs, escapeHTMLTag, escapeScriptTag, moveToEnd, isShowHidenCR, getrangeseleciton, cancelNormalSelected, moveHighlightCell, israngeseleciton, handleFormulaInput, onSearchDialogMoveStart, replaceAll, replace, searchAll, searchNext, normalizeSelection, scrollToHighlightCell, isLinkValid, getRangetxt, goToLink, replaceHtml, removeHyperlink, onRangeSelectionModalMoveStart, saveHyperlink, createFilterOptions, onImageMoveStart, onImageResizeStart, showComments, setEditingComment, onCommentBoxMoveStart, onCommentBoxResizeStart, confirmMessage, getRangeByTxt, getDropdownList, setCellValue, setConditionRules, mergeBorder, setDropcownValue, handleCellAreaMouseDown, handleCellAreaDoubleClick, selectAll, showLinkCard, getCellRowColumn, getCellHyperlink, handleOverlayMouseMove, handleOverlayMouseUp, handleKeydownForZoom, handleOverlayTouchStart, handleOverlayTouchMove, handleOverlayTouchEnd, insertRowCol, api, drawArrow, onCellsMoveStart, createDropCellRange, updateContextWithSheetData, updateContextWithCanvas, initFreeze, Canvas, handleGlobalWheel, setCaretPosition, getDataArr, updateMoreCell, getRegStr, getOptionValue, getSelectRange, applyLocation, updateItem, update, normalizedCellAttr, updateFormat, handleTextSize, handleHorizontalAlign, handleVerticalAlign, handleScreenShot, showImgChooser, insertImage, editComment, deleteComment, showHideComment, showHideAllComments, newComment, handleSum, autoSelectionFormula, handleMerge, handleBorder, handleFreeze, handleSort, createFilter, clearFilter, toolbarItemSelectedFunc, toolbarItemClickHandler, handleTextColor, handleTextBackground, getInlineStringNoStyle, rangeHightlightselected, updateCell, editSheetName, cancelActiveImgItem, MAX_ZOOM_RATIO, MIN_ZOOM_RATIO, addSheet, sortSelection, indexToColumnChar, handleCopy, deleteRowCol, hideSelected, showSelected, removeActiveImage, deleteSelectedCellText, jfrefreshgrid, handleLink, handlePasteByClick, deleteSheet, opToPatch, orderbydatafiler, getFilterColumnValues, getFilterColumnColors, saveFilter, calcSelectionInfo, patchToOp, filterPatch, inverseRowColOptions, ensureSheetIndex, setFormulaCellInfoMap, initSheetIndex, handleGlobalKeyDown, handlePaste, groupValuesRefresh } from '@fortune-sheet/core';
 import React, { useContext, useRef, useState, useMemo, useCallback, useEffect, useLayoutEffect, useImperativeHandle } from 'react';
 import produce, { applyPatches, enablePatches, produceWithPatches } from 'immer';
 import _ from 'lodash';
@@ -1210,15 +1210,77 @@ var Dialog = function Dialog(_ref) {
     context = _useContext.context;
   var _locale = locale(context),
     button = _locale.button;
+  var dialogRef = useRef(null);
+  var previousActiveElement = useRef(null);
+  useEffect(function () {
+    previousActiveElement.current = document.activeElement;
+    var dialog = dialogRef.current;
+    if (!dialog) return undefined;
+    var trapFocus = function trapFocus(e) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onCancel === null || onCancel === void 0 ? void 0 : onCancel();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      var focusable = Array.from(dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')).filter(function (el) {
+        return !el.hasAttribute("disabled");
+      });
+      if (focusable.length === 0) {
+        e.preventDefault();
+        dialog.focus();
+        return;
+      }
+      var first = focusable[0];
+      var last = focusable[focusable.length - 1];
+      var current = document.activeElement;
+      if (e.shiftKey && current === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && current === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    var focusable = dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    if (focusable.length > 0) {
+      focusable[0].focus();
+    } else {
+      dialog.focus();
+    }
+    dialog.addEventListener("keydown", trapFocus);
+    return function () {
+      var _previousActiveElemen;
+      dialog.removeEventListener("keydown", trapFocus);
+      if ((_previousActiveElemen = previousActiveElement.current) === null || _previousActiveElemen === void 0 ? void 0 : _previousActiveElemen.isConnected) {
+        previousActiveElement.current.focus();
+      }
+    };
+  }, [onCancel]);
+  var activateOnEnter = function activateOnEnter(e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.currentTarget.click();
+    }
+  };
   return /*#__PURE__*/React.createElement("div", {
     className: "fortune-dialog",
-    style: containerStyle
+    style: containerStyle,
+    ref: dialogRef,
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-labelledby": "fortune-sort-title",
+    "aria-label": "Dialog",
+    tabIndex: -1
   }, /*#__PURE__*/React.createElement("div", {
     className: "fortune-modal-dialog-header"
   }, /*#__PURE__*/React.createElement("div", {
     className: "fortune-modal-dialog-icon-close",
     onClick: onCancel,
-    tabIndex: 0
+    onKeyDown: activateOnEnter,
+    tabIndex: 0,
+    role: "button",
+    "aria-label": button.close
   }, /*#__PURE__*/React.createElement(SVGIcon, {
     name: "close",
     style: {
@@ -1233,14 +1295,17 @@ var Dialog = function Dialog(_ref) {
   }, type === "ok" ? (/*#__PURE__*/React.createElement("div", {
     className: "fortune-message-box-button button-default",
     onClick: onOk,
+    onKeyDown: activateOnEnter,
     tabIndex: 0
   }, button.confirm)) : (/*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "fortune-message-box-button button-primary",
     onClick: onOk,
+    onKeyDown: activateOnEnter,
     tabIndex: 0
   }, button.confirm), /*#__PURE__*/React.createElement("div", {
     className: "fortune-message-box-button button-default",
     onClick: onCancel,
+    onKeyDown: activateOnEnter,
     tabIndex: 0
   }, button.cancel))))));
 };
@@ -7375,6 +7440,18 @@ var Menu = function Menu(_ref) {
     onClick: function onClick(e) {
       return _onClick === null || _onClick === void 0 ? void 0 : _onClick(e, containerRef.current);
     },
+    onKeyDown: function onKeyDown(e) {
+      if (e.key === "Enter") {
+        var _containerRef$current;
+        if (e.repeat) return;
+        e.preventDefault();
+        e.stopPropagation();
+        (_containerRef$current = containerRef.current) === null || _containerRef$current === void 0 ? void 0 : _containerRef$current.dispatchEvent(new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true
+        }));
+      }
+    },
     onMouseLeave: function onMouseLeave(e) {
       return _onMouseLeave === null || _onMouseLeave === void 0 ? void 0 : _onMouseLeave(e, containerRef.current);
     },
@@ -7411,10 +7488,19 @@ var CustomSort = function CustomSort() {
     sort = _locale.sort;
   var _useDialog = useDialog(),
     hideDialog = _useDialog.hideDialog;
+  var handleSortConfirm = useCallback(function () {
+    setContext(function (draftCtx) {
+      sortSelection(draftCtx, ascOrDesc, parseInt(selectedValue, 10));
+      draftCtx.contextMenu = {};
+    });
+    hideDialog();
+  }, [ascOrDesc, hideDialog, selectedValue, setContext]);
   var col_start = context.luckysheet_select_save[0].column[0];
   var col_end = context.luckysheet_select_save[0].column[1];
   var row_start = context.luckysheet_select_save[0].row[0];
   var row_end = context.luckysheet_select_save[0].row[1];
+  var startCell = "".concat(indexToColumnChar(col_start)).concat(row_start + 1);
+  var endCell = "".concat(indexToColumnChar(col_end)).concat(row_end + 1);
   var sheetIndex = getSheetIndex(context, context.currentSheetId);
   var handleSelectChange = function handleSelectChange(event) {
     setSelectedValue(event.target.value);
@@ -7453,7 +7539,13 @@ var CustomSort = function CustomSort() {
     className: "fortune-sort"
   }, /*#__PURE__*/React.createElement("div", {
     className: "fortune-sort-title"
-  }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", null, sort.sortRangeTitle), indexToColumnChar(col_start), row_start + 1, /*#__PURE__*/React.createElement("span", null, sort.sortRangeTitleTo), indexToColumnChar(col_end), row_end + 1)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", {
+    id: "fortune-sort-title"
+  }, /*#__PURE__*/React.createElement("span", null, sort.sortRangeTitle), /*#__PURE__*/React.createElement("span", {
+    className: "fortune-sort-title-range"
+  }, startCell), /*#__PURE__*/React.createElement("span", null, sort.sortRangeTitleTo), /*#__PURE__*/React.createElement("span", {
+    className: "fortune-sort-title-range"
+  }, endCell))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "fortune-sort-modal"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("input", {
     type: "checkbox",
@@ -7467,8 +7559,12 @@ var CustomSort = function CustomSort() {
     style: {
       width: "190px"
     }
-  }, sort.sortBy, /*#__PURE__*/React.createElement("select", {
+  }, /*#__PURE__*/React.createElement("label", {
+    htmlFor: "fortune-sort-by-select"
+  }, sort.sortBy), /*#__PURE__*/React.createElement("select", {
+    id: "fortune-sort-by-select",
     name: "sort_0",
+    className: "fortune-sort-by-select",
     onChange: handleSelectChange
   }, rangeColChar.map(function (col, index) {
     return /*#__PURE__*/React.createElement("option", {
@@ -7490,14 +7586,15 @@ var CustomSort = function CustomSort() {
     className: "fortune-sort-button"
   }, /*#__PURE__*/React.createElement("div", {
     className: "button-basic button-primary",
-    onClick: function onClick() {
-      setContext(function (draftCtx) {
-        sortSelection(draftCtx, ascOrDesc, parseInt(selectedValue, 10));
-        draftCtx.contextMenu = {};
-      });
-      hideDialog();
+    onClick: handleSortConfirm,
+    onKeyDown: function onKeyDown(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleSortConfirm();
+      }
     },
-    tabIndex: 0
+    tabIndex: 0,
+    role: "button"
   }, sort.confirm)));
 };
 
@@ -7588,11 +7685,11 @@ var ContextMenu = function ContextMenu() {
         var _context$lang, _context$lang2;
         return /*#__PURE__*/React.createElement(Menu, {
           key: "add-col-".concat(dir),
-          onClick: function onClick(e) {
-            var _context$luckysheet_s2, _context$luckysheet_s3, _context$luckysheet_s4, _e$target$querySelect;
+          onClick: function onClick(_e, container) {
+            var _context$luckysheet_s2, _context$luckysheet_s3, _context$luckysheet_s4, _container$querySelec;
             var position = (_context$luckysheet_s2 = context.luckysheet_select_save) === null || _context$luckysheet_s2 === void 0 ? void 0 : (_context$luckysheet_s3 = _context$luckysheet_s2[0]) === null || _context$luckysheet_s3 === void 0 ? void 0 : (_context$luckysheet_s4 = _context$luckysheet_s3.column) === null || _context$luckysheet_s4 === void 0 ? void 0 : _context$luckysheet_s4[0];
             if (position == null) return;
-            var countStr = (_e$target$querySelect = e.target.querySelector("input")) === null || _e$target$querySelect === void 0 ? void 0 : _e$target$querySelect.value;
+            var countStr = (_container$querySelec = container.querySelector("input")) === null || _container$querySelec === void 0 ? void 0 : _container$querySelec.value;
             if (countStr == null) return;
             var count = parseInt(countStr, 10);
             if (count < 1) return;
@@ -7643,10 +7740,10 @@ var ContextMenu = function ContextMenu() {
         return /*#__PURE__*/React.createElement(Menu, {
           key: "add-row-".concat(dir),
           onClick: function onClick(e, container) {
-            var _context$luckysheet_s5, _context$luckysheet_s6, _context$luckysheet_s7, _container$querySelec;
+            var _context$luckysheet_s5, _context$luckysheet_s6, _context$luckysheet_s7, _container$querySelec2;
             var position = (_context$luckysheet_s5 = context.luckysheet_select_save) === null || _context$luckysheet_s5 === void 0 ? void 0 : (_context$luckysheet_s6 = _context$luckysheet_s5[0]) === null || _context$luckysheet_s6 === void 0 ? void 0 : (_context$luckysheet_s7 = _context$luckysheet_s6.row) === null || _context$luckysheet_s7 === void 0 ? void 0 : _context$luckysheet_s7[0];
             if (position == null) return;
-            var countStr = (_container$querySelec = container.querySelector("input")) === null || _container$querySelec === void 0 ? void 0 : _container$querySelec.value;
+            var countStr = (_container$querySelec2 = container.querySelector("input")) === null || _container$querySelec2 === void 0 ? void 0 : _container$querySelec2.value;
             if (countStr == null) return;
             var count = parseInt(countStr, 10);
             if (count < 1) return;
@@ -7829,8 +7926,8 @@ var ContextMenu = function ContextMenu() {
       })) ? (/*#__PURE__*/React.createElement(Menu, {
         key: "set-row-height",
         onClick: function onClick(e, container) {
-          var _container$querySelec2;
-          var targetRowHeight = (_container$querySelec2 = container.querySelector("input")) === null || _container$querySelec2 === void 0 ? void 0 : _container$querySelec2.value;
+          var _container$querySelec3;
+          var targetRowHeight = (_container$querySelec3 = container.querySelector("input")) === null || _container$querySelec3 === void 0 ? void 0 : _container$querySelec3.value;
           setContext(function (draftCtx) {
             if (_.isUndefined(targetRowHeight) || targetRowHeight === "" || parseInt(targetRowHeight, 10) <= 0 || parseInt(targetRowHeight, 10) > 545) {
               showAlert(info.tipRowHeightLimit, "ok");
@@ -7878,8 +7975,8 @@ var ContextMenu = function ContextMenu() {
       })) ? (/*#__PURE__*/React.createElement(Menu, {
         key: "set-column-width",
         onClick: function onClick(e, container) {
-          var _container$querySelec3;
-          var targetColWidth = (_container$querySelec3 = container.querySelector("input")) === null || _container$querySelec3 === void 0 ? void 0 : _container$querySelec3.value;
+          var _container$querySelec4;
+          var targetColWidth = (_container$querySelec4 = container.querySelector("input")) === null || _container$querySelec4 === void 0 ? void 0 : _container$querySelec4.value;
           setContext(function (draftCtx) {
             if (_.isUndefined(targetColWidth) || targetColWidth === "" || parseInt(targetColWidth, 10) <= 0 || parseInt(targetColWidth, 10) > 2038) {
               showAlert(info.tipColumnWidthLimit, "ok");
@@ -11181,6 +11278,55 @@ var Workbook = /*#__PURE__*/React.forwardRef(function (_ref, ref) {
     });
   }, [context.currentSheetId, context.luckysheetfile.length, originalData, mergedSettings.defaultRowHeight, mergedSettings.defaultColWidth, mergedSettings.column, mergedSettings.row, mergedSettings.defaultFontSize, mergedSettings.devicePixelRatio, mergedSettings.lang, mergedSettings.allowEdit, mergedSettings.hooks, mergedSettings.generateSheetId, setContextWithProduce, initSheetData, mergedSettings.rowHeaderWidth, mergedSettings.columnHeaderHeight, mergedSettings.addRows, mergedSettings.currency]);
   var onKeyDown = useCallback(function (e) {
+    var isContextMenuShortcut = (e.ctrlKey || e.metaKey) && e.shiftKey && e.code === "KeyM";
+    var isRowContextMenuShortcut = (e.ctrlKey || e.metaKey) && e.shiftKey && e.code === "KeyR";
+    var isColumnContextMenuShortcut = (e.ctrlKey || e.metaKey) && e.shiftKey && e.code === "KeyL";
+    if ((isContextMenuShortcut || isRowContextMenuShortcut || isColumnContextMenuShortcut) && context.allowEdit) {
+      var _context$luckysheet_s;
+      var selected = (_context$luckysheet_s = context.luckysheet_select_save) === null || _context$luckysheet_s === void 0 ? void 0 : _context$luckysheet_s[context.luckysheet_select_save.length - 1];
+      if (selected && workbookContainer.current && cellArea.current) {
+        var _selected$left, _selected$top;
+        var workbookRect = workbookContainer.current.getBoundingClientRect();
+        var cellAreaRect = cellArea.current.getBoundingClientRect();
+        var selectionLeft = (_selected$left = selected.left) !== null && _selected$left !== void 0 ? _selected$left : 0;
+        var selectionTop = (_selected$top = selected.top) !== null && _selected$top !== void 0 ? _selected$top : 0;
+        var area = "cell";
+        var pageX = window.scrollX + workbookRect.left + context.rowHeaderWidth;
+        var pageY = window.scrollY + workbookRect.top + context.columnHeaderHeight;
+        if (isRowContextMenuShortcut) {
+          area = "rowHeader";
+          pageX = window.scrollX + workbookRect.left + context.rowHeaderWidth / 2;
+          pageY = window.scrollY + cellAreaRect.top + selectionTop - context.scrollTop + 1;
+        } else if (isColumnContextMenuShortcut) {
+          area = "columnHeader";
+          pageX = window.scrollX + cellAreaRect.left + selectionLeft - context.scrollLeft + 1;
+          pageY = window.scrollY + workbookRect.top + context.columnHeaderHeight / 2;
+        } else if (selected.row_select) {
+          area = "rowHeader";
+          pageX = window.scrollX + workbookRect.left + context.rowHeaderWidth / 2;
+          pageY = window.scrollY + cellAreaRect.top + selectionTop - context.scrollTop + 1;
+        } else if (selected.column_select) {
+          area = "columnHeader";
+          pageX = window.scrollX + cellAreaRect.left + selectionLeft - context.scrollLeft + 1;
+          pageY = window.scrollY + workbookRect.top + context.columnHeaderHeight / 2;
+        } else {
+          pageX = window.scrollX + cellAreaRect.left + selectionLeft - context.scrollLeft + 1;
+          pageY = window.scrollY + cellAreaRect.top + selectionTop - context.scrollTop + 1;
+        }
+        var syntheticContextEvent = new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: pageX - window.scrollX,
+          clientY: pageY - window.scrollY
+        });
+        setContextWithProduce(function (draftCtx) {
+          handleContextMenu(draftCtx, mergedSettings, syntheticContextEvent, workbookContainer.current, cellArea.current, area);
+        });
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+    }
     var nativeEvent = e.nativeEvent;
     if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ") {
       if (e.shiftKey) {
@@ -11200,7 +11346,7 @@ var Workbook = /*#__PURE__*/React.forwardRef(function (_ref, ref) {
     setContextWithProduce(function (draftCtx) {
       handleGlobalKeyDown(draftCtx, cellInput.current, fxInput.current, nativeEvent, globalCache.current, handleUndo, handleRedo, canvas.current.getContext("2d"));
     });
-  }, [handleRedo, handleUndo, setContextWithProduce]);
+  }, [context, handleRedo, handleUndo, mergedSettings, setContextWithProduce]);
   var onPaste = useCallback(function (e) {
     var _document$activeEleme;
     if (cellInput.current === document.activeElement || ((_document$activeEleme = document.activeElement) === null || _document$activeEleme === void 0 ? void 0 : _document$activeEleme.className) === "fortune-sheet-overlay") {
@@ -11273,7 +11419,7 @@ var Workbook = /*#__PURE__*/React.forwardRef(function (_ref, ref) {
     "aria-live": "polite"
   }, /*#__PURE__*/React.createElement("h2", {
     id: "shortcuts-heading"
-  }, info.shortcuts), /*#__PURE__*/React.createElement("ul", null, /*#__PURE__*/React.createElement("li", null, info.toggleSheetFocusShortcut), /*#__PURE__*/React.createElement("li", null, info.selectRangeShortcut), /*#__PURE__*/React.createElement("li", null, info.autoFillDownShortcut), /*#__PURE__*/React.createElement("li", null, info.autoFillRightShortcut), /*#__PURE__*/React.createElement("li", null, info.boldTextShortcut), /*#__PURE__*/React.createElement("li", null, info.copyShortcut), /*#__PURE__*/React.createElement("li", null, info.pasteShortcut), /*#__PURE__*/React.createElement("li", null, info.undoShortcut), /*#__PURE__*/React.createElement("li", null, info.redoShortcut), /*#__PURE__*/React.createElement("li", null, info.deleteCellContentShortcut), /*#__PURE__*/React.createElement("li", null, info.confirmCellEditShortcut), /*#__PURE__*/React.createElement("li", null, info.moveRightShortcut), /*#__PURE__*/React.createElement("li", null, info.moveLeftShortcut))), /*#__PURE__*/React.createElement(SVGDefines, {
+  }, info.shortcuts), /*#__PURE__*/React.createElement("ul", null, /*#__PURE__*/React.createElement("li", null, info.toggleSheetFocusShortcut), /*#__PURE__*/React.createElement("li", null, info.selectRangeShortcut), /*#__PURE__*/React.createElement("li", null, info.autoFillDownShortcut), /*#__PURE__*/React.createElement("li", null, info.autoFillRightShortcut), /*#__PURE__*/React.createElement("li", null, info.boldTextShortcut), /*#__PURE__*/React.createElement("li", null, info.copyShortcut), /*#__PURE__*/React.createElement("li", null, info.pasteShortcut), /*#__PURE__*/React.createElement("li", null, info.undoShortcut), /*#__PURE__*/React.createElement("li", null, info.redoShortcut), /*#__PURE__*/React.createElement("li", null, info.deleteCellContentShortcut), /*#__PURE__*/React.createElement("li", null, info.confirmCellEditShortcut), /*#__PURE__*/React.createElement("li", null, info.moveRightShortcut), /*#__PURE__*/React.createElement("li", null, info.moveLeftShortcut), /*#__PURE__*/React.createElement("li", null, info.contextMenuShortcut), /*#__PURE__*/React.createElement("li", null, info.rowContextMenuShortcut), /*#__PURE__*/React.createElement("li", null, info.columnContextMenuShortcut))), /*#__PURE__*/React.createElement(SVGDefines, {
     currency: mergedSettings.currency
   }), /*#__PURE__*/React.createElement("div", {
     className: "fortune-workarea"
