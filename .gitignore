@@ -69,6 +69,9 @@ web_modules/
 # Output of 'npm pack'
 *.tgz
 
+# Staging dir used by scripts/release.sh
+release-artifacts/
+
 # Yarn Integrity file
 .yarn-integrity
 
