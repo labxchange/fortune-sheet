@@ -1,0 +1,168 @@
+name: LabXchange Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      suffix:
+        description: "Version suffix (e.g. lxc.1). Tag will be v1.0.4-<suffix>."
+        required: true
+        default: "lxc.1"
+
+concurrency:
+  group: labxchange-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      OWNER: labxchange
+      REPO: fortune-sheet
+      CORE_BASE: "1.0.4"
+      REACT_BASE: "1.0.4"
+      FORMULA_BASE: "0.2.13"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "yarn"
+
+      - name: Compute version + URLs
+        id: vars
+        run: |
+          SUFFIX="${{ inputs.suffix }}"
+          TAG="v${CORE_BASE}-${SUFFIX}"
+          BASE="https://github.com/${OWNER}/${REPO}/releases/download/${TAG}"
+          FP_TGZ="fortune-sheet-formula-parser-${FORMULA_BASE}-${SUFFIX}.tgz"
+          CORE_TGZ="fortune-sheet-core-${CORE_BASE}-${SUFFIX}.tgz"
+          REACT_TGZ="fortune-sheet-react-${REACT_BASE}-${SUFFIX}.tgz"
+          {
+            echo "suffix=${SUFFIX}"
+            echo "tag=${TAG}"
+            echo "formula_version=${FORMULA_BASE}-${SUFFIX}"
+            echo "core_version=${CORE_BASE}-${SUFFIX}"
+            echo "react_version=${REACT_BASE}-${SUFFIX}"
+            echo "formula_url=${BASE}/${FP_TGZ}"
+            echo "core_url=${BASE}/${CORE_TGZ}"
+            echo "react_url=${BASE}/${REACT_TGZ}"
+            echo "formula_tgz=${FP_TGZ}"
+            echo "core_tgz=${CORE_TGZ}"
+            echo "react_tgz=${REACT_TGZ}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Guard against existing release/tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.vars.outputs.tag }}"
+          if gh release view "$TAG" --repo "${OWNER}/${REPO}" >/dev/null 2>&1; then
+            echo "::error::Release $TAG already exists on ${OWNER}/${REPO}"
+            exit 1
+          fi
+          if gh api "repos/${OWNER}/${REPO}/git/ref/tags/${TAG}" --silent >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists on ${OWNER}/${REPO}"
+            exit 1
+          fi
+
+      - run: yarn install --frozen-lockfile
+      - run: yarn build
+
+      - name: Bump versions + rewrite cross-deps
+        env:
+          FORMULA_VERSION: ${{ steps.vars.outputs.formula_version }}
+          CORE_VERSION: ${{ steps.vars.outputs.core_version }}
+          REACT_VERSION: ${{ steps.vars.outputs.react_version }}
+          FORMULA_URL: ${{ steps.vars.outputs.formula_url }}
+          CORE_URL: ${{ steps.vars.outputs.core_url }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            const [path, version] = process.argv.slice(1);
+            const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+            pkg.version = version;
+            fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");
+          ' packages/formula-parser/package.json "$FORMULA_VERSION"
+
+          node -e '
+            const fs = require("fs");
+            const [path, version, dep, url] = process.argv.slice(1);
+            const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+            pkg.version = version;
+            pkg.dependencies = pkg.dependencies || {};
+            pkg.dependencies[dep] = url;
+            fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");
+          ' packages/core/package.json "$CORE_VERSION" "@fortune-sheet/formula-parser" "$FORMULA_URL"
+
+          node -e '
+            const fs = require("fs");
+            const [path, version, dep, url] = process.argv.slice(1);
+            const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+            pkg.version = version;
+            pkg.dependencies = pkg.dependencies || {};
+            pkg.dependencies[dep] = url;
+            fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");
+          ' packages/react/package.json "$REACT_VERSION" "@fortune-sheet/core" "$CORE_URL"
+
+      - name: Pack tarballs
+        run: |
+          mkdir -p "$RUNNER_TEMP/artifacts"
+          for p in formula-parser core react; do
+            ( cd "packages/$p" && npm pack --silent )
+            mv "packages/$p"/*.tgz "$RUNNER_TEMP/artifacts/"
+          done
+          ls -la "$RUNNER_TEMP/artifacts"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.vars.outputs.tag }}
+          FORMULA_URL: ${{ steps.vars.outputs.formula_url }}
+          CORE_URL: ${{ steps.vars.outputs.core_url }}
+          REACT_URL: ${{ steps.vars.outputs.react_url }}
+          FORMULA_TGZ: ${{ steps.vars.outputs.formula_tgz }}
+          CORE_TGZ: ${{ steps.vars.outputs.core_tgz }}
+          REACT_TGZ: ${{ steps.vars.outputs.react_tgz }}
+        run: |
+          NOTES="$(mktemp)"
+          cat >"$NOTES" <<EOF
+          LabXchange fork release ${TAG}.
+
+          Install in a consumer \`package.json\`:
+
+          \`\`\`json
+          "@fortune-sheet/formula-parser": "${FORMULA_URL}",
+          "@fortune-sheet/core": "${CORE_URL}",
+          "@fortune-sheet/react": "${REACT_URL}"
+          \`\`\`
+
+          See RELEASE.md for details.
+          EOF
+          gh release create "$TAG" \
+            --repo "${OWNER}/${REPO}" \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --notes-file "$NOTES" \
+            "$RUNNER_TEMP/artifacts/$FORMULA_TGZ" \
+            "$RUNNER_TEMP/artifacts/$CORE_TGZ" \
+            "$RUNNER_TEMP/artifacts/$REACT_TGZ"
+
+      - name: Summary
+        env:
+          TAG: ${{ steps.vars.outputs.tag }}
+          FORMULA_URL: ${{ steps.vars.outputs.formula_url }}
+          CORE_URL: ${{ steps.vars.outputs.core_url }}
+          REACT_URL: ${{ steps.vars.outputs.react_url }}
+        run: |
+          {
+            echo "### Release ${TAG}"
+            echo ""
+            echo '```json'
+            echo "\"@fortune-sheet/formula-parser\": \"${FORMULA_URL}\","
+            echo "\"@fortune-sheet/core\": \"${CORE_URL}\","
+            echo "\"@fortune-sheet/react\": \"${REACT_URL}\""
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
