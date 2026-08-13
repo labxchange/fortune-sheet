@@ -33,6 +33,11 @@ import {
   fixRowStyleOverflowInFreeze,
   fixColumnStyleOverflowInFreeze,
   handleKeydownForZoom,
+  getFilterColumnExtent,
+  isColumnFilterActive,
+  isFilterDropdownCell,
+  isInFilterRegion,
+  replaceHtml,
   api,
 } from "@fortune-sheet/core";
 import _ from "lodash";
@@ -446,6 +451,101 @@ const SheetOverlay: React.FC = () => {
     return rawRangeTxt.replace(/([A-Z]+)(\d+)/g, "$1. $2");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context.currentSheetId, context.luckysheet_select_save]);
+
+  // Filter state of the focused cell. Filtering is otherwise conveyed only by
+  // the funnel icon, so screen readers need it in the live region: on the header
+  // cell that owns the dropdown, and once when crossing the region boundary.
+  const filterCellState = useMemo(() => {
+    const lastSelection = _.last(context.luckysheet_select_save);
+    if (
+      !(
+        lastSelection &&
+        lastSelection.row_focus != null &&
+        lastSelection.column_focus != null
+      )
+    )
+      return {
+        filteredColumn: null,
+        isDropdownCell: false,
+        columnFiltered: false,
+        columnExtent: null,
+      };
+    const rf = lastSelection.row_focus;
+    const cf = lastSelection.column_focus;
+    const columnFiltered = isColumnFilterActive(context, cf);
+    return {
+      // Which filtered column the focus sits in, or null for none. Membership is
+      // tracked per-column rather than as one region-wide flag: the block itself
+      // routinely spans the entire sheet, so a whole-range test would be true
+      // everywhere and could never announce a crossing — and identifying the
+      // column is what lets a move between two filtered columns announce the
+      // one just entered instead of falling silent.
+      filteredColumn:
+        isInFilterRegion(context, rf, cf) && columnFiltered ? cf : null,
+      isDropdownCell: isFilterDropdownCell(context, rf, cf),
+      columnFiltered,
+      columnExtent: getFilterColumnExtent(context, cf),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [context.luckysheet_select_save, context.filter, context.filterOptions]);
+
+  // Region entry/exit is a transition, not a property of the cell, so it needs
+  // the previously occupied filtered column. `undefined` means nothing has been
+  // observed yet, which `null` cannot express — `null` is the meaningful state
+  // of being in no filtered column. The ref is read during render and written
+  // after commit: a useState set from an effect would append the phrase in a
+  // second render, which role="alert" would announce as a separate message.
+  const prevFilteredColumn = useRef<number | null | undefined>(undefined);
+  const prevFilterSheetId = useRef<string | undefined>(undefined);
+
+  // Keyed on `filterCellState`, whose identity changes only when the selection
+  // or the filter itself changes. That matters twice over: keying on `inRegion`
+  // would repeat the entry phrase for every cell inside the region, while
+  // recomputing on every render would erase it again on the next incidental
+  // re-render — a selection change commits more than once — before a screen
+  // reader had read it. The refs advance with the memo for the same reason.
+  const filterRegionTransition = useMemo(() => {
+    const wasColumn = prevFilteredColumn.current;
+    const previousSheetId = prevFilterSheetId.current;
+    prevFilteredColumn.current = filterCellState.filteredColumn;
+    prevFilterSheetId.current = context.currentSheetId;
+    // Baseline on first observation, and after a sheet switch, so neither the
+    // initial auto-selection nor moving between sheets fakes a crossing. Staying
+    // in the same filtered column — moving down it, say — is not a crossing.
+    if (
+      wasColumn === undefined ||
+      previousSheetId !== context.currentSheetId ||
+      wasColumn === filterCellState.filteredColumn
+    )
+      return "";
+    if (filterCellState.filteredColumn === null) return info.leftFilteredRegion;
+    // Entered a filtered column, either from outside the region or straight from
+    // another filtered column — the latter still needs announcing, since the
+    // extent describes this column and nothing else would convey the move.
+    // Announce how far the entered column's filtered data runs. Cell references
+    // get the same "F1" -> "F. 1" spacing rangeText uses, so screen readers read
+    // them as a column and a row rather than as one token.
+    const extent = filterCellState.columnExtent;
+    if (extent == null) return "";
+    return replaceHtml(info.enteredFilteredRegion, {
+      start: extent.start.replace(/([A-Z]+)(\d+)/, "$1. $2"),
+      end: extent.end.replace(/([A-Z]+)(\d+)/, "$1. $2"),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterCellState, context.currentSheetId, info]);
+
+  const filterAnnouncementParts: string[] = [];
+  if (filterCellState.isDropdownCell) {
+    filterAnnouncementParts.push(info.cellHasFilterDropdown);
+    if (filterCellState.columnFiltered)
+      filterAnnouncementParts.push(info.cellFilterActive);
+  }
+  if (filterRegionTransition)
+    filterAnnouncementParts.push(filterRegionTransition);
+  const filterAnnouncement =
+    filterAnnouncementParts.length > 0
+      ? ` ${filterAnnouncementParts.join(" ")}`
+      : "";
 
   const cellValue = () => {
     if ((context.luckysheet_select_save?.length ?? 0) > 0) {
@@ -905,7 +1005,7 @@ const SheetOverlay: React.FC = () => {
       </div>
       <div id="sr-selection" className="sr-only" role="alert">
         {!rangeText.includes("NaN")
-          ? `${rangeText} ${computedCellValue}`
+          ? `${rangeText} ${computedCellValue}${filterAnnouncement}`
           : `A1. ${info.sheetSrIntro}`}
       </div>
       <div id="sr-sheetFocus" className="sr-only" role="alert">

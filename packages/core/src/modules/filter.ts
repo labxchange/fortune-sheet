@@ -2,7 +2,12 @@ import _ from "lodash";
 import { locale } from "../locale";
 import { Context, getFlowdata } from "../context";
 import { Cell, CellMatrix } from "../types";
-import { getSheetIndex, isAllowEdit, rgbToHex } from "../utils";
+import {
+  getSheetIndex,
+  indexToColumnChar,
+  isAllowEdit,
+  rgbToHex,
+} from "../utils";
 import { update } from "./format";
 import { normalizeSelection } from "./selection";
 import { isRealNull } from "./validation";
@@ -181,6 +186,78 @@ export function createFilterOptions(
     file.filter_select = luckysheet_filter_save;
   }
   ctx.filterOptions = options;
+}
+
+/**
+ * Whether the given (absolute) column index currently has a filter criterion
+ * applied to it. `ctx.filter` is keyed relative to the filter range's start
+ * column, and only holds an entry while a criterion is active on that column,
+ * so a column inside the filter range with no criterion returns false.
+ */
+export function isColumnFilterActive(ctx: Context, columnIndex: number) {
+  const { filterOptions } = ctx;
+  if (filterOptions == null) return false;
+  if (
+    columnIndex < filterOptions.startCol ||
+    columnIndex > filterOptions.endCol
+  )
+    return false;
+  return ctx.filter?.[columnIndex - filterOptions.startCol] != null;
+}
+
+/**
+ * Whether the cell falls inside the block the filter spans, regardless of
+ * whether its own column has a criterion applied. Used to announce crossing
+ * into or out of the filtered region.
+ */
+export function isInFilterRegion(
+  ctx: Context,
+  rowIndex: number,
+  columnIndex: number
+) {
+  const { filterOptions } = ctx;
+  if (filterOptions == null) return false;
+  return (
+    rowIndex >= filterOptions.startRow &&
+    rowIndex <= filterOptions.endRow &&
+    columnIndex >= filterOptions.startCol &&
+    columnIndex <= filterOptions.endCol
+  );
+}
+
+/**
+ * First and last cell of the given column within the filter range, as A1-style
+ * references — the extent announced when the region is entered, so a user knows
+ * how far the filtered data in that column runs.
+ */
+export function getFilterColumnExtent(ctx: Context, columnIndex: number) {
+  const { filterOptions } = ctx;
+  if (filterOptions == null) return null;
+  const columnChar = indexToColumnChar(columnIndex);
+  return {
+    start: `${columnChar}${filterOptions.startRow + 1}`,
+    end: `${columnChar}${filterOptions.endRow + 1}`,
+  };
+}
+
+/**
+ * Whether the cell carries a filter dropdown control. `createFilterOptions`
+ * pushes one item per column at the top row of the range, so every column in
+ * the range has a dropdown on its header cell whether or not a criterion is
+ * currently applied to it.
+ */
+export function isFilterDropdownCell(
+  ctx: Context,
+  rowIndex: number,
+  columnIndex: number
+) {
+  const { filterOptions } = ctx;
+  if (filterOptions == null) return false;
+  return (
+    rowIndex === filterOptions.startRow &&
+    columnIndex >= filterOptions.startCol &&
+    columnIndex <= filterOptions.endCol
+  );
 }
 
 export function clearFilter(ctx: Context) {
