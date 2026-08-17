@@ -13,12 +13,27 @@ type Props = React.PropsWithChildren<{
     e: React.MouseEvent<HTMLDivElement, MouseEvent>,
     container: HTMLDivElement
   ) => void;
+  /**
+   * Exposes the row as a button to assistive tech. Opt-in on purpose: several
+   * consumers (insert row/column, row height, column width) nest a text
+   * <input> inside a Menu, and `button` is a presentational-children role, so
+   * setting it unconditionally would strip those inputs from the
+   * accessibility tree. Only pass it where the row really is just a button.
+   */
+  role?: "button";
+  /**
+   * Expanded state for rows that disclose a submenu or a collapsible list.
+   * Omitted entirely when undefined, so non-disclosure rows stay unaffected.
+   */
+  expanded?: boolean;
 }>;
 
 const Menu: React.FC<Props> = ({
   onClick,
   onMouseLeave,
   onMouseEnter,
+  role,
+  expanded,
   children,
 }) => {
   useEffect(() => {
@@ -34,6 +49,8 @@ const Menu: React.FC<Props> = ({
     <div
       ref={containerRef}
       className="luckysheet-cols-menuitem luckysheet-mousedown-cancel"
+      role={role}
+      aria-expanded={expanded}
       onClick={(e) => onClick?.(e, containerRef.current!)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {

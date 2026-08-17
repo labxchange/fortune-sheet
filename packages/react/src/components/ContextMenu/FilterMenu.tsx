@@ -33,8 +33,7 @@ const SelectItem: React.FC<{
   isChecked: (key: string) => boolean;
   onChange: (item: FilterValue, checked: boolean) => void;
   isItemVisible: (item: FilterValue) => boolean;
-  countLabel: string;
-}> = ({ item, isChecked, onChange, isItemVisible, countLabel }) => {
+}> = ({ item, isChecked, onChange, isItemVisible }) => {
   const checked = useMemo(() => isChecked(item.key), [isChecked, item.key]);
   return isItemVisible(item) ? (
     <div className="select-item">
@@ -42,7 +41,7 @@ const SelectItem: React.FC<{
         className="filter-checkbox"
         type="checkbox"
         checked={checked}
-        aria-label={`${item.text}, ${item.rows.length} ${countLabel}`}
+        aria-label={item.text}
         onChange={() => {
           onChange(item, !checked);
         }}
@@ -61,7 +60,6 @@ const DateSelectTreeItem: React.FC<{
   isChecked: (key: string) => boolean;
   onChange: (data: FilterDate, checked: boolean) => void;
   isItemVisible: (item: FilterDate) => boolean;
-  countLabel: string;
 }> = ({
   item,
   depth = 0,
@@ -70,7 +68,6 @@ const DateSelectTreeItem: React.FC<{
   isChecked,
   onChange,
   isItemVisible,
-  countLabel,
 }) => {
   const [expand, setExpand] = useState(initialExpand(item.key));
   const checked = useMemo(() => isChecked(item.key), [isChecked, item.key]);
@@ -84,29 +81,34 @@ const DateSelectTreeItem: React.FC<{
           onExpand?.(item.key, !expand);
           setExpand(!expand);
         }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
-            e.preventDefault();
-            onExpand?.(item.key, !expand);
-            setExpand(!expand);
-          }
-        }}
-        role="button"
-        tabIndex={0}
       >
+        {/* The row holds two separate controls — a disclosure and a filter
+            checkbox — so it deliberately carries no role of its own: `button`
+            on the row would compute its name from the whole subtree and
+            announce the label twice. The caret is the disclosure; the row
+            keeps its onClick so mouse behaviour is unchanged. */}
         {_.isEmpty(item.children) ? (
           <div style={{ width: 10 }} />
         ) : (
-          <div
-            className={`filter-caret ${expand ? "down" : "right"}`}
-            style={{ cursor: "pointer" }}
-          />
+          <button
+            type="button"
+            className="filter-caret-btn"
+            aria-expanded={expand}
+            aria-label={item.text}
+            onClick={(e) => {
+              e.stopPropagation();
+              onExpand?.(item.key, !expand);
+              setExpand(!expand);
+            }}
+          >
+            <span className={`filter-caret ${expand ? "down" : "right"}`} />
+          </button>
         )}
         <input
           className="filter-checkbox"
           type="checkbox"
           checked={checked}
-          aria-label={`${item.text}, ${item.rows.length} ${countLabel}`}
+          aria-label={item.text}
           onChange={() => {
             onChange(item, !checked);
           }}
@@ -128,7 +130,6 @@ const DateSelectTreeItem: React.FC<{
               isChecked,
               onChange,
               isItemVisible,
-              countLabel,
             }}
           />
         ))}
@@ -143,7 +144,6 @@ const DateSelectTree: React.FC<{
   isChecked: (key: string) => boolean;
   onChange: (item: FilterDate, checked: boolean) => void;
   isItemVisible: (item: FilterDate) => boolean;
-  countLabel: string;
 }> = ({
   dates,
   initialExpand,
@@ -151,7 +151,6 @@ const DateSelectTree: React.FC<{
   isChecked,
   onChange,
   isItemVisible,
-  countLabel,
 }) => {
   return (
     <>
@@ -165,7 +164,6 @@ const DateSelectTree: React.FC<{
             isChecked,
             onChange,
             isItemVisible,
-            countLabel,
           }}
         />
       ))}
@@ -348,18 +346,26 @@ const FilterMenu: React.FC = () => {
                     onSelectChange(key, v.color, !v.checked);
                   }
                 }}
-                role="button"
+                role="checkbox"
+                aria-checked={v.checked}
                 tabIndex={0}
               >
                 <div
                   className="color-label"
                   style={{ backgroundColor: v.color }}
                 />
+                {/* Purely visual: the row above is the real checkbox. This
+                    input has a no-op onChange and is a controlled component,
+                    so as a focusable control it could never be toggled by
+                    keyboard. Hidden from AT and removed from the tab order so
+                    it isn't a dead stop. */}
                 <input
                   className="luckysheet-mousedown-cancel"
                   type="checkbox"
                   checked={v.checked}
                   onChange={() => {}}
+                  tabIndex={-1}
+                  aria-hidden="true"
                 />
               </div>
             ))}
@@ -487,14 +493,14 @@ const FilterMenu: React.FC = () => {
           }
           if (name === "sort-by-asc") {
             return (
-              <Menu key={name} onClick={() => sortData(true)}>
+              <Menu key={name} role="button" onClick={() => sortData(true)}>
                 {filter.sortByAsc}
               </Menu>
             );
           }
           if (name === "sort-by-desc") {
             return (
-              <Menu key={name} onClick={() => sortData(false)}>
+              <Menu key={name} role="button" onClick={() => sortData(false)}>
                 {filter.sortByDesc}
               </Menu>
             );
@@ -523,7 +529,11 @@ const FilterMenu: React.FC = () => {
                   }
                 }}
               >
-                <Menu onClick={openColorSubMenu}>
+                <Menu
+                  role="button"
+                  expanded={showSubMenu}
+                  onClick={openColorSubMenu}
+                >
                   <div className="filter-bycolor-container">
                     {filter.filterByColor}
                     <div className="filter-caret right" />
@@ -586,7 +596,11 @@ const FilterMenu: React.FC = () => {
           if (name === "filter-by-value") {
             return (
               <div key={name}>
-                <Menu onClick={() => setShowByValueList((v) => !v)}>
+                <Menu
+                  role="button"
+                  expanded={showByValueList}
+                  onClick={() => setShowByValueList((v) => !v)}
+                >
                   <div
                     className={`filter-caret ${
                       showByValueList ? "down" : "right"
@@ -652,7 +666,6 @@ const FilterMenu: React.FC = () => {
                   >
                     <DateSelectTree
                       dates={data.dates}
-                      countLabel={filter.filterValueCount}
                       onExpand={onExpand}
                       initialExpand={initialExpand}
                       isChecked={(key: string) =>
@@ -687,7 +700,6 @@ const FilterMenu: React.FC = () => {
                       <SelectItem
                         key={v.key}
                         item={v}
-                        countLabel={filter.filterValueCount}
                         isChecked={(key: string) =>
                           !_.includes(valuesUncheck, key)
                         }
