@@ -116,20 +116,27 @@
 .fortune-filter-menu .fortune-byvalue-btn:focus-visible,
 .fortune-filter-menu .filter-caret-btn:focus-visible,
 .filtermenu-input-container input.luckysheet-mousedown-cancel:focus-visible,
-.luckysheet-filter-bycolor-submenu .button-basic:focus-visible,
-.luckysheet-filter-bycolor-submenu .item:focus-visible {
+.luckysheet-filter-bycolor-submenu .button-basic:focus-visible {
   outline: 4px solid #0063c3;
   outline-offset: 2px;
 }
 
-/* The menu rows (Sort asc/desc, Filter by color, Filter by values) take an
-   INSET ring instead. They are full-width children of `.fortune-context-menu`,
-   which has `padding: 6px 0` and — because `overflow-y: auto` forces
-   `overflow-x` to compute to `auto` — clips horizontally. An outset ring would
-   be cut off at both ends. Inset cannot be clipped by its own container, and
-   #0063c3 still measures 5.88:1 on the white row and 5.11:1 on the #efefef
-   hover fill, both well over the 3:1 required by 1.4.11. */
-.fortune-filter-menu .luckysheet-cols-menuitem:focus-visible {
+/* The menu rows (Sort asc/desc, Filter by color, Filter by values) and the
+   colour-filter rows take an INSET ring instead. Both are full-width children
+   of a container that clips them: `.fortune-context-menu` has `padding: 6px 0`
+   and `.color-list` has `overflow: auto`, and in both cases `overflow-y: auto`
+   forces `overflow-x` to compute to `auto`. An outset ring would be cut off at
+   both ends — and on the colour rows only the top edge would survive, because
+   each `.item` is `position: relative` with an opaque background and paints
+   over the previous row's ring, leaving a bar that appears to mark the row
+   above. Inset cannot be clipped by its own container, and #0063c3 still
+   measures 5.88:1 on a white row, 5.11:1 on the #efefef menu-row hover fill
+   and 3.93:1 on the #d3d3d3 colour-row hover fill — all over the 3:1 that
+   1.4.11 requires. The ring sits within the row's 5px/20px padding, so it
+   never overlaps the colour swatch and never has to contrast against a user's
+   cell colour. */
+.fortune-filter-menu .luckysheet-cols-menuitem:focus-visible,
+.luckysheet-filter-bycolor-submenu .item:focus-visible {
   outline: 4px solid #0063c3;
   outline-offset: -4px;
 }
