@@ -83,6 +83,11 @@
 }
 
 .fortune-byvalue-btn {
+  /* rendered as a native <button>; reset it back to a link's appearance */
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
   cursor: pointer;
   color: blue;
   text-decoration: underline;
@@ -94,9 +99,57 @@
   flex-flow: row nowrap;
   justify-content: center;
   align-items: center;
+  font: inherit;
   font-size: 14px;
   padding: 4px 8px;
+  border: 0;
   border-radius: 4px;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+/* Accessible focus indicator — mirrors the design-system LxButton focus ring
+   (outline: var(--border_l) solid var(--color_border_focus_outer); offset var(--border_m)).
+   The 2px offset keeps the blue outline on the light menu background, so it meets
+   non-text contrast against every button fill. */
+.fortune-filter-menu .button-basic:focus-visible,
+.fortune-filter-menu .fortune-byvalue-btn:focus-visible,
+.fortune-filter-menu .filter-caret-btn:focus-visible,
+.filtermenu-input-container input.luckysheet-mousedown-cancel:focus-visible,
+.luckysheet-filter-bycolor-submenu .button-basic:focus-visible {
+  outline: 4px solid #0063c3;
+  outline-offset: 2px;
+}
+
+/* The menu rows (Sort asc/desc, Filter by color, Filter by values) and the
+   colour-filter rows take an INSET ring instead. Both are full-width children
+   of a container that clips them: `.fortune-context-menu` has `padding: 6px 0`
+   and `.color-list` has `overflow: auto`, and in both cases `overflow-y: auto`
+   forces `overflow-x` to compute to `auto`. An outset ring would be cut off at
+   both ends — and on the colour rows only the top edge would survive, because
+   each `.item` is `position: relative` with an opaque background and paints
+   over the previous row's ring, leaving a bar that appears to mark the row
+   above. Inset cannot be clipped by its own container, and #0063c3 still
+   measures 5.88:1 on a white row, 5.11:1 on the #efefef menu-row hover fill
+   and 3.93:1 on the #d3d3d3 colour-row hover fill — all over the 3:1 that
+   1.4.11 requires. The ring sits within the row's 5px/20px padding, so it
+   never overlaps the colour swatch and never has to contrast against a user's
+   cell colour. */
+.fortune-filter-menu .luckysheet-cols-menuitem:focus-visible,
+.luckysheet-filter-bycolor-submenu .item:focus-visible {
+  outline: 4px solid #0063c3;
+  outline-offset: -4px;
+}
+
+/* Button reset — the caret is a real <button> so Enter/Space come from the
+   browser, but it must still look like the bare triangle it replaced. */
+.fortune-filter-menu .filter-caret-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
   cursor: pointer;
 }
 
@@ -120,22 +173,37 @@
 .luckysheet-filter-bycolor-submenu .button-primary,
 .fortune-filter-menu .button-primary {
   color: white;
-  background-color: #0188fb;
+  /* DS action blue — white text on #0063c3 is ~5.9:1 (WCAG 1.4.3 pass) */
+  background-color: #0063c3;
 }
 
 .luckysheet-filter-bycolor-submenu .button-primary:hover,
-.fortune-filter-menu .button-primary:hover {
-  background: #5391ff;
+.fortune-filter-menu .button-primary:hover,
+.luckysheet-filter-bycolor-submenu .button-primary:focus-visible,
+.fortune-filter-menu .button-primary:focus-visible {
+  background: #00509e;
 }
 
 .fortune-filter-menu .button-danger {
   color: white;
-  background-color: #d9534f;
+  /* DS destructive tokens — white text on #be2a27 is ~5.9:1 (WCAG 1.4.3 pass) */
+  background-color: #be2a27;
   margin-left: 10px;
 }
 
-.fortune-filter-menu .button-danger:hover {
-  background-color: #c9302c;
+/* Darkens on hover/focus, matching .button-primary's direction. The DS
+   destructive hover (#ed3431) lightens instead and is only 4.09:1 against its
+   white label — a 1.4.3 failure that keyboard focus would land on every time.
+   #9c211f is 7.92:1 and keeps base -> hover -> active monotonic.
+   NOTE: this is a deliberate departure from the DS token, pending design
+   sign-off; if #ed3431 is canonical then the DS itself needs the fix. */
+.fortune-filter-menu .button-danger:hover,
+.fortune-filter-menu .button-danger:focus-visible {
+  background-color: #9c211f;
+}
+
+.fortune-filter-menu .button-danger:active {
+  background-color: #8e1f1d;
 }
 
 .filter-bycolor-container {
@@ -169,9 +237,11 @@
   border: 1px solid #a1a1a1;
 }
 
+/* No `outline: none` here — it would beat the :focus-visible ring above on a
+   specificity tie by virtue of coming later in the file. The border shift stays
+   as a supporting cue alongside the ring. */
 .filtermenu-input-container input.luckysheet-mousedown-cancel:focus {
   border: 1px solid rgb(1, 136, 251);
-  outline: none;
 }
 
 .byvalue-btn-row {

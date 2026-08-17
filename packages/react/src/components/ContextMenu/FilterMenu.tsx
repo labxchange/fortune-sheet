@@ -41,6 +41,7 @@ const SelectItem: React.FC<{
         className="filter-checkbox"
         type="checkbox"
         checked={checked}
+        aria-label={item.text}
         onChange={() => {
           onChange(item, !checked);
         }}
@@ -80,20 +81,34 @@ const DateSelectTreeItem: React.FC<{
           onExpand?.(item.key, !expand);
           setExpand(!expand);
         }}
-        tabIndex={0}
       >
+        {/* The row holds two separate controls — a disclosure and a filter
+            checkbox — so it deliberately carries no role of its own: `button`
+            on the row would compute its name from the whole subtree and
+            announce the label twice. The caret is the disclosure; the row
+            keeps its onClick so mouse behaviour is unchanged. */}
         {_.isEmpty(item.children) ? (
           <div style={{ width: 10 }} />
         ) : (
-          <div
-            className={`filter-caret ${expand ? "down" : "right"}`}
-            style={{ cursor: "pointer" }}
-          />
+          <button
+            type="button"
+            className="filter-caret-btn"
+            aria-expanded={expand}
+            aria-label={item.text}
+            onClick={(e) => {
+              e.stopPropagation();
+              onExpand?.(item.key, !expand);
+              setExpand(!expand);
+            }}
+          >
+            <span className={`filter-caret ${expand ? "down" : "right"}`} />
+          </button>
         )}
         <input
           className="filter-checkbox"
           type="checkbox"
           checked={checked}
+          aria-label={item.text}
           onChange={() => {
             onChange(item, !checked);
           }}
@@ -109,7 +124,13 @@ const DateSelectTreeItem: React.FC<{
             key={v.key}
             item={v}
             depth={depth + 1}
-            {...{ initialExpand, onExpand, isChecked, onChange, isItemVisible }}
+            {...{
+              initialExpand,
+              onExpand,
+              isChecked,
+              onChange,
+              isItemVisible,
+            }}
           />
         ))}
     </div>
@@ -137,7 +158,13 @@ const DateSelectTree: React.FC<{
         <DateSelectTreeItem
           key={v.key}
           item={v}
-          {...{ initialExpand, onExpand, isChecked, onChange, isItemVisible }}
+          {...{
+            initialExpand,
+            onExpand,
+            isChecked,
+            onChange,
+            isItemVisible,
+          }}
         />
       ))}
     </>
@@ -181,6 +208,7 @@ const FilterMenu: React.FC = () => {
   const dateTreeExpandState = useRef<Record<string, boolean>>({});
   const hiddenRows = useRef<number[]>([]);
   const [showValues, setShowValues] = useState<string[]>([]);
+  const [showByValueList, setShowByValueList] = useState(true);
   const [searchText, setSearchText] = useState("");
   const [subMenuPos, setSubMenuPos] = useState<{
     left?: number;
@@ -306,18 +334,38 @@ const FilterMenu: React.FC = () => {
               <div
                 key={v.color}
                 className="item"
+                aria-label={`${title}, ${v.color}`}
                 onClick={() => onSelectChange(key, v.color, !v.checked)}
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "Enter" ||
+                    e.key === " " ||
+                    e.key === "Spacebar"
+                  ) {
+                    e.preventDefault();
+                    onSelectChange(key, v.color, !v.checked);
+                  }
+                }}
+                role="checkbox"
+                aria-checked={v.checked}
                 tabIndex={0}
               >
                 <div
                   className="color-label"
                   style={{ backgroundColor: v.color }}
                 />
+                {/* Purely visual: the row above is the real checkbox. This
+                    input has a no-op onChange and is a controlled component,
+                    so as a focusable control it could never be toggled by
+                    keyboard. Hidden from AT and removed from the tab order so
+                    it isn't a dead stop. */}
                 <input
                   className="luckysheet-mousedown-cancel"
                   type="checkbox"
                   checked={v.checked}
                   onChange={() => {}}
+                  tabIndex={-1}
+                  aria-hidden="true"
                 />
               </div>
             ))}
@@ -445,35 +493,47 @@ const FilterMenu: React.FC = () => {
           }
           if (name === "sort-by-asc") {
             return (
-              <Menu key={name} onClick={() => sortData(true)}>
+              <Menu key={name} role="button" onClick={() => sortData(true)}>
                 {filter.sortByAsc}
               </Menu>
             );
           }
           if (name === "sort-by-desc") {
             return (
-              <Menu key={name} onClick={() => sortData(false)}>
+              <Menu key={name} role="button" onClick={() => sortData(false)}>
                 {filter.sortByDesc}
               </Menu>
             );
           }
           if (name === "filter-by-color") {
+            const openColorSubMenu = () => {
+              if (!containerRef.current || !filterContextMenu) {
+                return;
+              }
+              setShowSubMenu(true);
+              const rect = byColorMenuRef.current?.getBoundingClientRect();
+              if (rect == null) return;
+              setSubMenuPos({ top: rect.top - 5, left: rect.right });
+            };
             return (
               <div
                 key={name}
                 ref={byColorMenuRef}
-                onMouseEnter={() => {
-                  if (!containerRef.current || !filterContextMenu) {
-                    return;
-                  }
-                  setShowSubMenu(true);
-                  const rect = byColorMenuRef.current?.getBoundingClientRect();
-                  if (rect == null) return;
-                  setSubMenuPos({ top: rect.top - 5, left: rect.right });
-                }}
+                onMouseEnter={openColorSubMenu}
                 onMouseLeave={delayHideSubMenu}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape" && showSubMenu) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowSubMenu(false);
+                  }
+                }}
               >
-                <Menu onClick={() => {}}>
+                <Menu
+                  role="button"
+                  expanded={showSubMenu}
+                  onClick={openColorSubMenu}
+                >
                   <div className="filter-bycolor-container">
                     {filter.filterByColor}
                     <div className="filter-caret right" />
@@ -536,36 +596,47 @@ const FilterMenu: React.FC = () => {
           if (name === "filter-by-value") {
             return (
               <div key={name}>
-                <Menu onClick={() => {}}>
-                  <div className="filter-caret right" />
+                <Menu
+                  role="button"
+                  expanded={showByValueList}
+                  onClick={() => setShowByValueList((v) => !v)}
+                >
+                  <div
+                    className={`filter-caret ${
+                      showByValueList ? "down" : "right"
+                    }`}
+                  />
                   {filter.filterByValues}
                 </Menu>
-                <div className="luckysheet-filter-byvalue">
+                <div
+                  className="luckysheet-filter-byvalue"
+                  style={{ display: showByValueList ? undefined : "none" }}
+                >
                   <div className="fortune-menuitem-row byvalue-btn-row">
                     <div>
-                      <span
+                      <button
+                        type="button"
                         className="fortune-byvalue-btn"
                         onClick={selectAll}
-                        tabIndex={0}
                       >
                         {filter.filterValueByAllBtn}
-                      </span>
+                      </button>
                       {" - "}
-                      <span
+                      <button
+                        type="button"
                         className="fortune-byvalue-btn"
                         onClick={clearAll}
-                        tabIndex={0}
                       >
                         {filter.filterValueByClearBtn}
-                      </span>
+                      </button>
                       {" - "}
-                      <span
+                      <button
+                        type="button"
                         className="fortune-byvalue-btn"
                         onClick={inverseSelect}
-                        tabIndex={0}
                       >
                         {filter.filterValueByInverseBtn}
-                      </span>
+                      </button>
                     </div>
                     <div className="byvalue-filter-icon">
                       <SVGIcon
@@ -578,6 +649,7 @@ const FilterMenu: React.FC = () => {
                     <input
                       type="text"
                       onKeyDown={(e) => e.stopPropagation()}
+                      aria-label={filter.filterByValues}
                       placeholder={filter.filterValueByTip}
                       className="luckysheet-mousedown-cancel"
                       id="luckysheet-\${menuid}-byvalue-input"
@@ -662,7 +734,8 @@ const FilterMenu: React.FC = () => {
         })}
         <Divider />
         <div className="fortune-menuitem-row">
-          <div
+          <button
+            type="button"
             className="button-basic button-primary"
             onClick={() => {
               if (col == null) return;
@@ -690,32 +763,31 @@ const FilterMenu: React.FC = () => {
                 draftCtx.filterContextMenu = undefined;
               });
             }}
-            tabIndex={0}
           >
             {filter.filterConform}
-          </div>
-          <div
+          </button>
+          <button
+            type="button"
             className="button-basic button-default"
             onClick={() => {
               setContext((draftCtx) => {
                 draftCtx.filterContextMenu = undefined;
               });
             }}
-            tabIndex={0}
           >
             {filter.filterCancel}
-          </div>
-          <div
+          </button>
+          <button
+            type="button"
             className="button-basic button-danger"
             onClick={() => {
               setContext((draftCtx) => {
                 clearFilter(draftCtx);
               });
             }}
-            tabIndex={0}
           >
             {filter.clearFilter}
-          </div>
+          </button>
         </div>
       </div>
       {showSubMenu && (
@@ -752,7 +824,8 @@ const FilterMenu: React.FC = () => {
               ].map((v) =>
                 renderColorList(v.key, v.title, v.colors, onColorSelectChange)
               )}
-              <div
+              <button
+                type="button"
                 className="button-basic button-primary"
                 onClick={() => {
                   if (col == null) return;
@@ -785,10 +858,9 @@ const FilterMenu: React.FC = () => {
                     draftCtx.filterContextMenu = undefined;
                   });
                 }}
-                tabIndex={0}
               >
                 {filter.filterConform}
-              </div>
+              </button>
             </>
           )}
         </div>
