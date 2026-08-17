@@ -33,7 +33,8 @@ const SelectItem: React.FC<{
   isChecked: (key: string) => boolean;
   onChange: (item: FilterValue, checked: boolean) => void;
   isItemVisible: (item: FilterValue) => boolean;
-}> = ({ item, isChecked, onChange, isItemVisible }) => {
+  countLabel: string;
+}> = ({ item, isChecked, onChange, isItemVisible, countLabel }) => {
   const checked = useMemo(() => isChecked(item.key), [isChecked, item.key]);
   return isItemVisible(item) ? (
     <div className="select-item">
@@ -41,6 +42,7 @@ const SelectItem: React.FC<{
         className="filter-checkbox"
         type="checkbox"
         checked={checked}
+        aria-label={`${item.text}, ${item.rows.length} ${countLabel}`}
         onChange={() => {
           onChange(item, !checked);
         }}
@@ -59,6 +61,7 @@ const DateSelectTreeItem: React.FC<{
   isChecked: (key: string) => boolean;
   onChange: (data: FilterDate, checked: boolean) => void;
   isItemVisible: (item: FilterDate) => boolean;
+  countLabel: string;
 }> = ({
   item,
   depth = 0,
@@ -67,6 +70,7 @@ const DateSelectTreeItem: React.FC<{
   isChecked,
   onChange,
   isItemVisible,
+  countLabel,
 }) => {
   const [expand, setExpand] = useState(initialExpand(item.key));
   const checked = useMemo(() => isChecked(item.key), [isChecked, item.key]);
@@ -80,6 +84,14 @@ const DateSelectTreeItem: React.FC<{
           onExpand?.(item.key, !expand);
           setExpand(!expand);
         }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+            e.preventDefault();
+            onExpand?.(item.key, !expand);
+            setExpand(!expand);
+          }
+        }}
+        role="button"
         tabIndex={0}
       >
         {_.isEmpty(item.children) ? (
@@ -94,6 +106,7 @@ const DateSelectTreeItem: React.FC<{
           className="filter-checkbox"
           type="checkbox"
           checked={checked}
+          aria-label={`${item.text}, ${item.rows.length} ${countLabel}`}
           onChange={() => {
             onChange(item, !checked);
           }}
@@ -109,7 +122,14 @@ const DateSelectTreeItem: React.FC<{
             key={v.key}
             item={v}
             depth={depth + 1}
-            {...{ initialExpand, onExpand, isChecked, onChange, isItemVisible }}
+            {...{
+              initialExpand,
+              onExpand,
+              isChecked,
+              onChange,
+              isItemVisible,
+              countLabel,
+            }}
           />
         ))}
     </div>
@@ -123,6 +143,7 @@ const DateSelectTree: React.FC<{
   isChecked: (key: string) => boolean;
   onChange: (item: FilterDate, checked: boolean) => void;
   isItemVisible: (item: FilterDate) => boolean;
+  countLabel: string;
 }> = ({
   dates,
   initialExpand,
@@ -130,6 +151,7 @@ const DateSelectTree: React.FC<{
   isChecked,
   onChange,
   isItemVisible,
+  countLabel,
 }) => {
   return (
     <>
@@ -137,7 +159,14 @@ const DateSelectTree: React.FC<{
         <DateSelectTreeItem
           key={v.key}
           item={v}
-          {...{ initialExpand, onExpand, isChecked, onChange, isItemVisible }}
+          {...{
+            initialExpand,
+            onExpand,
+            isChecked,
+            onChange,
+            isItemVisible,
+            countLabel,
+          }}
         />
       ))}
     </>
@@ -181,6 +210,7 @@ const FilterMenu: React.FC = () => {
   const dateTreeExpandState = useRef<Record<string, boolean>>({});
   const hiddenRows = useRef<number[]>([]);
   const [showValues, setShowValues] = useState<string[]>([]);
+  const [showByValueList, setShowByValueList] = useState(true);
   const [searchText, setSearchText] = useState("");
   const [subMenuPos, setSubMenuPos] = useState<{
     left?: number;
@@ -306,7 +336,19 @@ const FilterMenu: React.FC = () => {
               <div
                 key={v.color}
                 className="item"
+                aria-label={`${title}, ${v.color}`}
                 onClick={() => onSelectChange(key, v.color, !v.checked)}
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "Enter" ||
+                    e.key === " " ||
+                    e.key === "Spacebar"
+                  ) {
+                    e.preventDefault();
+                    onSelectChange(key, v.color, !v.checked);
+                  }
+                }}
+                role="button"
                 tabIndex={0}
               >
                 <div
@@ -458,22 +500,30 @@ const FilterMenu: React.FC = () => {
             );
           }
           if (name === "filter-by-color") {
+            const openColorSubMenu = () => {
+              if (!containerRef.current || !filterContextMenu) {
+                return;
+              }
+              setShowSubMenu(true);
+              const rect = byColorMenuRef.current?.getBoundingClientRect();
+              if (rect == null) return;
+              setSubMenuPos({ top: rect.top - 5, left: rect.right });
+            };
             return (
               <div
                 key={name}
                 ref={byColorMenuRef}
-                onMouseEnter={() => {
-                  if (!containerRef.current || !filterContextMenu) {
-                    return;
-                  }
-                  setShowSubMenu(true);
-                  const rect = byColorMenuRef.current?.getBoundingClientRect();
-                  if (rect == null) return;
-                  setSubMenuPos({ top: rect.top - 5, left: rect.right });
-                }}
+                onMouseEnter={openColorSubMenu}
                 onMouseLeave={delayHideSubMenu}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape" && showSubMenu) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowSubMenu(false);
+                  }
+                }}
               >
-                <Menu onClick={() => {}}>
+                <Menu onClick={openColorSubMenu}>
                   <div className="filter-bycolor-container">
                     {filter.filterByColor}
                     <div className="filter-caret right" />
@@ -536,36 +586,43 @@ const FilterMenu: React.FC = () => {
           if (name === "filter-by-value") {
             return (
               <div key={name}>
-                <Menu onClick={() => {}}>
-                  <div className="filter-caret right" />
+                <Menu onClick={() => setShowByValueList((v) => !v)}>
+                  <div
+                    className={`filter-caret ${
+                      showByValueList ? "down" : "right"
+                    }`}
+                  />
                   {filter.filterByValues}
                 </Menu>
-                <div className="luckysheet-filter-byvalue">
+                <div
+                  className="luckysheet-filter-byvalue"
+                  style={{ display: showByValueList ? undefined : "none" }}
+                >
                   <div className="fortune-menuitem-row byvalue-btn-row">
                     <div>
-                      <span
+                      <button
+                        type="button"
                         className="fortune-byvalue-btn"
                         onClick={selectAll}
-                        tabIndex={0}
                       >
                         {filter.filterValueByAllBtn}
-                      </span>
+                      </button>
                       {" - "}
-                      <span
+                      <button
+                        type="button"
                         className="fortune-byvalue-btn"
                         onClick={clearAll}
-                        tabIndex={0}
                       >
                         {filter.filterValueByClearBtn}
-                      </span>
+                      </button>
                       {" - "}
-                      <span
+                      <button
+                        type="button"
                         className="fortune-byvalue-btn"
                         onClick={inverseSelect}
-                        tabIndex={0}
                       >
                         {filter.filterValueByInverseBtn}
-                      </span>
+                      </button>
                     </div>
                     <div className="byvalue-filter-icon">
                       <SVGIcon
@@ -578,6 +635,7 @@ const FilterMenu: React.FC = () => {
                     <input
                       type="text"
                       onKeyDown={(e) => e.stopPropagation()}
+                      aria-label={filter.filterByValues}
                       placeholder={filter.filterValueByTip}
                       className="luckysheet-mousedown-cancel"
                       id="luckysheet-\${menuid}-byvalue-input"
@@ -594,6 +652,7 @@ const FilterMenu: React.FC = () => {
                   >
                     <DateSelectTree
                       dates={data.dates}
+                      countLabel={filter.filterValueCount}
                       onExpand={onExpand}
                       initialExpand={initialExpand}
                       isChecked={(key: string) =>
@@ -628,6 +687,7 @@ const FilterMenu: React.FC = () => {
                       <SelectItem
                         key={v.key}
                         item={v}
+                        countLabel={filter.filterValueCount}
                         isChecked={(key: string) =>
                           !_.includes(valuesUncheck, key)
                         }
@@ -662,7 +722,8 @@ const FilterMenu: React.FC = () => {
         })}
         <Divider />
         <div className="fortune-menuitem-row">
-          <div
+          <button
+            type="button"
             className="button-basic button-primary"
             onClick={() => {
               if (col == null) return;
@@ -690,32 +751,31 @@ const FilterMenu: React.FC = () => {
                 draftCtx.filterContextMenu = undefined;
               });
             }}
-            tabIndex={0}
           >
             {filter.filterConform}
-          </div>
-          <div
+          </button>
+          <button
+            type="button"
             className="button-basic button-default"
             onClick={() => {
               setContext((draftCtx) => {
                 draftCtx.filterContextMenu = undefined;
               });
             }}
-            tabIndex={0}
           >
             {filter.filterCancel}
-          </div>
-          <div
+          </button>
+          <button
+            type="button"
             className="button-basic button-danger"
             onClick={() => {
               setContext((draftCtx) => {
                 clearFilter(draftCtx);
               });
             }}
-            tabIndex={0}
           >
             {filter.clearFilter}
-          </div>
+          </button>
         </div>
       </div>
       {showSubMenu && (
@@ -752,7 +812,8 @@ const FilterMenu: React.FC = () => {
               ].map((v) =>
                 renderColorList(v.key, v.title, v.colors, onColorSelectChange)
               )}
-              <div
+              <button
+                type="button"
                 className="button-basic button-primary"
                 onClick={() => {
                   if (col == null) return;
@@ -785,10 +846,9 @@ const FilterMenu: React.FC = () => {
                     draftCtx.filterContextMenu = undefined;
                   });
                 }}
-                tabIndex={0}
               >
                 {filter.filterConform}
-              </div>
+              </button>
             </>
           )}
         </div>

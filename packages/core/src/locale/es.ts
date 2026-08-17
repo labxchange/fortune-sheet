@@ -11424,6 +11424,7 @@ export default {
     filterValueByClearBtn: "Limpiar",
     filterValueByInverseBtn: "Invertir",
     filterValueByTip: "filtrar por valores",
+    filterValueCount: "recuento",
     filterConform: "Confirmar",
     filterCancel: "Cancelar",
     clearFilter: "Quitar filtro",

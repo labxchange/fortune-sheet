@@ -11489,6 +11489,7 @@ export default {
     filterValueByClearBtn: "清除",
     filterValueByInverseBtn: "反选",
     filterValueByTip: "按照值进行筛选",
+    filterValueCount: "计数",
     filterConform: "确 认",
     filterCancel: "取 消",
 

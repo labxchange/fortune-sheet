@@ -11462,6 +11462,7 @@ export default {
     filterValueByClearBtn: "साफ़ करें",
     filterValueByInverseBtn: "विपरीत",
     filterValueByTip: "मान के आधार पर फ़िल्टर करें",
+    filterValueCount: "गिनती",
     filterConform: "पुष्टि करें",
     filterCancel: "रद्द करें",
     clearFilter: "फ़िल्टर साफ़ करें",

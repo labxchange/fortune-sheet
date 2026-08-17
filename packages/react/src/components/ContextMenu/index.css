@@ -83,6 +83,11 @@
 }
 
 .fortune-byvalue-btn {
+  /* rendered as a native <button>; reset it back to a link's appearance */
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
   cursor: pointer;
   color: blue;
   text-decoration: underline;
@@ -94,10 +99,26 @@
   flex-flow: row nowrap;
   justify-content: center;
   align-items: center;
+  font: inherit;
   font-size: 14px;
   padding: 4px 8px;
+  border: 0;
   border-radius: 4px;
+  box-sizing: border-box;
   cursor: pointer;
+}
+
+/* Accessible focus indicator — mirrors the design-system LxButton focus ring
+   (outline: var(--border_l) solid var(--color_border_focus_outer); offset var(--border_m)).
+   The 2px offset keeps the blue outline on the light menu background, so it meets
+   non-text contrast against every button fill. */
+.fortune-filter-menu .button-basic:focus-visible,
+.fortune-filter-menu .fortune-byvalue-btn:focus-visible,
+.fortune-filter-menu .select-item:focus-visible,
+.luckysheet-filter-bycolor-submenu .button-basic:focus-visible,
+.luckysheet-filter-bycolor-submenu .item:focus-visible {
+  outline: 4px solid #0063c3;
+  outline-offset: 2px;
 }
 
 .luckysheet-filter-bycolor-submenu .button-basic {
@@ -120,22 +141,31 @@
 .luckysheet-filter-bycolor-submenu .button-primary,
 .fortune-filter-menu .button-primary {
   color: white;
-  background-color: #0188fb;
+  /* DS action blue — white text on #0063c3 is ~5.5:1 (WCAG 1.4.3 pass) */
+  background-color: #0063c3;
 }
 
 .luckysheet-filter-bycolor-submenu .button-primary:hover,
-.fortune-filter-menu .button-primary:hover {
-  background: #5391ff;
+.fortune-filter-menu .button-primary:hover,
+.luckysheet-filter-bycolor-submenu .button-primary:focus-visible,
+.fortune-filter-menu .button-primary:focus-visible {
+  background: #00509e;
 }
 
 .fortune-filter-menu .button-danger {
   color: white;
-  background-color: #d9534f;
+  /* DS destructive tokens — white text on #be2a27 is ~5.87:1 (WCAG 1.4.3 pass) */
+  background-color: #be2a27;
   margin-left: 10px;
 }
 
-.fortune-filter-menu .button-danger:hover {
-  background-color: #c9302c;
+.fortune-filter-menu .button-danger:hover,
+.fortune-filter-menu .button-danger:focus-visible {
+  background-color: #ed3431;
+}
+
+.fortune-filter-menu .button-danger:active {
+  background-color: #8e1f1d;
 }
 
 .filter-bycolor-container {

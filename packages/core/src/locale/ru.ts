@@ -14019,6 +14019,7 @@ export default {
     filterValueByClearBtn: "Очистить",
     filterValueByInverseBtn: "Инвертировать",
     filterValueByTip: "Фильтр по значениям",
+    filterValueCount: "количество",
     filterConform: "Подтвердить",
     filterCancel: "Отменить",
     clearFilter: "Очистить фильтр",

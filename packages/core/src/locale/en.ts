@@ -11458,6 +11458,7 @@ export default {
     filterValueByClearBtn: "Clear",
     filterValueByInverseBtn: "Inverse",
     filterValueByTip: "filter By Values",
+    filterValueCount: "count",
     filterConform: "Confirm",
     filterCancel: "Cancel",
     clearFilter: "Clear filter",

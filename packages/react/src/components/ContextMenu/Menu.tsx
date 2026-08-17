@@ -36,7 +36,7 @@ const Menu: React.FC<Props> = ({
       className="luckysheet-cols-menuitem luckysheet-mousedown-cancel"
       onClick={(e) => onClick?.(e, containerRef.current!)}
       onKeyDown={(e) => {
-        if (e.key === "Enter") {
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
           if (e.repeat) return;
           e.preventDefault();
           e.stopPropagation();
