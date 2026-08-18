@@ -11069,17 +11069,13 @@ export default {
     tipColumnWidthLimit: "The column width must be between 0 ~ 2038",
     pageInfoFull: "Total ${total}，${totalPage} page，All data displayed",
 
-    sheetIsFocused: "Sheet focus lock enabled.",
-    sheetNotFocused: "Sheet focus lock disabled.",
-    sheetSrIntro:
-      "To toggle sheet focus to assist with toolbar and other non-sheet navigation, use Shift, Control, F.",
+    sheetSrIntro: "Use the arrow keys to move between cells.",
     currentCellInput: "Current cell input",
     newSheet: "New sheet",
     sheetOptions: "Sheet options",
     Dropdown: "Dropdown",
     zoomIn: "Zoom in",
     zoomOut: "Zoom out",
-    toggleSheetFocusShortcut: "Toggle sheet focus lock: Shift, Control, F.",
     selectRangeShortcut: "Select range: Shift, arrow keys.",
     autoFillDownShortcut:
       "Auto-fill selection down from first cell: Control or Meta key, D.",

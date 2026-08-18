@@ -12947,18 +12947,14 @@ export default {
     tipRowHeightLimit: "Высота строки должна быть от 0 до 545",
     tipColumnWidthLimit: "Ширина столбца должна быть от 0 до 2038",
     pageInfoFull: "Всего ${total}, ${totalPage} страниц, все данные отображены",
-    sheetIsFocused: "Фокус листа включен.",
-    sheetNotFocused: "Фокус листа отключен.",
     sheetSrIntro:
-      "Для переключения фокуса листа для помощи с навигацией по панели инструментов и другим элементам вне листа используйте Shift, Control, F.",
+      "Используйте клавиши со стрелками для перемещения между ячейками.",
     currentCellInput: "Ввод текущей ячейки",
     newSheet: "Новый лист",
     sheetOptions: "Параметры листа",
     Dropdown: "Выпадающий список",
     zoomIn: "Увеличить",
     zoomOut: "Уменьшить",
-    toggleSheetFocusShortcut:
-      "Переключение блокировки фокуса листа: Shift, Control, F.",
     selectRangeShortcut: "Выбор диапазона: Shift, клавиши со стрелками.",
     autoFillDownShortcut:
       "Автозаполнение вниз из первой ячейки: Control или Meta, D.",

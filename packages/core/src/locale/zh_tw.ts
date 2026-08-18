@@ -11018,17 +11018,13 @@ export default {
     tipColumnWidthLimit: "列寬必須在0 ~ 2038之間",
     pageInfoFull: "共${total}條,${totalPage}頁,已顯示全部數據",
 
-    sheetIsFocused: "已啟用工作表焦點鎖定。",
-    sheetNotFocused: "工作表焦點鎖定已停用。",
-    sheetSrIntro:
-      "若要切換工作表焦點以輔助工具列和其他非工作表導航，請使用 Shift、Control、F。",
+    sheetSrIntro: "使用方向鍵在儲存格之間移動。",
     currentCellInput: "目前儲存格輸入",
     newSheet: "新表",
     sheetOptions: "圖紙選項",
     Dropdown: "下拉式選單",
     zoomIn: "放大",
     zoomOut: "縮小",
-    toggleSheetFocusShortcut: "切換工作表焦點鎖定: Shift, Control, F。",
     selectRangeShortcut: "選擇範圍: Shift, 方向鍵。",
     autoFillDownShortcut: "從第一個儲存格向下自動填充: Control 或 Meta 鍵, D。",
     autoFillRightShortcut:

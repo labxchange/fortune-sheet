@@ -774,35 +774,19 @@ export function handleGlobalKeyDown(
   //   return;
   // }
 
-  // Toggle focus with Ctrl + Shift + F (independent of sheet focus state)
-  if (e.ctrlKey && e.shiftKey && kstr === "F") {
-    ctx.sheetFocused = !ctx.sheetFocused; // Toggle sheet focus
-    e.preventDefault();
-
-    if (ctx.sheetFocused) {
-      // Focus back to the selected cell
-      const selectedCell = document.querySelector(
-        ".luckysheet-cell-input"
-      ) as HTMLElement | null;
-      if (selectedCell) {
-        selectedCell.setAttribute("tabindex", "-1"); // Ensure it is focusable
-        selectedCell.focus();
-      }
-    } else {
-      // Focus on the fortune-toolbar
-      const toolbar = document.querySelector(
-        ".fortune-toolbar"
-      ) as HTMLElement | null;
-      if (toolbar) {
-        toolbar.setAttribute("tabindex", "-1"); // Make it focusable if needed
-        toolbar.focus();
-      }
-    }
-
-    return;
-  }
-  // Ensure key events only trigger when sheet focus is ON
-  if (!ctx.sheetFocused) {
+  // Grid keys belong to the grid. The keydown listener is bound to the whole
+  // workbook container, so a key pressed while focus sits on the toolbar, the
+  // formula bar or the sheet tabs must be left to the browser — otherwise Tab
+  // moves the selection behind the user's back and never leaves the grid.
+  // Only bail when the target is an element we can positively place outside
+  // the grid; anything else (a document-level or synthetic event) is handled
+  // as before.
+  const target = e.target as HTMLElement | null;
+  if (
+    typeof target?.closest === "function" &&
+    !cellInput?.contains(target) &&
+    !target.closest(".fortune-sheet-overlay")
+  ) {
     return;
   }
   if (kstr === "Enter") {

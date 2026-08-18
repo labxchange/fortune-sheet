@@ -867,7 +867,6 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             >
               <h2 id="shortcuts-heading">{info.shortcuts}</h2>
               <ul>
-                <li>{info.toggleSheetFocusShortcut}</li>
                 <li>{info.selectRangeShortcut}</li>
                 <li>{info.autoFillDownShortcut}</li>
                 <li>{info.autoFillRightShortcut}</li>

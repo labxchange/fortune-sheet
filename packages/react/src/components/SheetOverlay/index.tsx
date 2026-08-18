@@ -5,7 +5,6 @@ import React, {
   useEffect,
   useLayoutEffect,
   useMemo,
-  useState,
 } from "react";
 import "./index.css";
 import {
@@ -59,8 +58,6 @@ const SheetOverlay: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomAddRowInputRef = useRef<HTMLInputElement>(null);
   const dataVerificationHintBoxRef = useRef<HTMLDivElement>(null);
-  const [lastRangeText, setLastRangeText] = useState("");
-  const [lastCellValue, setLastCellValue] = useState("");
   const { showAlert } = useAlert();
   // const isMobile = browser.mobilecheck();
   const cellAreaMouseDown = useCallback(
@@ -467,13 +464,6 @@ const SheetOverlay: React.FC = () => {
   };
 
   const computedCellValue = cellValue();
-
-  useEffect(() => {
-    if (context.sheetFocused) {
-      setLastRangeText(String(rangeText));
-      setLastCellValue(String(cellValue()));
-    }
-  }, [context.sheetFocused]); // Runs only when sheet focus toggles
 
   return (
     <main
@@ -907,13 +897,6 @@ const SheetOverlay: React.FC = () => {
         {!rangeText.includes("NaN")
           ? `${rangeText} ${computedCellValue}`
           : `A1. ${info.sheetSrIntro}`}
-      </div>
-      <div id="sr-sheetFocus" className="sr-only" role="alert">
-        {context.sheetFocused
-          ? `${lastRangeText} ${lastCellValue ? `${lastCellValue}.` : ""} ${
-              info.sheetIsFocused
-            }`
-          : `Toolbar. ${info.sheetNotFocused}`}
       </div>
     </main>
   );

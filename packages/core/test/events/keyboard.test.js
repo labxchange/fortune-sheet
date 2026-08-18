@@ -180,6 +180,111 @@ describe("keyboard", () => {
     });
   });
 
+  // The Ctrl+Shift+F "sheet focus lock" toggle was removed: it was a hidden
+  // mode with no visible affordance, and the grid now scopes its keys by event
+  // target instead, so the toolbar and sheet tabs stay reachable by Tab.
+  describe("grid key scoping", () => {
+    // Mirrors the real DOM: the cell input lives inside the sheet overlay,
+    // while the toolbar is a sibling outside it.
+    const buildDom = () => {
+      const container = document.createElement("div");
+      container.className = "fortune-container";
+      const overlay = document.createElement("div");
+      overlay.className = "fortune-sheet-overlay";
+      const cellInput = document.createElement("div");
+      cellInput.className = "luckysheet-cell-input";
+      overlay.appendChild(cellInput);
+      const toolbar = document.createElement("div");
+      toolbar.className = "fortune-toolbar";
+      const toolbarButton = document.createElement("button");
+      toolbar.appendChild(toolbarButton);
+      container.appendChild(overlay);
+      container.appendChild(toolbar);
+      document.body.appendChild(container);
+      return { container, overlay, cellInput, toolbarButton };
+    };
+
+    const pressFrom = (ctx, cellInput, target, init) => {
+      const event = new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        ...init,
+      });
+      target.dispatchEvent(event);
+      handleGlobalKeyDown(
+        ctx,
+        cellInput,
+        document.createElement("div"),
+        event,
+        undefined,
+        () => {},
+        () => {}
+      );
+      return event;
+    };
+
+    afterEach(() => {
+      document.body.innerHTML = "";
+    });
+
+    test("ctrl+shift+f no longer toggles anything", () => {
+      const { cellInput } = buildDom();
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [];
+
+      const event = pressFrom(ctx, cellInput, cellInput, {
+        key: "F",
+        code: "KeyF",
+        ctrlKey: true,
+        shiftKey: true,
+      });
+
+      // Ctrl+Shift+F is no longer a mode toggle: no focus lock flag, no jump to
+      // the toolbar, no Find dialog and no selection move. It does still get
+      // preventDefault()ed, because every Ctrl/Meta combo reaching the grid goes
+      // through handleWithCtrlOrMetaKey, which swallows the event wholesale --
+      // pre-existing upstream behaviour, not part of this removal.
+      expect(ctx.sheetFocused).toBeUndefined();
+      expect(document.activeElement).toBe(document.body);
+      expect(ctx.showSearch).toBeFalsy();
+      expect(event.defaultPrevented).toBe(true);
+      expect(ctx.luckysheet_select_save[0].column_focus).toBe(0);
+    });
+
+    test("tab from the toolbar is left to the browser", () => {
+      const { cellInput, toolbarButton } = buildDom();
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [];
+
+      const event = pressFrom(ctx, cellInput, toolbarButton, { key: "Tab" });
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(ctx.luckysheet_select_save[0].column_focus).toBe(0);
+    });
+
+    test("tab from the cell input still moves the selection", () => {
+      const { cellInput } = buildDom();
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [];
+
+      const event = pressFrom(ctx, cellInput, cellInput, { key: "Tab" });
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(ctx.luckysheet_select_save[0].column_focus).toBe(1);
+    });
+
+    test("tab from elsewhere in the overlay still moves the selection", () => {
+      const { cellInput, overlay } = buildDom();
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [];
+
+      const event = pressFrom(ctx, cellInput, overlay, { key: "Tab" });
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(ctx.luckysheet_select_save[0].column_focus).toBe(1);
+    });
+  });
+
   test("handle formula", async () => {
     const ctx = getContext();
     const keyboardEvent = new KeyboardEvent("Enter", { key: "Enter" });
