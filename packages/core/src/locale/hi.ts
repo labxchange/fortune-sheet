@@ -11075,6 +11075,11 @@ export default {
     sheetNotFocused: "शीट फ़ोकस लॉक अक्षम किया गया.",
     sheetSrIntro:
       "टूलबार और अन्य गैर-शीट नेविगेशन में सहायता के लिए शीट फ़ोकस को टॉगल करने के लिए, Shift, Control, F का उपयोग करें।",
+    cellHasFilterDropdown: "फ़िल्टर ड्रॉपडाउन है।",
+    cellFilterActive: "फ़िल्टर सक्रिय है।",
+    enteredFilteredRegion:
+      "फ़िल्टर किए गए क्षेत्र में प्रवेश किया: ${start} से ${end} तक।",
+    leftFilteredRegion: "फ़िल्टर किए गए क्षेत्र से बाहर निकले।",
     currentCellInput: "वर्तमान सेल इनपुट",
     newSheet: "नई शीट",
     sheetOptions: "शीट विकल्प",

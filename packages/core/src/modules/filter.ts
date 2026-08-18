@@ -229,15 +229,53 @@ export function isInFilterRegion(
  * First and last cell of the given column within the filter range, as A1-style
  * references — the extent announced when the region is entered, so a user knows
  * how far the filtered data in that column runs.
+ *
+ * The extent covers the *data* rows only. `startRow` is the header row that
+ * carries the dropdown and is never hidden by a criterion — every consumer of
+ * the range skips it (`getFilterColumnValues` and `orderbydatafiler` both start
+ * at `startRow + 1`) — so naming it would overstate where the filtered data
+ * begins. Hence `+ 2`: one to skip the header, one for the 1-based reference.
+ * A range with no data rows below the header has no extent to announce.
  */
 export function getFilterColumnExtent(ctx: Context, columnIndex: number) {
   const { filterOptions } = ctx;
   if (filterOptions == null) return null;
+  if (filterOptions.startRow >= filterOptions.endRow) return null;
   const columnChar = indexToColumnChar(columnIndex);
   return {
-    start: `${columnChar}${filterOptions.startRow + 1}`,
+    start: `${columnChar}${filterOptions.startRow + 2}`,
     end: `${columnChar}${filterOptions.endRow + 1}`,
   };
+}
+
+/**
+ * Whether `ctx.filterOptions` and `ctx.filter` describe the *current* sheet.
+ *
+ * Both are sheet-agnostic mirrors of the active sheet's `filter_select` and
+ * `filter`, rebuilt by an effect in `FilterOption` one commit *after* the sheet
+ * changes — so on the first render following a sheet switch they still hold the
+ * previous sheet's range and criteria. Callers that combine them with the new
+ * sheet's selection use this to ignore that stale window rather than report a
+ * filter the current sheet does not have.
+ */
+export function isFilterStateCurrent(ctx: Context) {
+  const sheetIndex = getSheetIndex(ctx, ctx.currentSheetId);
+  if (sheetIndex == null) return false;
+  const sheet = ctx.luckysheetfile[sheetIndex];
+  const filterSelect = sheet?.filter_select;
+  const { filterOptions } = ctx;
+  if (filterSelect == null || _.size(filterSelect) === 0)
+    return filterOptions == null;
+  if (filterOptions == null) return false;
+  return (
+    filterOptions.startRow === filterSelect.row[0] &&
+    filterOptions.endRow === filterSelect.row[1] &&
+    filterOptions.startCol === filterSelect.column[0] &&
+    filterOptions.endCol === filterSelect.column[1] &&
+    // Two sheets can share an identical range while holding different
+    // criteria, which the bounds alone cannot distinguish.
+    _.isEqual(ctx.filter ?? {}, sheet.filter ?? {})
+  );
 }
 
 /**

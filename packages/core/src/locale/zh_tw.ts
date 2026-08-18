@@ -11022,6 +11022,10 @@ export default {
     sheetNotFocused: "工作表焦點鎖定已停用。",
     sheetSrIntro:
       "若要切換工作表焦點以輔助工具列和其他非工作表導航，請使用 Shift、Control、F。",
+    cellHasFilterDropdown: "有篩選下拉選單。",
+    cellFilterActive: "篩選器已啟用。",
+    enteredFilteredRegion: "已進入篩選區域：${start} 至 ${end}。",
+    leftFilteredRegion: "已離開篩選區域。",
     currentCellInput: "目前儲存格輸入",
     newSheet: "新表",
     sheetOptions: "圖紙選項",

@@ -12951,6 +12951,11 @@ export default {
     sheetNotFocused: "Фокус листа отключен.",
     sheetSrIntro:
       "Для переключения фокуса листа для помощи с навигацией по панели инструментов и другим элементам вне листа используйте Shift, Control, F.",
+    cellHasFilterDropdown: "Есть раскрывающийся список фильтра.",
+    cellFilterActive: "Фильтр активен.",
+    enteredFilteredRegion:
+      "Вход в отфильтрованную область: с ${start} по ${end}.",
+    leftFilteredRegion: "Выход из отфильтрованной области.",
     currentCellInput: "Ввод текущей ячейки",
     newSheet: "Новый лист",
     sheetOptions: "Параметры листа",

@@ -2,6 +2,7 @@ import {
   getFilterColumnExtent,
   isColumnFilterActive,
   isFilterDropdownCell,
+  isFilterStateCurrent,
   isInFilterRegion,
 } from "../src/modules/filter";
 import { Context } from "../src/context";
@@ -107,13 +108,14 @@ describe("getFilterColumnExtent", () => {
     expect(getFilterColumnExtent(makeContext({}), 2)).toBeNull();
   });
 
-  it("spans the range's rows for the given column, 1-based", () => {
-    // Rows 0-5 are announced as 1-6; column 2 is C.
-    expect(getFilterColumnExtent(ctx, 2)).toEqual({ start: "C1", end: "C6" });
+  it("spans the range's data rows for the given column, 1-based", () => {
+    // Rows 0-5, announced 1-based; row 0 is the header that carries the
+    // dropdown and is never hidden, so the data starts at row 1 === "2".
+    expect(getFilterColumnExtent(ctx, 2)).toEqual({ start: "C2", end: "C6" });
   });
 
   it("names the column asked for, not the range's first column", () => {
-    expect(getFilterColumnExtent(ctx, 4)).toEqual({ start: "E1", end: "E6" });
+    expect(getFilterColumnExtent(ctx, 4)).toEqual({ start: "E2", end: "E6" });
   });
 
   it("converts column indexes past Z", () => {
@@ -121,7 +123,90 @@ describe("getFilterColumnExtent", () => {
       filterOptions: { ...filterOptions, startCol: 0, endCol: 30 },
       filter: {},
     });
-    expect(getFilterColumnExtent(wide, 26)?.start).toBe("AA1");
+    expect(getFilterColumnExtent(wide, 26)?.start).toBe("AA2");
+  });
+
+  it("returns null for a range with no data rows below the header", () => {
+    // `createFilter` on a single cell yields row [r, r] — a header and nothing
+    // to filter, so there is no extent to announce.
+    const headerOnly = makeContext({
+      filterOptions: { ...filterOptions, startRow: 3, endRow: 3 },
+      filter: {},
+    });
+    expect(getFilterColumnExtent(headerOnly, 2)).toBeNull();
+  });
+});
+
+describe("isFilterStateCurrent", () => {
+  // `filterOptions` mirrors the active sheet's `filter_select`, so a sheet whose
+  // own `filter_select` disagrees with it is one the mirror has not caught up to.
+  const sheetWith = (
+    filter_select: { row: number[]; column: number[] } | undefined,
+    filter?: Record<string, any>
+  ) => ({ id: "s1", filter_select, filter });
+
+  it("is true when the range and criteria match the current sheet", () => {
+    const ctx = makeContext({
+      currentSheetId: "s1",
+      luckysheetfile: [
+        sheetWith({ row: [0, 5], column: [2, 4] }, { 0: criterion }),
+      ] as any,
+      filterOptions,
+      filter: { 0: criterion },
+    });
+    expect(isFilterStateCurrent(ctx)).toBe(true);
+  });
+
+  it("is false while the mirror still holds another sheet's range", () => {
+    const ctx = makeContext({
+      currentSheetId: "s1",
+      luckysheetfile: [sheetWith({ row: [0, 9], column: [0, 1] })] as any,
+      filterOptions,
+      filter: {},
+    });
+    expect(isFilterStateCurrent(ctx)).toBe(false);
+  });
+
+  it("is false when the ranges agree but the criteria do not", () => {
+    // Two sheets can share an identical range, which the bounds alone cannot
+    // tell apart — the criteria are what distinguish them.
+    const ctx = makeContext({
+      currentSheetId: "s1",
+      luckysheetfile: [
+        sheetWith({ row: [0, 5], column: [2, 4] }, { 2: criterion }),
+      ] as any,
+      filterOptions,
+      filter: { 0: criterion },
+    });
+    expect(isFilterStateCurrent(ctx)).toBe(false);
+  });
+
+  it("is true for a sheet with no filter and no mirrored range", () => {
+    const ctx = makeContext({
+      currentSheetId: "s1",
+      luckysheetfile: [sheetWith(undefined)] as any,
+      filter: {},
+    });
+    expect(isFilterStateCurrent(ctx)).toBe(true);
+  });
+
+  it("is false when the sheet has no filter but the mirror still does", () => {
+    const ctx = makeContext({
+      currentSheetId: "s1",
+      luckysheetfile: [sheetWith(undefined)] as any,
+      filterOptions,
+      filter: { 0: criterion },
+    });
+    expect(isFilterStateCurrent(ctx)).toBe(false);
+  });
+
+  it("is false when the current sheet cannot be resolved", () => {
+    const ctx = makeContext({
+      currentSheetId: "gone",
+      luckysheetfile: [sheetWith(undefined)] as any,
+      filter: {},
+    });
+    expect(isFilterStateCurrent(ctx)).toBe(false);
   });
 });
 
