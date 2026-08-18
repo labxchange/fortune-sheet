@@ -52,6 +52,11 @@
   background: #efefef;
 }
 
+.luckysheet-cols-menuitem:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+}
+
 .luckysheet-cols-menu
   .luckysheet-cols-menuitem
   .luckysheet-cols-menuitem-content {

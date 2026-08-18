@@ -29,6 +29,12 @@
   background: rgb(230, 230, 230);
 }
 
+#fortune-change-color .color-reset:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+  z-index: 2000;
+}
+
 #fortune-change-color .custom-color {
   position: relative;
   margin: auto;

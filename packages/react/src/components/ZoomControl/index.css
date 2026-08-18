@@ -19,6 +19,12 @@
   background: #efefef;
 }
 
+.fortune-zoom-button:focus-visible,
+.fortune-zoom-ratio-current:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+}
+
 .fortune-zoom-ratio {
   position: relative;
   display: flex;
@@ -35,6 +41,11 @@
 
 .fortune-zoom-ratio-item:hover {
   background: #efefef;
+}
+
+.fortune-zoom-ratio-item:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
 }
 
 .fortune-zoom-ratio-menu {

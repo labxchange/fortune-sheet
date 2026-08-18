@@ -10948,6 +10948,7 @@ export default {
     screenshot: "Captura de pantalla",
     splitColumn: "Separar texto",
     insertImage: "Insertar imagen",
+    link: "Insertar enlace",
     dataVerification: "Verificación de datos",
     protection: "Proteger la hoja",
 
@@ -11048,6 +11049,10 @@ export default {
     currentCellInput: "Entrada de celda actual",
     newSheet: "Nueva hoja",
     sheetOptions: "Opciones de hoja",
+    allSheets: "Todas las hojas",
+    selectAll: "Seleccionar todas las celdas",
+    scrollLeft: "Desplazar pestañas a la izquierda",
+    scrollRight: "Desplazar pestañas a la derecha",
     Dropdown: "Menú desplegable",
     zoomIn: "Dar un golpe de zoom",
     zoomOut: "alejar",

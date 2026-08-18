@@ -2,6 +2,7 @@ import { Sheet, api } from "@fortune-sheet/core";
 import React, { CSSProperties, useCallback, useContext } from "react";
 import SVGIcon from "../SVGIcon";
 import WorkbookContext from "../../context";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 
 type Props = {
   style?: CSSProperties;
@@ -25,7 +26,9 @@ const SheetHiddenButton: React.FC<Props> = ({ style, sheet }) => {
         e.stopPropagation();
         showSheet();
       }}
+      onKeyDown={activateOnEnterOrSpace}
       tabIndex={0}
+      role="button"
       className="fortune-sheet-hidden-button"
     >
       {sheet?.hide === 1 ? (

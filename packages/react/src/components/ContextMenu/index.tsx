@@ -23,6 +23,7 @@ import regeneratorRuntime from "regenerator-runtime";
 import WorkbookContext, { SetContextOptions } from "../../context";
 import { useAlert } from "../../hooks/useAlert";
 import { useDialog } from "../../hooks/useDialog";
+import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import Divider from "./Divider";
 import "./index.css";
 import Menu from "./Menu";
@@ -35,6 +36,17 @@ const ContextMenu: React.FC = () => {
   const { contextMenu } = context;
   const { showAlert } = useAlert();
   const { rightclick, drag, generalDialog, info } = locale(context);
+
+  const closeContextMenu = useCallback(() => {
+    setContext((draftCtx) => {
+      draftCtx.contextMenu = {};
+    });
+  }, [setContext]);
+  useEscapeToClose({
+    open: !_.isEmpty(contextMenu),
+    onClose: closeContextMenu,
+    containerRef,
+  });
   const getMenuElement = useCallback(
     (name: string, i: number) => {
       const selection = context.luckysheet_select_save?.[0];

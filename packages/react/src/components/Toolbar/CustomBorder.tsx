@@ -1,10 +1,12 @@
-import React, { useCallback, useContext, useRef, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import "./index.css";
 import { locale } from "@fortune-sheet/core";
-import _ from "lodash";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
 import { CustomColor } from "./CustomColor";
+import { useEscapeToClose } from "../../hooks/useEscapeToClose";
+import { useRovingFocus } from "../../hooks/useRovingFocus";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 
 const size = [
   {
@@ -92,6 +94,11 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
   const { border } = locale(context);
   const [changeColor, setchangeColor] = useState("#000000");
   const [changeStyle, setchangeStyle] = useState("1");
+  const [openSubmenu, setOpenSubmenu] = useState<"color" | "style" | null>(
+    null
+  );
+  const colorOptionRef = useRef<HTMLDivElement | null>(null);
+  const styleOptionRef = useRef<HTMLDivElement | null>(null);
   const colorRef = useRef<HTMLDivElement | null>(null);
   const styleRef = useRef<HTMLDivElement | null>(null);
   const colorPreviewRef = useRef<HTMLDivElement | null>(null);
@@ -100,41 +107,53 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
     ""
   );
 
-  const showBorderSubMenu = useCallback(
-    (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
-      const target = e.target as HTMLDivElement;
-      const menuItemRect = target.getBoundingClientRect();
-      const subMenuItem = target.querySelector(
-        ".fortune-border-select-menu"
-      ) as HTMLDivElement;
-      if (_.isNil(subMenuItem)) return;
-      subMenuItem.style.display = "block";
+  useEffect(() => {
+    const positionSubmenu = (
+      optionRef: React.RefObject<HTMLDivElement | null>,
+      menuRef: React.RefObject<HTMLDivElement | null>
+    ) => {
+      const optionEl = optionRef.current;
+      const menuEl = menuRef.current;
+      if (!optionEl || !menuEl) return;
+      const menuItemRect = optionEl.getBoundingClientRect();
       const workbookContainerRect =
         refs.workbookContainer.current!.getBoundingClientRect();
       if (
-        workbookContainerRect.width - menuItemRect!.right >
-        parseFloat(subMenuItem.style.width.replace("px", ""))
+        workbookContainerRect.width - menuItemRect.right >
+        parseFloat(menuEl.style.width.replace("px", ""))
       ) {
-        subMenuItem.style.left = `${menuItemRect?.width}px`;
+        menuEl.style.left = `${menuItemRect.width}px`;
       } else {
-        subMenuItem.style.left = `-${subMenuItem.style.width}`;
+        menuEl.style.left = `-${menuEl.style.width}`;
       }
-    },
-    [refs.workbookContainer]
-  );
+    };
+    if (openSubmenu === "color") positionSubmenu(colorOptionRef, colorRef);
+    if (openSubmenu === "style") positionSubmenu(styleOptionRef, styleRef);
+  }, [openSubmenu, refs.workbookContainer]);
 
-  const hideBorderSubMenu = useCallback(() => {
-    styleRef.current!.style.display = "none";
-    colorRef.current!.style.display = "none";
-  }, []);
+  useEscapeToClose({
+    open: openSubmenu === "color",
+    onClose: () => setOpenSubmenu(null),
+    containerRef: colorRef,
+  });
+  useEscapeToClose({
+    open: openSubmenu === "style",
+    onClose: () => setOpenSubmenu(null),
+    containerRef: styleRef,
+  });
+  useRovingFocus({
+    containerRef: styleRef,
+    orientation: "vertical",
+    enabled: openSubmenu === "style",
+  });
 
-  const changePreviewStyle = useCallback(
-    (width: string | undefined, dasharray: string | undefined) => {
-      setPreviewWith(width);
-      setPreviewdasharray(dasharray);
-    },
-    []
-  );
+  const changePreviewStyle = (
+    width: string | undefined,
+    dasharray: string | undefined
+  ) => {
+    setPreviewWith(width);
+    setPreviewdasharray(dasharray);
+  };
 
   return (
     <div>
@@ -142,11 +161,20 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
       <div
         className="fortune-border-select-option"
         key="borderColor"
-        onMouseEnter={(e) => {
-          showBorderSubMenu(e);
-        }}
-        onMouseLeave={() => {
-          hideBorderSubMenu();
+        ref={colorOptionRef}
+        role="button"
+        tabIndex={0}
+        aria-haspopup="true"
+        aria-expanded={openSubmenu === "color"}
+        onMouseEnter={() => setOpenSubmenu("color")}
+        onMouseLeave={() => setOpenSubmenu(null)}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpenSubmenu("color");
+          }
         }}
       >
         <div className="fortune-toolbar-menu-line">
@@ -161,7 +189,10 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
         <div
           ref={colorRef}
           className="fortune-border-select-menu"
-          style={{ display: "none", width: "166px" }}
+          style={{
+            display: openSubmenu === "color" ? "block" : "none",
+            width: "166px",
+          }}
         >
           <CustomColor
             onCustomPick={(color) => {
@@ -180,11 +211,20 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
       <div
         className="fortune-border-select-option"
         key="borderStyle"
-        onMouseEnter={(e) => {
-          showBorderSubMenu(e);
-        }}
-        onMouseLeave={() => {
-          hideBorderSubMenu();
+        ref={styleOptionRef}
+        role="button"
+        tabIndex={0}
+        aria-haspopup="true"
+        aria-expanded={openSubmenu === "style"}
+        onMouseEnter={() => setOpenSubmenu("style")}
+        onMouseLeave={() => setOpenSubmenu(null)}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpenSubmenu("style");
+          }
         }}
       >
         <div className="fortune-toolbar-menu-line">
@@ -201,7 +241,10 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
         <div
           ref={styleRef}
           className="fortune-border-select-menu fortune-toolbar-select"
-          style={{ display: "none", width: "110px" }}
+          style={{
+            display: openSubmenu === "style" ? "block" : "none",
+            width: "110px",
+          }}
         >
           <div
             className="fortune-border-style-picker-menu fortune-border-style-reset"
@@ -209,7 +252,9 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
               onPick(changeColor, "1");
               changePreviewStyle("1", "1,0");
             }}
+            onKeyDown={activateOnEnterOrSpace}
             tabIndex={0}
+            role="button"
           >
             {border.borderDefault}
           </div>
@@ -223,7 +268,10 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
                   setchangeStyle(items.Text);
                   changePreviewStyle(items.strokeWidth, items.strokeDasharray);
                 }}
+                onKeyDown={activateOnEnterOrSpace}
                 tabIndex={0}
+                role="button"
+                aria-label={items.value}
               >
                 <svg height="10" width="90">
                   <g fill="none" stroke="black" strokeWidth={items.strokeWidth}>

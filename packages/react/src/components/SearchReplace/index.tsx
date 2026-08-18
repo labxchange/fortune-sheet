@@ -15,6 +15,7 @@ import _ from "lodash";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
 import { useAlert } from "../../hooks/useAlert";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 import "./index.css";
 
 const SearchReplace: React.FC<{
@@ -81,7 +82,10 @@ const SearchReplace: React.FC<{
         <div
           className="icon-close fortune-modal-dialog-icon-close"
           onClick={closeDialog}
+          onKeyDown={activateOnEnterOrSpace}
           tabIndex={0}
+          role="button"
+          aria-label={button.close}
         >
           <SVGIcon name="close" style={{ padding: 7, cursor: "pointer" }} />
         </div>
@@ -90,7 +94,10 @@ const SearchReplace: React.FC<{
             id="searchTab"
             className={showReplace ? "" : "on"}
             onClick={() => setShowReplace(false)}
+            onKeyDown={activateOnEnterOrSpace}
             tabIndex={0}
+            role="button"
+            aria-pressed={!showReplace}
           >
             {findAndReplace.find}
           </span>
@@ -98,7 +105,10 @@ const SearchReplace: React.FC<{
             id="replaceTab"
             className={showReplace ? "on" : ""}
             onClick={() => setShowReplace(true)}
+            onKeyDown={activateOnEnterOrSpace}
             tabIndex={0}
+            role="button"
+            aria-pressed={showReplace}
           >
             {findAndReplace.replace}
           </span>
@@ -173,7 +183,9 @@ const SearchReplace: React.FC<{
                       showAlert(alertMsg);
                     });
                   }}
+                  onKeyDown={activateOnEnterOrSpace}
                   tabIndex={0}
+                  role="button"
                 >
                   {findAndReplace.allReplaceBtn}
                 </div>
@@ -194,7 +206,9 @@ const SearchReplace: React.FC<{
                       }
                     })
                   }
+                  onKeyDown={activateOnEnterOrSpace}
                   tabIndex={0}
+                  role="button"
                 >
                   {findAndReplace.replaceBtn}
                 </div>
@@ -212,7 +226,9 @@ const SearchReplace: React.FC<{
                   if (_.isEmpty(res)) showAlert(findAndReplace.noFindTip);
                 })
               }
+              onKeyDown={activateOnEnterOrSpace}
               tabIndex={0}
+              role="button"
             >
               {findAndReplace.allFindBtn}
             </div>
@@ -226,7 +242,9 @@ const SearchReplace: React.FC<{
                   if (alertMsg != null) showAlert(alertMsg);
                 })
               }
+              onKeyDown={activateOnEnterOrSpace}
               tabIndex={0}
+              role="button"
             >
               {findAndReplace.findBtn}
             </div>
@@ -235,7 +253,9 @@ const SearchReplace: React.FC<{
         <div
           className="close-button fortune-message-box-button button-default"
           onClick={closeDialog}
+          onKeyDown={activateOnEnterOrSpace}
           tabIndex={0}
+          role="button"
         >
           {button.close}
         </div>
@@ -269,7 +289,9 @@ const SearchReplace: React.FC<{
                       });
                       setSelectedCell({ r: v.r, c: v.c });
                     }}
+                    onKeyDown={activateOnEnterOrSpace}
                     tabIndex={0}
+                    role="button"
                   >
                     <span>{v.sheetName}</span>
                     <span>{v.cellPosition}</span>

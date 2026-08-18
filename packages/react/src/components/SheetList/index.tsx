@@ -2,6 +2,8 @@ import _ from "lodash";
 import React, { useContext, useRef, useCallback } from "react";
 import WorkbookContext from "../../context";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
+import { useEscapeToClose } from "../../hooks/useEscapeToClose";
+import { useRovingFocus } from "../../hooks/useRovingFocus";
 import "./index.css";
 import SheetListItem from "./SheetListItem";
 
@@ -15,6 +17,12 @@ const SheetList: React.FC = () => {
     });
   }, [setContext]);
   useOutsideClick(containerRef, close, [close]);
+  useEscapeToClose({ onClose: close, containerRef });
+  useRovingFocus({
+    containerRef,
+    orientation: "vertical",
+    itemSelector: ".fortune-sheet-list-item",
+  });
 
   return (
     <div

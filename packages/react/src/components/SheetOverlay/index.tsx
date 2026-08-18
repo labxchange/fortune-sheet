@@ -51,6 +51,7 @@ import RangeDialog from "../DataVerification/RangeDialog";
 import { useDialog } from "../../hooks/useDialog";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 
 const SheetOverlay: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
@@ -492,7 +493,10 @@ const SheetOverlay: React.FC = () => {
         <div
           className="fortune-left-top"
           onClick={onLeftTopClick}
+          onKeyDown={activateOnEnterOrSpace}
           tabIndex={0}
+          role="button"
+          aria-label={info.selectAll}
           style={{
             width: context.rowHeaderWidth - 1.5,
             height: context.columnHeaderHeight - 1.5,
@@ -861,7 +865,6 @@ const SheetOverlay: React.FC = () => {
                   onKeyPress={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
                   onDoubleClick={(e) => e.stopPropagation()}
-                  tabIndex={0}
                   style={{
                     left: context.scrollLeft,
                     display: context.allowEdit ? "block" : "none",
@@ -872,7 +875,9 @@ const SheetOverlay: React.FC = () => {
                     onClick={() => {
                       handleBottomAddRow();
                     }}
+                    onKeyDown={activateOnEnterOrSpace}
                     tabIndex={0}
+                    role="button"
                   >
                     {info.add}
                   </div>
@@ -893,7 +898,9 @@ const SheetOverlay: React.FC = () => {
                         ctx.scrollTop = 0;
                       });
                     }}
+                    onKeyDown={activateOnEnterOrSpace}
                     tabIndex={0}
+                    role="button"
                   >
                     {info.backTop}
                   </span>

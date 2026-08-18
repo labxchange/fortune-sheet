@@ -9,6 +9,9 @@ import {
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
+import { useEscapeToClose } from "../../hooks/useEscapeToClose";
+import { useRovingFocus } from "../../hooks/useRovingFocus";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 import "./index.css";
 
 const presets = [
@@ -64,6 +67,17 @@ const ZoomControl: React.FC = () => {
     []
   );
 
+  useEscapeToClose({
+    open: radioMenuOpen,
+    onClose: () => setRadioMenuOpen(false),
+    containerRef: menuRef,
+  });
+  useRovingFocus({
+    containerRef: menuRef,
+    orientation: "vertical",
+    enabled: radioMenuOpen,
+  });
+
   const zoomTo = useCallback(
     (val: number) => {
       val = parseFloat(val.toFixed(1));
@@ -94,6 +108,7 @@ const ZoomControl: React.FC = () => {
           zoomTo(context.zoomRatio - 0.1);
           e.stopPropagation();
         }}
+        onKeyDown={activateOnEnterOrSpace}
         tabIndex={0}
         role="button"
       >
@@ -103,7 +118,12 @@ const ZoomControl: React.FC = () => {
         <div
           className="fortune-zoom-ratio-current fortune-zoom-button"
           onClick={() => setRadioMenuOpen(true)}
+          onKeyDown={activateOnEnterOrSpace}
           tabIndex={0}
+          role="button"
+          aria-haspopup
+          aria-expanded={radioMenuOpen}
+          aria-label={`${(context.zoomRatio * 100).toFixed(0)}%`}
         >
           {(context.zoomRatio * 100).toFixed(0)}%
         </div>
@@ -117,7 +137,9 @@ const ZoomControl: React.FC = () => {
                   zoomTo(v.value);
                   e.preventDefault();
                 }}
+                onKeyDown={activateOnEnterOrSpace}
                 tabIndex={0}
+                role="button"
               >
                 <div className="fortune-zoom-ratio-text">{v.text}</div>
               </div>
@@ -132,6 +154,7 @@ const ZoomControl: React.FC = () => {
           zoomTo(context.zoomRatio + 0.1);
           e.stopPropagation();
         }}
+        onKeyDown={activateOnEnterOrSpace}
         tabIndex={0}
         role="button"
       >

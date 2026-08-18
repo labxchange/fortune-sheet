@@ -22,6 +22,7 @@ import "./index.css";
 import _ from "lodash";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 
 export const LinkEditCard: React.FC<LinkCardProps> = ({
   r,
@@ -90,14 +91,18 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
         <div
           className="button-basic button-default"
           onClick={onCancel}
+          onKeyDown={activateOnEnterOrSpace}
           tabIndex={0}
+          role="button"
         >
           {button.cancel}
         </div>
         <div
           className="button-basic button-primary"
           onClick={onOk}
+          onKeyDown={activateOnEnterOrSpace}
           tabIndex={0}
+          role="button"
         >
           {button.confirm}
         </div>
@@ -107,8 +112,15 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
   );
 
   const renderToolbarButton = useCallback(
-    (iconId: string, onClick: () => void) => (
-      <div className="fortune-toolbar-button" onClick={onClick} tabIndex={0}>
+    (iconId: string, ariaLabel: string, onClick: () => void) => (
+      <div
+        className="fortune-toolbar-button"
+        onClick={onClick}
+        onKeyDown={activateOnEnterOrSpace}
+        tabIndex={0}
+        role="button"
+        aria-label={ariaLabel}
+      >
         <SVGIcon name={iconId} style={{ width: 18, height: 18 }} />
       </div>
     ),
@@ -172,7 +184,9 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
               )
             );
           }}
+          onKeyDown={activateOnEnterOrSpace}
           tabIndex={0}
+          role="button"
         >
           {linkType === "webpage"
             ? insertLink.openLink
@@ -181,12 +195,12 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
         {context.allowEdit === true && <div className="divider" />}
         {context.allowEdit === true &&
           linkType === "webpage" &&
-          renderToolbarButton("copy", () => {
+          renderToolbarButton("copy", insertLink.copyLink, () => {
             navigator.clipboard.writeText(originAddress);
             hideLinkCard();
           })}
         {context.allowEdit === true &&
-          renderToolbarButton("pencil", () =>
+          renderToolbarButton("pencil", insertLink.editLink, () =>
             setContext((draftCtx) => {
               if (draftCtx.linkCard != null && draftCtx.allowEdit) {
                 draftCtx.linkCard.isEditing = true;
@@ -195,7 +209,7 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
           )}
         {context.allowEdit === true && <div className="divider" />}
         {context.allowEdit === true &&
-          renderToolbarButton("unlink", () =>
+          renderToolbarButton("unlink", insertLink.removeLink, () =>
             setContext((draftCtx) => {
               _.set(refs.globalCache, "linkCard.mouseEnter", false);
               removeHyperlink(draftCtx, r, c);
@@ -219,7 +233,10 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
       <div
         className="modal-icon-close"
         onClick={() => setRangeModalVisible(false)}
+        onKeyDown={activateOnEnterOrSpace}
         tabIndex={0}
+        role="button"
+        aria-label={button.close}
       >
         <SVGIcon name="close" />
       </div>
@@ -267,8 +284,14 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
         />
       </div>
       <div className="fortune-link-modify-line">
-        <div className="fortune-link-modify-title">{insertLink.linkType}</div>
+        <label
+          className="fortune-link-modify-title"
+          htmlFor="fortune-link-type-select"
+        >
+          {insertLink.linkType}
+        </label>
         <select
+          id="fortune-link-type-select"
           className="fortune-link-modify-select"
           value={linkType}
           onChange={(e) => {
@@ -324,7 +347,10 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
             <div
               className="fortune-link-modify-cell-selector"
               onClick={() => setRangeModalVisible(true)}
+              onKeyDown={activateOnEnterOrSpace}
               tabIndex={0}
+              role="button"
+              aria-label={insertLink.selectCellRange}
             >
               <SVGIcon name="border-all" />
             </div>
@@ -333,10 +359,14 @@ export const LinkEditCard: React.FC<LinkCardProps> = ({
         )}
         {linkType === "sheet" && (
           <>
-            <div className="fortune-link-modify-title">
+            <label
+              className="fortune-link-modify-title"
+              htmlFor="fortune-link-sheet-select"
+            >
               {insertLink.linkSheet}
-            </div>
+            </label>
             <select
+              id="fortune-link-sheet-select"
               className="fortune-link-modify-select"
               onChange={(e) => {
                 if (!linkText) setLinkText(e.target.value);

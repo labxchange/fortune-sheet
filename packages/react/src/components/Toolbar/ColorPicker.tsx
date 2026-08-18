@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useRef } from "react";
+import { useRovingFocus } from "../../hooks/useRovingFocus";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 
 const palette = [
   [
@@ -88,8 +90,14 @@ type Props = {
 };
 
 const ColorPicker: React.FC<Props> = ({ onPick }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  useRovingFocus({
+    containerRef,
+    orientation: "grid",
+    columns: palette[0].length,
+  });
   return (
-    <div className="fortune-toolbar-color-picker">
+    <div className="fortune-toolbar-color-picker" ref={containerRef}>
       {palette.map((rows, i) => (
         <div key={i} className="fortune-toolbar-color-picker-row">
           {rows.map((c) => (
@@ -97,7 +105,10 @@ const ColorPicker: React.FC<Props> = ({ onPick }) => {
               key={c}
               className="fortune-toolbar-color-picker-item"
               onClick={() => onPick(c)}
+              onKeyDown={activateOnEnterOrSpace}
               tabIndex={0}
+              role="button"
+              aria-label={c}
               style={{ backgroundColor: c }}
             />
           ))}

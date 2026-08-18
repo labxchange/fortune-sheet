@@ -1,5 +1,6 @@
 import React from "react";
 import SVGIcon from "../SVGIcon";
+import { onActivationKeyDown } from "../../utils/keyboardActivation";
 
 type Props = {
   tooltip: string;
@@ -23,10 +24,12 @@ const Button: React.FC<Props> = ({
     <div
       className="fortune-toolbar-button fortune-toolbar-item"
       onClick={onClick}
+      onKeyDown={onActivationKeyDown(disabled)}
       tabIndex={0}
       data-tips={tooltip}
       role="button"
       aria-label={tooltip}
+      aria-disabled={disabled || undefined}
       style={selected ? { backgroundColor: "#E7E5EB" } : {}}
     >
       <SVGIcon name={iconId} style={disabled ? { opacity: 0.3 } : {}} />

@@ -23,6 +23,11 @@
   background: #efefef;
 }
 
+.condition-format-item:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+}
+
 .condition-format-item span {
   font-size: 10px;
   color: #afafaf;
@@ -62,6 +67,11 @@
   color: #333;
   background-color: #fff;
   border: 1px solid #ccc;
+}
+
+.condition-rules .button-basic:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
 }
 
 .condition-rules {

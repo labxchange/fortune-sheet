@@ -44,6 +44,9 @@ import Combo from "./Combo";
 import Select, { Option } from "./Select";
 import SVGIcon from "../SVGIcon";
 import { useDialog } from "../../hooks/useDialog";
+import { useEscapeToClose } from "../../hooks/useEscapeToClose";
+import { useRovingFocus } from "../../hooks/useRovingFocus";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 import { FormulaSearch } from "../FormulaSearch";
 import { SplitColumn } from "../SplitColumn";
 import { LocationCondition } from "../LocationCondition";
@@ -53,6 +56,102 @@ import CustomButton from "./CustomButton";
 import { CustomColor } from "./CustomColor";
 import CustomBorder from "./CustomBorder";
 import { FormatSearch } from "../FormatSearch";
+
+const MoreFormatOption: React.FC<{
+  text: string;
+  moreCurrencyText: string;
+  moreNumberText: string;
+  onPickCurrency: () => void;
+  onPickNumber: () => void;
+}> = ({
+  text,
+  moreCurrencyText,
+  moreNumberText,
+  onPickCurrency,
+  onPickNumber,
+}) => {
+  const { refs } = useContext(WorkbookContext);
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const subMenu = menuRef.current;
+    if (!subMenu || !open) return;
+    const menuItem = subMenu.parentElement as HTMLDivElement;
+    const menuItemRect = menuItem.getBoundingClientRect();
+    const workbookContainerRect =
+      refs.workbookContainer.current!.getBoundingClientRect();
+    const menuItemStyle = window.getComputedStyle(menuItem);
+    const menuItemPaddingRight = parseFloat(
+      menuItemStyle.getPropertyValue("padding-right").replace("px", "")
+    );
+    const subMenuWidth = parseFloat(subMenu.style.width.replace("px", ""));
+    if (workbookContainerRect.right - menuItemRect.right < subMenuWidth) {
+      subMenu.style.right = `${menuItemRect.width - menuItemPaddingRight}px`;
+    } else {
+      subMenu.style.right = `${-subMenuWidth}px`;
+    }
+  }, [open, refs.workbookContainer]);
+
+  useEscapeToClose({
+    open,
+    onClose: () => setOpen(false),
+    containerRef: menuRef,
+  });
+  useRovingFocus({
+    containerRef: menuRef,
+    orientation: "vertical",
+    enabled: open,
+  });
+
+  return (
+    <Option
+      aria-haspopup
+      aria-expanded={open}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(true);
+        }
+      }}
+    >
+      <div className="fortune-toolbar-menu-line">
+        <div>{text}</div>
+        <SVGIcon name="rightArrow" width={14} />
+      </div>
+      <div
+        ref={menuRef}
+        className="more-format toolbar-item-sub-menu fortune-toolbar-select"
+        style={{
+          display: open ? "block" : "none",
+          width: 150,
+          bottom: 10,
+          top: undefined,
+        }}
+      >
+        {[
+          { text: moreCurrencyText, onclick: onPickCurrency },
+          { text: moreNumberText, onclick: onPickNumber },
+        ].map((v) => (
+          <div
+            className="set-background-item fortune-toolbar-select-option"
+            key={v.text}
+            onClick={v.onclick}
+            onKeyDown={activateOnEnterOrSpace}
+            tabIndex={0}
+            role="button"
+          >
+            {v.text}
+          </div>
+        ))}
+      </div>
+    </Option>
+  );
+};
 
 const Toolbar: React.FC<{
   setMoreItems: React.Dispatch<React.SetStateAction<React.ReactNode>>;
@@ -98,63 +197,6 @@ const Toolbar: React.FC<{
 
   const [customColor, setcustomColor] = useState("#000000");
   const [customStyle, setcustomStyle] = useState("1");
-
-  const showSubMenu = useCallback(
-    (e: React.MouseEvent<HTMLDivElement, MouseEvent>, className: string) => {
-      const target = e.target as HTMLDivElement;
-      const menuItem =
-        target.className === "fortune-toolbar-menu-line"
-          ? target.parentElement!
-          : target;
-      const menuItemRect = menuItem.getBoundingClientRect();
-      const workbookContainerRect =
-        refs.workbookContainer.current!.getBoundingClientRect();
-      const subMenu = menuItem.querySelector(`.${className}`) as HTMLDivElement;
-      if (_.isNil(subMenu)) return;
-      const menuItemStyle = window.getComputedStyle(menuItem);
-      const menuItemPaddingRight = parseFloat(
-        menuItemStyle.getPropertyValue("padding-right").replace("px", "")
-      );
-
-      if (
-        workbookContainerRect.right - menuItemRect.right <
-        parseFloat(subMenu.style.width.replace("px", ""))
-      ) {
-        subMenu.style.display = "block";
-        subMenu.style.right = `${menuItemRect.width - menuItemPaddingRight}px`;
-      } else {
-        subMenu.style.display = "block";
-        subMenu.style.right =
-          className === "more-format"
-            ? `${-(parseFloat(subMenu.style.width.replace("px", "")) + 0)}px`
-            : `${-(
-                parseFloat(subMenu.style.width.replace("px", "")) +
-                menuItemPaddingRight
-              )}px`;
-      }
-    },
-    [refs.workbookContainer]
-  );
-
-  const hideSubMenu = useCallback(
-    (e: React.MouseEvent<HTMLDivElement, MouseEvent>, className: string) => {
-      const target = e.target as HTMLDivElement;
-
-      if (target.className === `${className}`) {
-        target.style.display = "none";
-        return;
-      }
-
-      const subMenu = (
-        target.className === "condition-format-item"
-          ? target.parentElement
-          : target.querySelector(`.${className}`)
-      ) as HTMLDivElement;
-      if (_.isNil(subMenu)) return;
-      subMenu.style.display = "none";
-    },
-    []
-  );
 
   // rerenders the entire toolbar and trigger recalculation of item locations
   useEffect(() => {
@@ -284,64 +326,27 @@ const Toolbar: React.FC<{
                   }
                   if (value === "fmtOtherSelf") {
                     return (
-                      <Option
+                      <MoreFormatOption
                         key={value}
-                        onMouseEnter={(e) => showSubMenu(e, "more-format")}
-                        onMouseLeave={(e) => hideSubMenu(e, "more-format")}
-                      >
-                        <div className="fortune-toolbar-menu-line">
-                          <div>{text}</div>
-                          <SVGIcon name="rightArrow" width={14} />
-                        </div>
-                        <div
-                          className="more-format toolbar-item-sub-menu fortune-toolbar-select"
-                          style={{
-                            display: "none",
-                            width: 150,
-                            bottom: 10,
-                            top: undefined,
-                          }}
-                        >
-                          {[
-                            {
-                              text: toolbarFormat.moreCurrency,
-                              onclick: () => {
-                                showDialog(
-                                  <FormatSearch
-                                    onCancel={hideDialog}
-                                    type="currency"
-                                  />
-                                );
-                                setOpen(false);
-                              },
-                            },
-                            {
-                              text: toolbarFormat.moreNumber,
-                              onclick: () => {
-                                showDialog(
-                                  <FormatSearch
-                                    onCancel={hideDialog}
-                                    type="number"
-                                  />
-                                );
-                                setOpen(false);
-                              },
-                            },
-                          ].map((v) => (
-                            <div
-                              className="set-background-item fortune-toolbar-select-option"
-                              key={v.text}
-                              onClick={() => {
-                                v.onclick();
-                                setOpen(false);
-                              }}
-                              tabIndex={0}
-                            >
-                              {v.text}
-                            </div>
-                          ))}
-                        </div>
-                      </Option>
+                        text={text}
+                        moreCurrencyText={toolbarFormat.moreCurrency}
+                        moreNumberText={toolbarFormat.moreNumber}
+                        onPickCurrency={() => {
+                          showDialog(
+                            <FormatSearch
+                              onCancel={hideDialog}
+                              type="currency"
+                            />
+                          );
+                          setOpen(false);
+                        }}
+                        onPickNumber={() => {
+                          showDialog(
+                            <FormatSearch onCancel={hideDialog} type="number" />
+                          );
+                          setOpen(false);
+                        }}
+                      />
                     );
                   }
                   return (
@@ -1453,8 +1458,6 @@ const Toolbar: React.FC<{
       context.allowEdit,
       comment,
       fontarray,
-      hideSubMenu,
-      showSubMenu,
       refs.canvas,
       customColor,
       customStyle,

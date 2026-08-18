@@ -30,7 +30,7 @@ const LocationBox: React.FC = () => {
 
   return (
     <div className="fortune-name-box-container">
-      <div className="fortune-name-box" tabIndex={0} dir="ltr">
+      <div className="fortune-name-box" dir="ltr">
         {rangeText}
       </div>
     </div>

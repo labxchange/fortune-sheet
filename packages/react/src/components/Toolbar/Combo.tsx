@@ -7,6 +7,8 @@ import React, {
 } from "react";
 import { locale } from "@fortune-sheet/core";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
+import { useEscapeToClose } from "../../hooks/useEscapeToClose";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 import SVGIcon from "../SVGIcon";
 import WorkbookContext from "../../context";
 
@@ -39,6 +41,12 @@ const Combo: React.FC<Props> = ({
     setOpen(false);
   });
 
+  useEscapeToClose({
+    open,
+    onClose: () => setOpen(false),
+    containerRef: popupRef,
+  });
+
   useLayoutEffect(() => {
     // re-position the popup menu if it overflows the window
     if (!popupRef.current) {
@@ -65,9 +73,12 @@ const Combo: React.FC<Props> = ({
             if (onClick) onClick(e);
             else setOpen(!open);
           }}
+          onKeyDown={activateOnEnterOrSpace}
           tabIndex={0}
           data-tips={tooltip}
           role="button"
+          aria-haspopup="true"
+          aria-expanded={open}
           aria-label={`${tooltip}: ${text !== undefined ? text : ""}`}
           style={style}
         >
@@ -82,9 +93,12 @@ const Combo: React.FC<Props> = ({
         <div
           className="fortune-toolbar-combo-arrow"
           onClick={() => setOpen(!open)}
+          onKeyDown={activateOnEnterOrSpace}
           tabIndex={0}
           data-tips={tooltip}
           role="button"
+          aria-haspopup="true"
+          aria-expanded={open}
           aria-label={`${tooltip}: ${info.Dropdown}`}
           style={style}
         >

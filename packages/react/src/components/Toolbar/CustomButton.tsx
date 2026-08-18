@@ -1,5 +1,6 @@
 import React from "react";
 import CustomIcon from "./CustomIcon";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 
 type Props = {
   tooltip?: string;
@@ -23,9 +24,11 @@ const CustomButton: React.FC<Props> = ({
     <div
       className="fortune-toolbar-button fortune-toolbar-item"
       onClick={onClick}
+      onKeyDown={activateOnEnterOrSpace}
       tabIndex={0}
       data-tips={tooltip}
       role="button"
+      aria-label={tooltip}
       style={selected ? { backgroundColor: "#E7E5EB" } : {}}
     >
       <CustomIcon iconName={iconName} content={icon} />

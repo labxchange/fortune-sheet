@@ -8,6 +8,7 @@ import WorkbookContext from "../../context";
 import "./index.css";
 import SheetHiddenButton from "./SheetHiddenButton";
 import SVGIcon from "../SVGIcon";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 
 type Props = {
   sheet: Sheet;
@@ -57,7 +58,9 @@ const SheetListItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
           cancelNormalSelected(draftCtx);
         });
       }}
+      onKeyDown={activateOnEnterOrSpace}
       tabIndex={0}
+      role="button"
     >
       <span className="fortune-sheet-selected-check-sapce">
         {sheet.id === context.currentSheetId && (

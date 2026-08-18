@@ -2,6 +2,7 @@ import { locale } from "@fortune-sheet/core";
 import React, { useContext, useEffect, useRef } from "react";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 import "./index.css";
 
 type Props = {
@@ -76,13 +77,6 @@ const Dialog: React.FC<Props> = ({
     };
   }, [onCancel]);
 
-  const activateOnEnter = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      e.currentTarget.click();
-    }
-  };
-
   return (
     <div
       className="fortune-dialog"
@@ -98,7 +92,7 @@ const Dialog: React.FC<Props> = ({
         <div
           className="fortune-modal-dialog-icon-close"
           onClick={onCancel}
-          onKeyDown={activateOnEnter}
+          onKeyDown={activateOnEnterOrSpace}
           tabIndex={0}
           role="button"
           aria-label={button.close}
@@ -115,7 +109,7 @@ const Dialog: React.FC<Props> = ({
             <div
               className="fortune-message-box-button button-default"
               onClick={onOk}
-              onKeyDown={activateOnEnter}
+              onKeyDown={activateOnEnterOrSpace}
               tabIndex={0}
             >
               {button.confirm}
@@ -125,7 +119,7 @@ const Dialog: React.FC<Props> = ({
               <div
                 className="fortune-message-box-button button-primary"
                 onClick={onOk}
-                onKeyDown={activateOnEnter}
+                onKeyDown={activateOnEnterOrSpace}
                 tabIndex={0}
               >
                 {button.confirm}
@@ -133,7 +127,7 @@ const Dialog: React.FC<Props> = ({
               <div
                 className="fortune-message-box-button button-default"
                 onClick={onCancel}
-                onKeyDown={activateOnEnter}
+                onKeyDown={activateOnEnterOrSpace}
                 tabIndex={0}
               >
                 {button.cancel}

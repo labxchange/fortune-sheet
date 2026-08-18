@@ -10,6 +10,8 @@ import React, {
 import WorkbookContext from "../../context";
 import { useAlert } from "../../hooks/useAlert";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
+import { useEscapeToClose } from "../../hooks/useEscapeToClose";
+import { useRovingFocus } from "../../hooks/useRovingFocus";
 import { ChangeColor } from "../ChangeColor";
 import SVGIcon from "../SVGIcon";
 import Divider from "./Divider";
@@ -25,6 +27,7 @@ const SheetTabContextMenu: React.FC = () => {
   const [isShowInputColor, setIsShowInputColor] = useState<boolean>(false);
   const { showAlert, hideAlert } = useAlert();
   const containerRef = useRef<HTMLDivElement>(null);
+  const changeColorMenuRef = useRef<HTMLDivElement>(null);
 
   const close = useCallback(() => {
     setContext((ctx) => {
@@ -40,6 +43,14 @@ const SheetTabContextMenu: React.FC = () => {
   }, [x, y]);
 
   useOutsideClick(containerRef, close, [close]);
+  const isOpen = sheet != null && x != null && y != null;
+  useEscapeToClose({ open: isOpen, onClose: close, containerRef });
+  useRovingFocus({ containerRef, orientation: "vertical", enabled: isOpen });
+  useEscapeToClose({
+    open: isShowChangeColor,
+    onClose: () => setIsShowChangeColor(false),
+    containerRef: changeColorMenuRef,
+  });
 
   const moveSheet = useCallback(
     (delta: number) => {
@@ -209,6 +220,8 @@ const SheetTabContextMenu: React.FC = () => {
           return (
             <Menu
               key={name}
+              aria-haspopup
+              aria-expanded={isShowChangeColor}
               onMouseEnter={() => {
                 setIsShowChangeColor(true);
               }}
@@ -217,13 +230,27 @@ const SheetTabContextMenu: React.FC = () => {
                   setIsShowChangeColor(false);
                 }
               }}
+              onKeyDown={(e) => {
+                // only handle the key when it targets this trigger directly,
+                // not when it bubbles up from a focused descendant control
+                // (e.g. the native color <input>), which needs its own
+                // default key handling left intact
+                if (e.target !== e.currentTarget) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsShowChangeColor(true);
+                }
+              }}
             >
               {sheetconfig.changeColor}
               <span className="change-color-triangle">
                 <SVGIcon name="rightArrow" width={18} />
               </span>
               {isShowChangeColor && context.allowEdit && (
-                <ChangeColor triggerParentUpdate={updateShowInputColor} />
+                <div ref={changeColorMenuRef}>
+                  <ChangeColor triggerParentUpdate={updateShowInputColor} />
+                </div>
               )}
             </Menu>
           );

@@ -16,6 +16,7 @@ import React, {
 import WorkbookContext from "../../context";
 import { useAlert } from "../../hooks/useAlert";
 import SVGIcon from "../SVGIcon";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 
 type Props = {
   sheet: Sheet;
@@ -187,6 +188,7 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
           cancelNormalSelected(draftCtx);
         });
       }}
+      onKeyDown={activateOnEnterOrSpace}
       tabIndex={0}
       onContextMenu={(e) => {
         if (isDropPlaceholder) return;
@@ -230,19 +232,23 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
         onClick={(e) => {
           if (isDropPlaceholder || context.allowEdit === false) return;
           const rect = refs.workbookContainer.current!.getBoundingClientRect();
-          const { pageX, pageY } = e;
+          // anchored to the trigger's own position rather than the mouse
+          // pointer, since a keyboard-activated click has no real pageX/pageY
+          const triggerRect = e.currentTarget.getBoundingClientRect();
           setContext((ctx) => {
             // 右击的时候先进行跳转
             ctx.currentSheetId = sheet.id!;
             ctx.sheetTabContextMenu = {
-              x: pageX - rect.left - window.scrollX,
-              y: pageY - rect.top - window.scrollY,
+              x: triggerRect.left - rect.left - window.scrollX,
+              y: triggerRect.bottom - rect.top - window.scrollY,
               sheet,
               onRename: () => setEditing(true),
             };
           });
         }}
+        onKeyDown={activateOnEnterOrSpace}
         tabIndex={0}
+        role="button"
         aria-label={info.sheetOptions}
       >
         <SVGIcon name="downArrow" width={12} style={{ fill: svgColor }} />
