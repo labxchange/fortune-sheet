@@ -57,6 +57,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 if (draftCtx.luckysheet_select_save?.length! > 1) {
@@ -77,6 +78,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={async () => {
               let clipboardText = "";
               const sessionClipboardText =
@@ -252,6 +254,7 @@ const ContextMenu: React.FC = () => {
           selection?.column_select && (
             <Menu
               key="delete-col"
+              role="button"
               onClick={() => {
                 if (!selection) return;
                 const [st_index, ed_index] = selection.column;
@@ -305,6 +308,7 @@ const ContextMenu: React.FC = () => {
           selection?.row_select && (
             <Menu
               key="delete-row"
+              role="button"
               onClick={() => {
                 if (!selection) return;
                 const [st_index, ed_index] = selection.row;
@@ -356,6 +360,7 @@ const ContextMenu: React.FC = () => {
           ["hideSelected", "showHide"].map((item) => (
             <Menu
               key={item}
+              role="button"
               onClick={() => {
                 setContext((draftCtx) => {
                   let msg = "";
@@ -382,6 +387,7 @@ const ContextMenu: React.FC = () => {
           ["hideSelected", "showHide"].map((item) => (
             <Menu
               key={item}
+              role="button"
               onClick={() => {
                 setContext((draftCtx) => {
                   let msg = "";
@@ -528,6 +534,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 const allowEdit = isAllowEdit(draftCtx);
@@ -557,6 +564,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 sortSelection(draftCtx, true);
@@ -572,6 +580,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 sortSelection(draftCtx, false);
@@ -587,6 +596,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 showDialog(<CustomSort />);
@@ -602,6 +612,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 createFilter(draftCtx);
@@ -617,6 +628,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 showImgChooser();
@@ -632,6 +644,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 handleLink(draftCtx);

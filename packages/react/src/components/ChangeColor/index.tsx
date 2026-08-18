@@ -56,6 +56,7 @@ export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
           onBlur={() => {
             triggerParentUpdate(false);
           }}
+          onKeyDown={(e) => e.stopPropagation()}
         />
         <div
           className="button-basic button-primary"

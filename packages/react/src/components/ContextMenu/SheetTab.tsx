@@ -123,6 +123,7 @@ const SheetTabContextMenu: React.FC = () => {
           return (
             <Menu
               key={name}
+              role="button"
               onClick={() => {
                 const shownSheets = context.luckysheetfile.filter(
                   (singleSheet) =>
@@ -159,6 +160,7 @@ const SheetTabContextMenu: React.FC = () => {
           return (
             <Menu
               key={name}
+              role="button"
               onClick={() => {
                 onRename?.();
                 close();
@@ -172,6 +174,7 @@ const SheetTabContextMenu: React.FC = () => {
           return (
             <React.Fragment key={name}>
               <Menu
+                role="button"
                 onClick={() => {
                   moveSheet(-1.5);
                   close();
@@ -180,6 +183,7 @@ const SheetTabContextMenu: React.FC = () => {
                 {sheetconfig.moveLeft}
               </Menu>
               <Menu
+                role="button"
                 onClick={() => {
                   moveSheet(1.5);
                   close();
@@ -194,6 +198,7 @@ const SheetTabContextMenu: React.FC = () => {
           return (
             <Menu
               key={name}
+              role="button"
               onClick={() => {
                 hideSheet();
                 close();
@@ -207,6 +212,7 @@ const SheetTabContextMenu: React.FC = () => {
           return (
             <Menu
               key={name}
+              role="button"
               onClick={() => {
                 copySheet();
                 close();
@@ -220,26 +226,15 @@ const SheetTabContextMenu: React.FC = () => {
           return (
             <Menu
               key={name}
-              aria-haspopup
-              aria-expanded={isShowChangeColor}
+              role="button"
+              expanded={isShowChangeColor}
+              onClick={() => setIsShowChangeColor(true)}
               onMouseEnter={() => {
                 setIsShowChangeColor(true);
               }}
               onMouseLeave={() => {
                 if (!isShowInputColor) {
                   setIsShowChangeColor(false);
-                }
-              }}
-              onKeyDown={(e) => {
-                // only handle the key when it targets this trigger directly,
-                // not when it bubbles up from a focused descendant control
-                // (e.g. the native color <input>), which needs its own
-                // default key handling left intact
-                if (e.target !== e.currentTarget) return;
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsShowChangeColor(true);
                 }
               }}
             >
@@ -259,6 +254,7 @@ const SheetTabContextMenu: React.FC = () => {
           return (
             <Menu
               key={name}
+              role="button"
               onClick={() => {
                 focusSheet();
                 close();
