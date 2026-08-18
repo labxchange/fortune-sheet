@@ -683,6 +683,32 @@ export function handleGlobalKeyDown(
   handleRedo: () => void,
   canvas?: CanvasRenderingContext2D
 ) {
+  // Grid keys belong to the grid. The keydown listener is bound to the whole
+  // workbook container, so a key pressed while focus sits outside the grid must
+  // be left to the browser — otherwise Tab moves the selection behind the
+  // user's back and never leaves the grid.
+  // Only bail when the target can be positively placed outside the grid;
+  // anything else (a document-level or synthetic event with no `closest`) is
+  // handled as before.
+  const target = e.target as HTMLElement | null;
+  if (typeof target?.closest === "function") {
+    // Outside the sheet overlay entirely: the toolbar, the formula bar, the
+    // sheet tabs.
+    if (!target.closest(".fortune-sheet-overlay")) {
+      return;
+    }
+    // Inside the overlay, but on one of the overlay's own controls rather than
+    // on the grid surface: the add-row input, the select-all corner, the filter
+    // and column-header buttons, the search dialog. Those own their keys, and
+    // eating them here traps focus exactly the way the removed focus lock did.
+    // The cell input is the one focusable control that *is* the grid.
+    const control = target.closest(
+      'input, textarea, select, button, a[href], [tabindex]:not([tabindex="-1"])'
+    );
+    if (control && !cellInput?.contains(control)) {
+      return;
+    }
+  }
   ctx.luckysheet_select_status = false;
   const kcode = e.keyCode;
   const kstr = e.key;
@@ -774,21 +800,6 @@ export function handleGlobalKeyDown(
   //   return;
   // }
 
-  // Grid keys belong to the grid. The keydown listener is bound to the whole
-  // workbook container, so a key pressed while focus sits on the toolbar, the
-  // formula bar or the sheet tabs must be left to the browser — otherwise Tab
-  // moves the selection behind the user's back and never leaves the grid.
-  // Only bail when the target is an element we can positively place outside
-  // the grid; anything else (a document-level or synthetic event) is handled
-  // as before.
-  const target = e.target as HTMLElement | null;
-  if (
-    typeof target?.closest === "function" &&
-    !cellInput?.contains(target) &&
-    !target.closest(".fortune-sheet-overlay")
-  ) {
-    return;
-  }
   if (kstr === "Enter") {
     if (!allowEdit) return;
     handleGlobalEnter(ctx, cellInput, e, canvas);
