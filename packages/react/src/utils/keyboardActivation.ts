@@ -26,3 +26,36 @@ export function onActivationKeyDown<T extends HTMLElement = HTMLElement>(
     activateOnEnterOrSpace(e);
   };
 }
+
+/**
+ * For a trigger that toggles a popup closed by useOutsideClick (which
+ * listens on mousedown): runs the toggle on mousedown, with
+ * stopPropagation, so a press on this same trigger never reaches
+ * useOutsideClick's listener — there is no "outside click closes it,
+ * then click reopens it" race, because there's no second update at all.
+ * click becomes a no-op (stopPropagation only); Enter/Space runs the
+ * toggle directly rather than forwarding to .click(), since click no
+ * longer does the toggling.
+ */
+export function mouseDownToggleHandlers<T extends HTMLElement = HTMLElement>(
+  onToggle: () => void
+): {
+  onMouseDown: (e: React.MouseEvent<T>) => void;
+  onClick: (e: React.MouseEvent<T>) => void;
+  onKeyDown: (e: React.KeyboardEvent<T>) => void;
+} {
+  return {
+    onMouseDown: (e) => {
+      e.stopPropagation();
+      onToggle();
+    },
+    onClick: (e) => e.stopPropagation(),
+    onKeyDown: (e) => {
+      if (!isActivationKey(e.key)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.repeat) return;
+      onToggle();
+    },
+  };
+}

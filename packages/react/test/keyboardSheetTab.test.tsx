@@ -106,4 +106,24 @@ describe("Sheet tab keyboard accessibility", () => {
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     expect(document.activeElement).toBe(colorRow);
   });
+
+  it("closes the sheet list when its own trigger is clicked again", () => {
+    const { getByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+    const allSheetsButton = getByRole("button", { name: "All sheets" });
+
+    // A real browser click dispatches mousedown, mouseup, then click as
+    // separate events — fireEvent.click() alone only dispatches a single
+    // synthetic click and can't reproduce the race this guards against
+    // (useOutsideClick closes the list on mousedown; the toggle used to
+    // run on click, reading the just-closed state and reopening it).
+    fireEvent.mouseDown(allSheetsButton);
+    fireEvent.mouseUp(allSheetsButton);
+    fireEvent.click(allSheetsButton);
+    expect(document.querySelector(".fortune-sheet-list")).toBeTruthy();
+
+    fireEvent.mouseDown(allSheetsButton);
+    fireEvent.mouseUp(allSheetsButton);
+    fireEvent.click(allSheetsButton);
+    expect(document.querySelector(".fortune-sheet-list")).toBeNull();
+  });
 });

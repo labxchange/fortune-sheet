@@ -1,11 +1,23 @@
 import React from "react";
 import SVGIcon from "../SVGIcon";
-import { onActivationKeyDown } from "../../utils/keyboardActivation";
+import {
+  isActivationKey,
+  onActivationKeyDown,
+} from "../../utils/keyboardActivation";
 
 type Props = {
   tooltip: string;
   iconId: string;
   onClick?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
+  /**
+   * Use instead of onClick for a trigger that toggles a popup closed by
+   * useOutsideClick (which listens on mousedown): runs on mousedown with
+   * stopPropagation instead, so a press on this same button can't be
+   * treated as an outside click that closes the popup a moment before
+   * click reopens it. When set, onClick is ignored and Enter/Space call
+   * this directly rather than forwarding to .click().
+   */
+  onMouseDown?: () => void;
   disabled?: boolean;
   selected?: boolean;
   children?: React.ReactNode;
@@ -14,6 +26,7 @@ type Props = {
 const Button: React.FC<Props> = ({
   tooltip,
   onClick,
+  onMouseDown,
   iconId,
   disabled,
   selected,
@@ -23,8 +36,27 @@ const Button: React.FC<Props> = ({
   return (
     <div
       className="fortune-toolbar-button fortune-toolbar-item"
-      onClick={onClick}
-      onKeyDown={onActivationKeyDown(disabled)}
+      onMouseDown={
+        onMouseDown
+          ? (e) => {
+              e.stopPropagation();
+              onMouseDown();
+            }
+          : undefined
+      }
+      onClick={onMouseDown ? (e) => e.stopPropagation() : onClick}
+      onKeyDown={
+        onMouseDown
+          ? (e) => {
+              if (disabled) return;
+              if (!isActivationKey(e.key)) return;
+              e.preventDefault();
+              e.stopPropagation();
+              if (e.repeat) return;
+              onMouseDown();
+            }
+          : onActivationKeyDown(disabled)
+      }
       tabIndex={0}
       data-tips={tooltip}
       role="button"

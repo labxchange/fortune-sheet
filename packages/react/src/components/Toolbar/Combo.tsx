@@ -8,7 +8,10 @@ import React, {
 import { locale } from "@fortune-sheet/core";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
-import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
+import {
+  activateOnEnterOrSpace,
+  mouseDownToggleHandlers,
+} from "../../utils/keyboardActivation";
 import SVGIcon from "../SVGIcon";
 import WorkbookContext from "../../context";
 
@@ -69,11 +72,9 @@ const Combo: React.FC<Props> = ({
       <div ref={buttonRef} className="fortune-toolbar-combo">
         <div
           className="fortune-toolbar-combo-button"
-          onClick={(e) => {
-            if (onClick) onClick(e);
-            else setOpen(!open);
-          }}
-          onKeyDown={activateOnEnterOrSpace}
+          {...(onClick
+            ? { onClick, onKeyDown: activateOnEnterOrSpace }
+            : mouseDownToggleHandlers(() => setOpen(!open)))}
           tabIndex={0}
           data-tips={tooltip}
           role="button"
@@ -92,8 +93,7 @@ const Combo: React.FC<Props> = ({
         </div>
         <div
           className="fortune-toolbar-combo-arrow"
-          onClick={() => setOpen(!open)}
-          onKeyDown={activateOnEnterOrSpace}
+          {...mouseDownToggleHandlers(() => setOpen(!open))}
           tabIndex={0}
           data-tips={tooltip}
           role="button"

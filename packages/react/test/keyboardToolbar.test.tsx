@@ -50,12 +50,59 @@ describe("Toolbar keyboard accessibility", () => {
       name: /^Font color:/,
     });
 
-    fireEvent.click(fontColorArrow);
+    fireEvent.mouseDown(fontColorArrow);
     const grid = document.querySelector(".fortune-toolbar-color-picker")!;
     const swatches = within(grid as HTMLElement).getAllByRole("button");
     (swatches[0] as HTMLElement).focus();
     fireEvent.keyDown(swatches[0], { key: "ArrowRight" });
     expect(document.activeElement).toBe(swatches[1]);
+  });
+
+  it("closes a Combo dropdown (Format) when its own trigger is clicked again", () => {
+    const { getAllByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+    const [formatCombo] = getAllByRole("button", { name: /^Format:/ });
+
+    // A real browser click dispatches mousedown, mouseup, then click as
+    // separate events — fireEvent.click() alone only dispatches a single
+    // synthetic click and can't reproduce the race this guards against
+    // (useOutsideClick closes the popup on mousedown; the toggle used to
+    // run on click, reading the just-closed state and reopening it).
+    fireEvent.mouseDown(formatCombo);
+    fireEvent.mouseUp(formatCombo);
+    fireEvent.click(formatCombo);
+    expect(document.querySelector(".fortune-toolbar-combo-popup")).toBeTruthy();
+
+    fireEvent.mouseDown(formatCombo);
+    fireEvent.mouseUp(formatCombo);
+    fireEvent.click(formatCombo);
+    expect(document.querySelector(".fortune-toolbar-combo-popup")).toBeNull();
+  });
+
+  it("Font color's arrow toggles the picker via mousedown; its main button still applies the last color directly instead of toggling", () => {
+    const { getAllByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+    const [fontColorMain, fontColorArrow] = getAllByRole("button", {
+      name: /^Font color:/,
+    });
+
+    // main button has a custom onClick (apply the last-used color) — a
+    // real click on it must not open the picker
+    fireEvent.mouseDown(fontColorMain);
+    fireEvent.mouseUp(fontColorMain);
+    fireEvent.click(fontColorMain);
+    expect(document.querySelector(".fortune-toolbar-color-picker")).toBeNull();
+
+    // the arrow always toggles the picker, and does so on mousedown
+    fireEvent.mouseDown(fontColorArrow);
+    fireEvent.mouseUp(fontColorArrow);
+    fireEvent.click(fontColorArrow);
+    expect(
+      document.querySelector(".fortune-toolbar-color-picker")
+    ).toBeTruthy();
+
+    fireEvent.mouseDown(fontColorArrow);
+    fireEvent.mouseUp(fontColorArrow);
+    fireEvent.click(fontColorArrow);
+    expect(document.querySelector(".fortune-toolbar-color-picker")).toBeNull();
   });
 
   it("hovering the border color/style submenus does not steal focus, while keyboard opening still autofocuses and Escape restores it", () => {
@@ -67,7 +114,7 @@ describe("Toolbar keyboard accessibility", () => {
     const [, borderArrow] = getAllByRole("button", { name: /^Border:/ });
     const undoButton = getByRole("button", { name: "Undo" });
 
-    fireEvent.click(borderArrow);
+    fireEvent.mouseDown(borderArrow);
 
     [
       { label: "border color", menuClass: "fortune-border-select-menu" },
@@ -147,7 +194,7 @@ describe("Toolbar keyboard accessibility", () => {
     });
     const undoButton = getByRole("button", { name: "Undo" });
 
-    fireEvent.click(conditionFormatCombo);
+    fireEvent.mouseDown(conditionFormatCombo);
     const popup = document.querySelector(".fortune-toolbar-combo-popup")!;
     const highlightRow = within(popup as HTMLElement)
       .getByText("Highlight cell rules")

@@ -37,4 +37,26 @@ describe("Zoom control keyboard accessibility", () => {
     expect(queryByText("10%")).toBeNull();
     expect(document.activeElement).toBe(ratioTrigger);
   });
+
+  it("closes the ratio menu when its own trigger is clicked again", () => {
+    const { getByText, queryByText } = render(
+      <Workbook data={[{ name: "Sheet1" }]} />
+    );
+    const ratioTrigger = getByText("100%");
+
+    // A real browser click dispatches mousedown, mouseup, then click as
+    // separate events — fireEvent.click() alone can't reproduce the race
+    // this guards against (useOutsideClick closes the menu on mousedown;
+    // the trigger used to only ever set it open, so a second click could
+    // never close it).
+    fireEvent.mouseDown(ratioTrigger);
+    fireEvent.mouseUp(ratioTrigger);
+    fireEvent.click(ratioTrigger);
+    expect(queryByText("10%")).toBeTruthy();
+
+    fireEvent.mouseDown(ratioTrigger);
+    fireEvent.mouseUp(ratioTrigger);
+    fireEvent.click(ratioTrigger);
+    expect(queryByText("10%")).toBeNull();
+  });
 });

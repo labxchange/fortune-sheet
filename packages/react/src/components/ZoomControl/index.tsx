@@ -11,7 +11,10 @@ import SVGIcon from "../SVGIcon";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
-import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
+import {
+  activateOnEnterOrSpace,
+  mouseDownToggleHandlers,
+} from "../../utils/keyboardActivation";
 import "./index.css";
 
 const presets = [
@@ -117,8 +120,7 @@ const ZoomControl: React.FC = () => {
       <div className="fortune-zoom-ratio">
         <div
           className="fortune-zoom-ratio-current fortune-zoom-button"
-          onClick={() => setRadioMenuOpen(true)}
-          onKeyDown={activateOnEnterOrSpace}
+          {...mouseDownToggleHandlers(() => setRadioMenuOpen(!radioMenuOpen))}
           tabIndex={0}
           role="button"
           aria-haspopup

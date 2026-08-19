@@ -14,7 +14,10 @@ import "./index.css";
 import SheetItem from "./SheetItem";
 import ZoomControl from "../ZoomControl";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
-import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
+import {
+  activateOnEnterOrSpace,
+  mouseDownToggleHandlers,
+} from "../../utils/keyboardActivation";
 
 const SheetTab: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
@@ -110,16 +113,14 @@ const SheetTab: React.FC = () => {
               aria-label={info.allSheets}
               aria-haspopup
               aria-expanded={!!context.showSheetList}
-              onClick={(e) => {
-                e.stopPropagation();
+              {...mouseDownToggleHandlers(() => {
                 setContext((ctx) => {
                   ctx.showSheetList = _.isUndefined(ctx.showSheetList)
                     ? true
                     : !ctx.showSheetList;
                   ctx.sheetTabContextMenu = {};
                 });
-              }}
-              onKeyDown={activateOnEnterOrSpace}
+              })}
             >
               <SVGIcon name="all-sheets" width={16} height={16} />
             </div>

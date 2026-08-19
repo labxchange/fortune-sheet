@@ -1503,7 +1503,7 @@ const Toolbar: React.FC<{
           <Button
             iconId="more"
             tooltip={toolbar.toolMore}
-            onClick={() => {
+            onMouseDown={() => {
               if (moreItemsOpen) {
                 setMoreItems(null);
               } else {
