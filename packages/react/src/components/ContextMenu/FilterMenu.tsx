@@ -311,6 +311,10 @@ const FilterMenu: React.FC = () => {
       setDatesUncheck(nextDatesUncheck);
       setValuesUncheck(nextValuesUncheck);
 
+      // Counts selectable options, not rendered rows. dateRowMap is keyed by
+      // day, so the year and month rows of the date tree are excluded: they are
+      // group nodes whose state is derived from their days, not options a user
+      // can independently select.
       const total = dateKeys.length + valueKeys.length;
       const unchecked = nextDatesUncheck.length + nextValuesUncheck.length;
       const selected = Math.min(Math.max(total - unchecked, 0), total);
@@ -527,6 +531,19 @@ const FilterMenu: React.FC = () => {
       getFilterColumnColors(contextRef.current, col, startRow, endRow)
     );
   }, [col, endRow, startRow]);
+
+  // Closing the popup only makes this component return null; Workbook mounts it
+  // unconditionally, so the announcement state survives and would be re-inserted
+  // — already populated — the next time the popup opens, against a column nobody
+  // has acted on. Clearing on the close transition never re-announces, since the
+  // regions are already gone by the time this runs.
+  useEffect(() => {
+    if (filterContextMenu == null) {
+      setAnnouncement((prev) =>
+        prev.text === "" ? prev : { text: "", slot: prev.slot }
+      );
+    }
+  }, [filterContextMenu]);
 
   if (filterContextMenu == null) return null;
 

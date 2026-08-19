@@ -31,22 +31,69 @@ const makeValues = (n: number) =>
     rows: [i],
   }));
 
-const makeDates = (isoDates: string[]) =>
-  isoDates.map((d) => ({
-    key: d,
-    type: "day",
-    value: d,
-    text: d,
-    children: [],
-    rows: [],
-    dateValues: [d],
-  }));
+/**
+ * Mirrors the year > month > day tree getFilterColumnValues actually builds
+ * (core/src/modules/filter.ts): every node renders its own checkbox, but only
+ * the day leaves become dateRowMap keys.
+ */
+const makeDates = (isoDates: string[]) => {
+  const dates: any[] = [];
+  isoDates.forEach((dateStr, i) => {
+    const [y, m, d] = dateStr.split("-");
+    const row = 100 + i;
+
+    let year = _.find(dates, (v) => v.value === y);
+    if (year == null) {
+      year = {
+        key: y,
+        type: "year",
+        value: y,
+        text: y + filter.filiterYearText,
+        children: [],
+        rows: [],
+        dateValues: [],
+      };
+      dates.push(year);
+    }
+
+    let month = _.find(year.children, (v: any) => v.value === m);
+    if (month == null) {
+      month = {
+        key: `${y}-${m}`,
+        type: "month",
+        value: m,
+        text: m + filter.filiterMonthText,
+        children: [],
+        rows: [],
+        dateValues: [],
+      };
+      year.children.push(month);
+    }
+
+    month.children.push({
+      key: dateStr,
+      type: "day",
+      value: d,
+      text: d,
+      children: [],
+      rows: [row],
+      dateValues: [dateStr],
+    });
+
+    [year, month].forEach((node: any) => {
+      node.rows.push(row);
+      node.dateValues.push(dateStr);
+    });
+  });
+  return dates;
+};
 
 type Options = {
   valueCount?: number;
   valuesUncheck?: string[];
   dates?: string[];
   datesUncheck?: string[];
+  col?: number;
 };
 
 function renderFilterMenu({
@@ -54,12 +101,14 @@ function renderFilterMenu({
   valuesUncheck = [],
   dates = [],
   datesUncheck = [],
+  col = 0,
 }: Options = {}) {
   const values = makeValues(valueCount);
   const valueRowMap: any = {};
   values.forEach((v) => {
     valueRowMap[v.key] = v.rows;
   });
+  // Keyed by day only, exactly as the real builder does.
   const dateRowMap: any = {};
   dates.forEach((d, i) => {
     dateRowMap[d] = [100 + i];
@@ -80,19 +129,17 @@ function renderFilterMenu({
     fcColors: [],
   });
 
-  const context: any = {
-    lang: "en",
-    filterContextMenu: {
-      x: 0,
-      y: 0,
-      col: 0,
-      startRow: 0,
-      endRow: valueCount + dates.length,
-      startCol: 0,
-      endCol: 0,
-      listBoxMaxHeight: 400,
-    },
-  };
+  const openMenu = (column: number) => ({
+    x: 0,
+    y: 0,
+    col: column,
+    startRow: 0,
+    endRow: valueCount + dates.length,
+    startCol: 0,
+    endCol: 0,
+    listBoxMaxHeight: 400,
+  });
+
   const settings: any = {
     filterContextMenu: ["filter-by-value"],
   };
@@ -100,11 +147,11 @@ function renderFilterMenu({
     workbookContainer: { current: null },
   };
 
-  const view = render(
+  const tree = (filterContextMenu: any) => (
     <WorkbookContext.Provider
       value={
         {
-          context,
+          context: { lang: "en", filterContextMenu },
           setContext: () => {},
           settings,
           refs,
@@ -116,6 +163,8 @@ function renderFilterMenu({
       <FilterMenu />
     </WorkbookContext.Provider>
   );
+
+  const view = render(tree(openMenu(col)));
 
   const regions = () =>
     Array.from(view.container.querySelectorAll('[role="status"]'));
@@ -133,6 +182,10 @@ function renderFilterMenu({
       Array.from(
         view.container.querySelectorAll<HTMLInputElement>(".filter-checkbox")
       ),
+    labels: () =>
+      Array.from(
+        view.container.querySelectorAll<HTMLInputElement>(".filter-checkbox")
+      ).map((cb) => cb.getAttribute("aria-label")),
     checkedKeys: () =>
       Array.from(
         view.container.querySelectorAll<HTMLInputElement>(".filter-checkbox")
@@ -141,6 +194,8 @@ function renderFilterMenu({
         .map((cb) => cb.getAttribute("aria-label")),
     press: (name: string) =>
       fireEvent.click(screen.getByRole("button", { name })),
+    close: () => view.rerender(tree(undefined)),
+    reopen: (column = col) => view.rerender(tree(openMenu(column))),
   };
 }
 
@@ -233,6 +288,31 @@ describe("FilterMenu bulk action announcements", () => {
     );
   });
 
+  it("counts day leaves, not the year and month rows of the date tree", () => {
+    const { press, announcement, labels } = renderFilterMenu({
+      valueCount: 0,
+      dates: ["2024-01-01", "2024-01-02", "2024-02-01"],
+    });
+
+    // Six checkboxes are on screen: one year, two months, three days.
+    expect(labels()).toEqual([
+      "2024Year",
+      "01Month",
+      "01",
+      "02",
+      "02Month",
+      "01",
+    ]);
+
+    press(INVERSE);
+
+    // Only the three days are selectable options; year and month are group
+    // rows whose state is derived from the days beneath them.
+    expect(announcement().text).toBe(
+      "Filter selections inverted. 0 of 3 options now selected."
+    );
+  });
+
   it("counts every option in the column, not just the ones a search leaves visible", async () => {
     const view = renderFilterMenu({ valueCount: 6 });
 
@@ -321,6 +401,33 @@ describe("FilterMenu bulk action announcements", () => {
     regions().forEach((r) => expect(collapsible?.contains(r)).toBe(false));
   });
 
+  it("does not carry an announcement over into the next time the popup opens", () => {
+    const { press, announcement, regions, close, reopen } = renderFilterMenu();
+
+    press(CLEAR);
+    expect(announcement().text).toBe(filter.filterValueByClearAnnouncement);
+
+    // Closing only makes the component return null; it stays mounted, so
+    // without the close-transition reset the old text would come back with it.
+    close();
+    expect(regions()).toHaveLength(0);
+
+    reopen(3);
+    expect(regions()).toHaveLength(2);
+    expect(announcement().slot).toBe(-1);
+  });
+
+  it("still announces normally after a close and reopen", () => {
+    const { press, announcement, close, reopen } = renderFilterMenu();
+
+    press(CLEAR);
+    close();
+    reopen();
+    press(CLEAR);
+
+    expect(announcement().text).toBe(filter.filterValueByClearAnnouncement);
+  });
+
   it("applies each transform to dates, values and hidden rows alike", () => {
     const { press, checkedKeys } = renderFilterMenu({
       valueCount: 4,
@@ -331,7 +438,16 @@ describe("FilterMenu bulk action announcements", () => {
 
     // Dates render their own checkboxes ahead of the value list, so seeing
     // them here is the point: one transform reached both domains.
-    const everything = ["2024-01-01", "2024-01-02", "v0", "v1", "v2", "v3"];
+    const everything = [
+      "2024Year",
+      "01Month",
+      "01",
+      "02",
+      "v0",
+      "v1",
+      "v2",
+      "v3",
+    ];
 
     press(CHECK_ALL);
     expect(checkedKeys()).toEqual(everything);
