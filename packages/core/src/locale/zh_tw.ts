@@ -11023,6 +11023,8 @@ export default {
     newSheet: "新表",
     sheetOptions: "圖紙選項",
     Dropdown: "下拉式選單",
+    selectAllCells: "選擇所有儲存格",
+    columnOptions: "欄選項",
     zoomIn: "放大",
     zoomOut: "縮小",
     selectRangeShortcut: "選擇範圍: Shift, 方向鍵。",

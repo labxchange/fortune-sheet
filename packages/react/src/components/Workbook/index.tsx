@@ -22,6 +22,7 @@ import {
   calcSelectionInfo,
   groupValuesRefresh,
   setFormulaCellInfoMap,
+  GRID_ROOT_CLASS,
 } from "@fortune-sheet/core";
 import React, {
   useMemo,
@@ -751,7 +752,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
         // deal with multi instance case, only the focused sheet handles the paste
         if (
           cellInput.current === document.activeElement ||
-          document.activeElement?.className === "fortune-sheet-overlay"
+          document.activeElement?.className === GRID_ROOT_CLASS
         ) {
           let { clipboardData } = e;
           if (!clipboardData) {

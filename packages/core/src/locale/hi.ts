@@ -11076,6 +11076,8 @@ export default {
     newSheet: "नई शीट",
     sheetOptions: "शीट विकल्प",
     Dropdown: "ड्रॉप डाउन",
+    selectAllCells: "सभी कक्ष चुनें",
+    columnOptions: "कॉलम विकल्प",
     zoomIn: "ज़ूम इन",
     zoomOut: "ज़ूम आउट",
     selectRangeShortcut: "Seleccionar rango: Shift, teclas de flecha.",

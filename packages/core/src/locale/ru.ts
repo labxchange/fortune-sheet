@@ -12953,6 +12953,8 @@ export default {
     newSheet: "Новый лист",
     sheetOptions: "Параметры листа",
     Dropdown: "Выпадающий список",
+    selectAllCells: "Выделить все ячейки",
+    columnOptions: "Параметры столбца",
     zoomIn: "Увеличить",
     zoomOut: "Уменьшить",
     selectRangeShortcut: "Выбор диапазона: Shift, клавиши со стрелками.",

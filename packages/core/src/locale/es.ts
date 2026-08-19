@@ -11046,6 +11046,8 @@ export default {
     newSheet: "Nueva hoja",
     sheetOptions: "Opciones de hoja",
     Dropdown: "Menú desplegable",
+    selectAllCells: "Seleccionar todas las celdas",
+    columnOptions: "Opciones de columna",
     zoomIn: "Dar un golpe de zoom",
     zoomOut: "alejar",
     selectRangeShortcut: "Seleccionar rango: Shift, teclas de flecha.",

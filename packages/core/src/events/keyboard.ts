@@ -1,5 +1,6 @@
 import _ from "lodash";
 import { hideCRCount, removeActiveImage } from "..";
+import { GRID_ROOT_CLASS } from "../constants";
 import { Context, getFlowdata } from "../context";
 import { updateCell, cancelNormalSelected } from "../modules/cell";
 import { handleFormulaInput } from "../modules/formula";
@@ -683,30 +684,43 @@ export function handleGlobalKeyDown(
   handleRedo: () => void,
   canvas?: CanvasRenderingContext2D
 ) {
-  // Grid keys belong to the grid. The keydown listener is bound to the whole
-  // workbook container, so a key pressed while focus sits outside the grid must
-  // be left to the browser — otherwise Tab moves the selection behind the
-  // user's back and never leaves the grid.
-  // Only bail when the target can be positively placed outside the grid;
-  // anything else (a document-level or synthetic event with no `closest`) is
-  // handled as before.
+  // Navigation and typing keys belong to the grid. The keydown listener is bound
+  // to the whole workbook container, so those keys must be left to the browser
+  // when focus sits outside the grid — otherwise Tab moves the selection behind
+  // the user's back and never leaves the grid.
+  // Only scope when the target can be positively placed; anything else (a
+  // document-level or synthetic event with no `closest`) is handled as before.
   const target = e.target as HTMLElement | null;
   if (typeof target?.closest === "function") {
-    // Outside the sheet overlay entirely: the toolbar, the formula bar, the
-    // sheet tabs.
-    if (!target.closest(".fortune-sheet-overlay")) {
-      return;
-    }
-    // Inside the overlay, but on one of the overlay's own controls rather than
-    // on the grid surface: the add-row input, the select-all corner, the filter
-    // and column-header buttons, the search dialog. Those own their keys, and
-    // eating them here traps focus exactly the way the removed focus lock did.
-    // The cell input is the one focusable control that *is* the grid.
+    // Focusable controls the workbook renders around the grid: the toolbar's
+    // buttons, the sheet tabs, the select-all corner, the column-header
+    // dropdown, the filter funnel, the add-row input, the search dialog. The
+    // cell input matches this selector too (`ContentEditable` gives it
+    // tabIndex={0}), but it *is* the grid, so it is carved out.
     const control = target.closest(
       'input, textarea, select, button, a[href], [tabindex]:not([tabindex="-1"])'
     );
-    if (control && !cellInput?.contains(control)) {
-      return;
+    const inGrid =
+      !!target.closest(`.${GRID_ROOT_CLASS}`) &&
+      (!control || !!cellInput?.contains(control));
+
+    if (!inGrid) {
+      // Text-entry targets own every key they receive, Ctrl/Meta combos
+      // included: the formula bar, the sheet-rename field, the search inputs.
+      const textEntry = target.closest(
+        'textarea, [contenteditable]:not([contenteditable="false"]), input:not([type="button"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="reset"])'
+      );
+      // Everywhere else, only the grid's navigation and typing keys are out of
+      // scope. Workbook commands — copy, bold, find, auto-fill, Ctrl+Shift+arrow
+      // — still act on the selection, the way Ctrl+Z/Ctrl+Y already do one level
+      // up in `Workbook.onKeyDown`. Tab and Enter stay excluded whatever the
+      // modifiers, because moving focus and activating the focused control are
+      // the browser's job, not the grid's.
+      const isWorkbookCommand =
+        (e.ctrlKey || e.metaKey) && e.key !== "Tab" && e.key !== "Enter";
+      if (textEntry || !isWorkbookCommand) {
+        return;
+      }
     }
   }
   ctx.luckysheet_select_status = false;

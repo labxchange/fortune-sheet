@@ -3,6 +3,7 @@ import * as api from "./api";
 export { api };
 
 export * from "./canvas";
+export * from "./constants";
 export * from "./context";
 export * from "./settings";
 export * from "./events";

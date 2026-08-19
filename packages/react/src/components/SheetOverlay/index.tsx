@@ -33,6 +33,7 @@ import {
   fixColumnStyleOverflowInFreeze,
   handleKeydownForZoom,
   api,
+  GRID_ROOT_CLASS,
 } from "@fortune-sheet/core";
 import _ from "lodash";
 import WorkbookContext, { SetContextOptions } from "../../context";
@@ -467,7 +468,7 @@ const SheetOverlay: React.FC = () => {
 
   return (
     <main
-      className="fortune-sheet-overlay"
+      className={GRID_ROOT_CLASS}
       ref={containerRef}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
@@ -482,6 +483,20 @@ const SheetOverlay: React.FC = () => {
         <div
           className="fortune-left-top"
           onClick={onLeftTopClick}
+          onKeyDown={(e) => {
+            // A focusable control has to be operable by keyboard (WCAG 2.1.1).
+            // Enter and Space never reach the grid's own handler now that grid
+            // keys are scoped to the grid, so select-all is wired up here.
+            if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") {
+              return;
+            }
+            if (e.repeat) return;
+            e.preventDefault();
+            e.stopPropagation();
+            onLeftTopClick();
+          }}
+          role="button"
+          aria-label={info.selectAllCells}
           tabIndex={0}
           style={{
             width: context.rowHeaderWidth - 1.5,

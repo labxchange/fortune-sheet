@@ -6,6 +6,7 @@ import {
   handleWithCtrlOrMetaKey,
 } from "../../src/events/keyboard";
 import { getFlowdata } from "../../src/context";
+import { GRID_ROOT_CLASS } from "../../src/constants";
 import { groupValuesRefresh } from "../../src";
 
 describe("keyboard", () => {
@@ -194,7 +195,7 @@ describe("keyboard", () => {
       const container = document.createElement("div");
       container.className = "fortune-container";
       const overlay = document.createElement("div");
-      overlay.className = "fortune-sheet-overlay";
+      overlay.className = GRID_ROOT_CLASS;
       overlay.tabIndex = -1;
       const cellInput = document.createElement("div");
       cellInput.className = "luckysheet-cell-input";
@@ -354,6 +355,76 @@ describe("keyboard", () => {
 
       expect(event.defaultPrevented).toBe(true);
       expect(ctx.luckysheet_select_save[0].column_focus).toBe(1);
+    });
+
+    // Only navigation and typing are grid-scoped. Workbook commands keep acting
+    // on the selection from anywhere in the workbook, the way Ctrl+Z and Ctrl+Y
+    // already do one level up in Workbook.onKeyDown -- otherwise a keyboard user
+    // who tabs to the toolbar to inspect a button finds Ctrl+C silently dead.
+    test("ctrl+c from a toolbar button still copies the selection", () => {
+      const { cellInput, toolbarButton } = buildDom();
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [];
+
+      pressFrom(ctx, cellInput, toolbarButton, {
+        key: "c",
+        code: "KeyC",
+        ctrlKey: true,
+      });
+
+      expect(ctx.luckysheet_copy_save.copyRange).toEqual([
+        { row: [0, 0], column: [0, 0] },
+      ]);
+    });
+
+    test("ctrl+f from a toolbar button still opens find", () => {
+      const { cellInput, toolbarButton } = buildDom();
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [];
+
+      pressFrom(ctx, cellInput, toolbarButton, {
+        key: "f",
+        code: "KeyF",
+        ctrlKey: true,
+      });
+
+      expect(ctx.showSearch).toBe(true);
+    });
+
+    // Text-entry targets are the exception: they own every key they receive,
+    // Ctrl combos included, so the grid must not copy cells while the user is
+    // copying text out of the add-row input, the formula bar or a search field.
+    test("ctrl+c inside a text input is left to the input", () => {
+      const { cellInput, addRowInput } = buildDom();
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [];
+
+      const event = pressFrom(ctx, cellInput, addRowInput, {
+        key: "c",
+        code: "KeyC",
+        ctrlKey: true,
+      });
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(ctx.luckysheet_copy_save).toBeUndefined();
+      expect(document.activeElement).toBe(addRowInput);
+    });
+
+    // Tab and Enter stay out of scope whatever the modifiers: moving focus and
+    // activating the focused control are the browser's job.
+    test("ctrl+tab from the toolbar is left to the browser", () => {
+      const { cellInput, toolbarButton } = buildDom();
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [];
+
+      const event = pressFrom(ctx, cellInput, toolbarButton, {
+        key: "Tab",
+        ctrlKey: true,
+      });
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(ctx.luckysheet_select_save[0].column_focus).toBe(0);
+      expect(document.activeElement).toBe(toolbarButton);
     });
   });
 

@@ -11057,6 +11057,8 @@ export default {
     newSheet: "新表",
     sheetOptions: "图纸选项",
     Dropdown: "下拉菜单",
+    selectAllCells: "选择所有单元格",
+    columnOptions: "列选项",
     zoomIn: "放大",
     zoomOut: "缩小",
     selectRangeShortcut: "选择范围: Shift, 方向键。",
