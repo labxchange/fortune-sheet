@@ -20,6 +20,14 @@ import Divider from "./Divider";
 import "./index.css";
 import Menu from "./Menu";
 
+/**
+ * Only one sheet-tab options menu can be open at a time, so a constant id is
+ * enough to wire it to whichever tab's trigger opened it. The trigger lives in
+ * SheetTab/SheetItem, a different subtree, so a useId() generated here would
+ * not be reachable from there.
+ */
+export const SHEET_TAB_MENU_ID = "fortune-sheet-tab-options-menu";
+
 const SheetTabContextMenu: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
   const { x, y, sheet, onRename } = context.sheetTabContextMenu;
@@ -129,6 +137,8 @@ const SheetTabContextMenu: React.FC = () => {
 
   return (
     <div
+      id={SHEET_TAB_MENU_ID}
+      role="menu"
       className="fortune-context-menu luckysheet-cols-menu"
       onContextMenu={(e) => e.stopPropagation()}
       style={{ left: position.x, top: position.y, overflow: "visible" }}

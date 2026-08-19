@@ -71,6 +71,92 @@ describe("Sheet tab keyboard accessibility", () => {
     expect(parseFloat(menu.style.left)).toBeCloseTo(500);
   });
 
+  it("announces the sheet options menu's expanded state and wires it to the menu", () => {
+    const { getByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+    const sheetOptionsButton = getByRole("button", { name: "Sheet options" });
+
+    // aria-haspopup tells the user a menu is coming; aria-expanded is what
+    // makes the collapse/expand transition audible at all. Without it the
+    // trigger reads identically open and closed.
+    expect(sheetOptionsButton.getAttribute("aria-haspopup")).toBe("menu");
+    expect(sheetOptionsButton.getAttribute("aria-expanded")).toBe("false");
+    // referencing an id that isn't in the DOM yet is invalid, so it is only
+    // set while the menu exists
+    expect(sheetOptionsButton.getAttribute("aria-controls")).toBeNull();
+
+    sheetOptionsButton.focus();
+    fireEvent.keyDown(sheetOptionsButton, { key: "Enter" });
+
+    expect(sheetOptionsButton.getAttribute("aria-expanded")).toBe("true");
+    const menuId = sheetOptionsButton.getAttribute("aria-controls");
+    expect(menuId).toBeTruthy();
+    const menu = document.getElementById(menuId!)!;
+    expect(menu).toBeTruthy();
+    expect(menu.getAttribute("role")).toBe("menu");
+    expect(menu.classList.contains("luckysheet-cols-menu")).toBe(true);
+
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(sheetOptionsButton.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("returns focus to the sheet options trigger, once, when the menu closes", () => {
+    const { getByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+    const sheetOptionsButton = getByRole("button", { name: "Sheet options" });
+
+    sheetOptionsButton.focus();
+    fireEvent.keyDown(sheetOptionsButton, { key: "Enter" });
+    expect(document.activeElement).not.toBe(sheetOptionsButton);
+
+    // Menu used to focus the first row itself, from a document-wide
+    // querySelector in a per-instance mount effect: one call per row, and all
+    // of them ran before useEscapeToClose captured the element to restore to,
+    // so it recorded a menu row. That row is gone by the time the menu
+    // closes, so the restore was skipped and focus fell to <body> — leaving
+    // the screen reader to resync from nothing.
+    const focusSpy = jest.fn();
+    sheetOptionsButton.addEventListener("focus", focusSpy);
+
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+
+    expect(document.activeElement).toBe(sheetOptionsButton);
+    expect(document.body).not.toBe(document.activeElement);
+    expect(focusSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes the sheet options menu when its own trigger is pressed again", () => {
+    const { getByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+    const sheetOptionsButton = getByRole("button", { name: "Sheet options" });
+
+    // aria-expanded is a promise that the trigger toggles. Same mousedown /
+    // click race as the All-sheets trigger below: useOutsideClick closed the
+    // menu on mousedown and the click handler then read that just-closed
+    // state and reopened it, so a second press appeared to do nothing.
+    fireEvent.mouseDown(sheetOptionsButton);
+    fireEvent.mouseUp(sheetOptionsButton);
+    fireEvent.click(sheetOptionsButton);
+    expect(document.querySelector(".luckysheet-cols-menu")).toBeTruthy();
+    expect(sheetOptionsButton.getAttribute("aria-expanded")).toBe("true");
+
+    fireEvent.mouseDown(sheetOptionsButton);
+    fireEvent.mouseUp(sheetOptionsButton);
+    fireEvent.click(sheetOptionsButton);
+    expect(document.querySelector(".luckysheet-cols-menu")).toBeNull();
+    expect(sheetOptionsButton.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("toggles the sheet options menu closed with Enter as well as the mouse", () => {
+    const { getByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+    const sheetOptionsButton = getByRole("button", { name: "Sheet options" });
+
+    sheetOptionsButton.focus();
+    fireEvent.keyDown(sheetOptionsButton, { key: "Enter" });
+    expect(document.querySelector(".luckysheet-cols-menu")).toBeTruthy();
+
+    sheetOptionsButton.focus();
+    fireEvent.keyDown(sheetOptionsButton, { key: "Enter" });
+    expect(document.querySelector(".luckysheet-cols-menu")).toBeNull();
+  });
+
   it("hovering the Change-color submenu does not steal focus, while keyboard opening still autofocuses and Escape restores it", () => {
     const { getByRole, getByText } = render(
       <Workbook data={[{ name: "Sheet1" }]} />

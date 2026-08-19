@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef } from "react";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 
 /**
@@ -54,14 +54,14 @@ const Menu: React.FC<Props> = ({
   controls,
   children,
 }) => {
-  useEffect(() => {
-    // focus on mount for keyboard nav
-    const element = document.querySelector(".luckysheet-cols-menuitem");
-    if (element) {
-      (element as HTMLDivElement).focus();
-    }
-  }, []);
-
+  // Autofocusing the first row on open is useEscapeToClose's job (every
+  // consumer of this component uses it). This component used to do it too,
+  // via a document-wide querySelector on mount — which fired once per row
+  // (~8 times for one menu), could focus a row in a different, already-open
+  // menu, and ran before useEscapeToClose captured document.activeElement,
+  // so the element to restore focus to on close was recorded as a menu row
+  // instead of the trigger. That row is unmounted by the time the menu
+  // closes, so the restore was skipped and focus fell to <body>.
   const containerRef = useRef<HTMLDivElement>(null);
   return (
     <div
