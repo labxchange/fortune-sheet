@@ -11423,6 +11423,11 @@ export default {
     filterValueByAllBtn: "Seleccionar todos",
     filterValueByClearBtn: "Limpiar",
     filterValueByInverseBtn: "Invertir",
+    filterValueByAllAnnouncement: "All filter options selected.",
+    filterValueByClearAnnouncement: "All filter options cleared.",
+    filterValueByInverseAnnouncement: "Filter selections inverted.",
+    filterValueBySelectedCountAnnouncement:
+      "${selected} of ${total} options now selected.",
     filterValueByTip: "filtrar por valores",
     filterConform: "Confirmar",
     filterCancel: "Cancelar",

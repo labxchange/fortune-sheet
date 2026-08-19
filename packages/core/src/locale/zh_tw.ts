@@ -11449,6 +11449,11 @@ export default {
     filterValueByAllBtn: "全選",
     filterValueByClearBtn: "清除",
     filterValueByInverseBtn: "反選",
+    filterValueByAllAnnouncement: "All filter options selected.",
+    filterValueByClearAnnouncement: "All filter options cleared.",
+    filterValueByInverseAnnouncement: "Filter selections inverted.",
+    filterValueBySelectedCountAnnouncement:
+      "${selected} of ${total} options now selected.",
     filterValueByTip: "按照值進行篩選",
     filterConform: "確 認",
     filterCancel: "取 消",
