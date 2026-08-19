@@ -18,12 +18,20 @@ export function activateOnEnterOrSpace<T extends HTMLElement = HTMLElement>(
   e.currentTarget.click();
 }
 
+/** As activateOnEnterOrSpace, but for a control that can be aria-disabled.
+ * A disabled control still *consumes* Enter/Space rather than ignoring them:
+ * the grid's own keyboard handler is bound on .fortune-container, which wraps
+ * the toolbar, so an unstopped Enter would bubble into handleGlobalEnter and
+ * move the selection — making a disabled button do more than an enabled one. */
 export function onActivationKeyDown<T extends HTMLElement = HTMLElement>(
   disabled?: boolean
 ): (e: React.KeyboardEvent<T>) => void {
   return (e) => {
-    if (disabled) return;
-    activateOnEnterOrSpace(e);
+    if (!isActivationKey(e.key)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (disabled || e.repeat) return;
+    e.currentTarget.click();
   };
 }
 

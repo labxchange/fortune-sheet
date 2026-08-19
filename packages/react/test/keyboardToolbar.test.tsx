@@ -1,6 +1,7 @@
 import { render, fireEvent, within } from "@testing-library/react";
 import React from "react";
 import Workbook from "../src/components/Workbook";
+import Button from "../src/components/Toolbar/Button";
 
 describe("Toolbar keyboard accessibility", () => {
   it("does not activate a disabled button (Undo, with no history) via Enter or Space", () => {
@@ -222,5 +223,84 @@ describe("Toolbar keyboard accessibility", () => {
 
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     expect(document.activeElement).toBe(highlightRow);
+  });
+});
+
+describe("Toolbar Button disabled state", () => {
+  // aria-disabled tells the user the control is inert; every activation path
+  // has to agree with that, or a mouse user gets the action a keyboard user
+  // was denied and a screen-reader user was told not to expect.
+  it("ignores click, mousedown, Enter and Space when disabled", () => {
+    const onClick = jest.fn();
+    const { getByRole } = render(
+      <Button tooltip="Undo" iconId="undo" disabled onClick={onClick} />
+    );
+    const button = getByRole("button", { name: "Undo" });
+
+    fireEvent.click(button);
+    fireEvent.keyDown(button, { key: "Enter" });
+    fireEvent.keyDown(button, { key: " " });
+
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("ignores mousedown, Enter and Space when disabled in onMouseDown mode", () => {
+    const onMouseDown = jest.fn();
+    const { getByRole } = render(
+      <Button tooltip="More" iconId="more" disabled onMouseDown={onMouseDown} />
+    );
+    const button = getByRole("button", { name: "More" });
+
+    fireEvent.mouseDown(button);
+    fireEvent.click(button);
+    fireEvent.keyDown(button, { key: "Enter" });
+    fireEvent.keyDown(button, { key: " " });
+
+    expect(onMouseDown).not.toHaveBeenCalled();
+  });
+
+  it("activates once per click and once per Enter when not disabled", () => {
+    const onClick = jest.fn();
+    const { getByRole } = render(
+      <Button tooltip="Undo" iconId="undo" onClick={onClick} />
+    );
+    const button = getByRole("button", { name: "Undo" });
+
+    fireEvent.click(button);
+    expect(onClick).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(button, { key: "Enter" });
+    expect(onClick).toHaveBeenCalledTimes(2);
+  });
+
+  // The grid's own keydown handler is bound on .fortune-container, an ancestor
+  // of the toolbar, so an Enter that merely "does nothing" here would still
+  // bubble into handleGlobalEnter and move the selection.
+  it("does not let Enter or Space bubble past a disabled button", () => {
+    const onAncestorKeyDown = jest.fn();
+    const { getByRole } = render(
+      <div onKeyDown={onAncestorKeyDown}>
+        <Button tooltip="Undo" iconId="undo" disabled />
+      </div>
+    );
+    const button = getByRole("button", { name: "Undo" });
+
+    fireEvent.keyDown(button, { key: "Enter" });
+    fireEvent.keyDown(button, { key: " " });
+
+    expect(onAncestorKeyDown).not.toHaveBeenCalled();
+  });
+
+  it("lets unrelated keys bubble past a disabled button", () => {
+    const onAncestorKeyDown = jest.fn();
+    const { getByRole } = render(
+      <div onKeyDown={onAncestorKeyDown}>
+        <Button tooltip="Undo" iconId="undo" disabled />
+      </div>
+    );
+
+    fireEvent.keyDown(getByRole("button", { name: "Undo" }), { key: "a" });
+
+    expect(onAncestorKeyDown).toHaveBeenCalledTimes(1);
   });
 });

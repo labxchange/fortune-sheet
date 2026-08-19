@@ -33,26 +33,35 @@ const Button: React.FC<Props> = ({
   children,
 }) => {
   // const style: CSSProperties = { userSelect: "none" };
+  // Every activation path honours `disabled` identically, so that the
+  // aria-disabled announced below is the truth for mouse, keyboard and screen
+  // reader alike. In onMouseDown mode, click only swallows the event (the
+  // action lives on mousedown), so it stays attached either way.
+  let handleClick = onClick;
+  if (onMouseDown) {
+    handleClick = (e) => e.stopPropagation();
+  } else if (disabled) {
+    handleClick = undefined;
+  }
   return (
     <div
       className="fortune-toolbar-button fortune-toolbar-item"
       onMouseDown={
-        onMouseDown
+        onMouseDown && !disabled
           ? (e) => {
               e.stopPropagation();
               onMouseDown();
             }
           : undefined
       }
-      onClick={onMouseDown ? (e) => e.stopPropagation() : onClick}
+      onClick={handleClick}
       onKeyDown={
         onMouseDown
           ? (e) => {
-              if (disabled) return;
               if (!isActivationKey(e.key)) return;
               e.preventDefault();
               e.stopPropagation();
-              if (e.repeat) return;
+              if (disabled || e.repeat) return;
               onMouseDown();
             }
           : onActivationKeyDown(disabled)
