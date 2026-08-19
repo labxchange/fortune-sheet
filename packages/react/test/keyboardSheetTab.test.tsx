@@ -92,7 +92,15 @@ describe("Sheet tab keyboard accessibility", () => {
 
     colorRow.focus();
     fireEvent.keyDown(colorRow, { key: "Enter" });
-    const submenuButtons = within(colorRow).getAllByRole("button");
+    // the submenu must be a sibling of the role="button" row, not a
+    // descendant of it, or its contents are invisible to screen readers
+    // (role="button" flattens all descendant content into its own name)
+    const submenuId = colorRow.getAttribute("aria-controls");
+    expect(submenuId).toBeTruthy();
+    const submenu = document.getElementById(submenuId!)!;
+    expect(submenu.getAttribute("role")).toBe("menu");
+    expect(colorRow.contains(submenu)).toBe(false);
+    const submenuButtons = within(submenu).getAllByRole("button");
     expect(document.activeElement).toBe(submenuButtons[0]);
 
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });

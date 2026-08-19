@@ -1,15 +1,10 @@
-import React, {
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useContext, useId, useRef, useState } from "react";
 import "./index.css";
 import { locale, updateItem } from "@fortune-sheet/core";
 import WorkbookContext from "../../context";
 import Select, { Option } from "../Toolbar/Select";
 import SVGIcon from "../SVGIcon";
+import { useAdjacentSubmenuPosition } from "../../hooks/useAdjacentSubmenuPosition";
 import { useDialog } from "../../hooks/useDialog";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
@@ -32,31 +27,16 @@ const ConditionFormatSubmenuOption: React.FC<{
   const { refs } = useContext(WorkbookContext);
   const [open, setOpen] = useState(false);
   const [openedBy, setOpenedBy] = useState<"pointer" | "keyboard">("pointer");
+  const menuId = useId();
+  const triggerRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  // 子菜单溢出屏幕时，重新定位子菜单位置
-  // re-position the subMenu if it oveflows the window
-  useEffect(() => {
-    const subMenu = menuRef.current;
-    if (!subMenu || !open) return;
-    const menuItem = subMenu.closest(
-      ".fortune-toolbar-select-option"
-    ) as HTMLDivElement | null;
-    if (!menuItem) return;
-    const menuItemRect = menuItem.getBoundingClientRect();
-    const workbookContainerRect =
-      refs.workbookContainer.current!.getBoundingClientRect();
-    const menuItemStyle = window.getComputedStyle(menuItem);
-    const menuItemPaddingRight = parseFloat(
-      menuItemStyle.getPropertyValue("padding-right").replace("px", "")
-    );
-    const subMenuWidth = parseFloat(subMenu.style.width.replace("px", ""));
-    if (workbookContainerRect.right - menuItemRect.right < subMenuWidth) {
-      subMenu.style.right = `${menuItemRect.width - menuItemPaddingRight}px`;
-    } else {
-      subMenu.style.right = `${-(subMenuWidth + menuItemPaddingRight)}px`;
-    }
-  }, [open, refs.workbookContainer]);
+  useAdjacentSubmenuPosition({
+    open,
+    triggerRef,
+    menuRef,
+    boundaryRef: refs.workbookContainer,
+  });
 
   useEscapeToClose({
     open,
@@ -72,48 +52,55 @@ const ConditionFormatSubmenuOption: React.FC<{
   });
 
   return (
-    <Option
-      aria-haspopup
-      aria-expanded={open}
+    <div
       onMouseEnter={() => {
         setOpenedBy("pointer");
         setOpen(true);
       }}
       onMouseLeave={() => setOpen(false)}
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget) return;
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          e.stopPropagation();
-          setOpenedBy("keyboard");
-          setOpen(true);
-        }
-      }}
     >
-      <div className="fortune-toolbar-menu-line">
-        {label}
-        <SVGIcon name="rightArrow" width={18} />
-        <div
-          ref={menuRef}
-          className="condition-format-sub-menu"
-          style={{ display: open ? "block" : "none", width }}
-        >
-          {items.map((item) => (
-            <div
-              className="condition-format-item"
-              key={item.key}
-              style={item.style}
-              onClick={item.onClick}
-              onKeyDown={activateOnEnterOrSpace}
-              tabIndex={0}
-              role="button"
-            >
-              {item.content}
-            </div>
-          ))}
+      <Option
+        ref={triggerRef}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={menuId}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpenedBy("keyboard");
+            setOpen(true);
+          }
+        }}
+      >
+        <div className="fortune-toolbar-menu-line">
+          {label}
+          <SVGIcon name="rightArrow" width={18} />
         </div>
+      </Option>
+      <div
+        ref={menuRef}
+        id={menuId}
+        role="menu"
+        className="condition-format-sub-menu"
+        style={{ display: open ? "block" : "none", width }}
+      >
+        {items.map((item) => (
+          <div
+            className="condition-format-item"
+            key={item.key}
+            style={item.style}
+            onClick={item.onClick}
+            onKeyDown={activateOnEnterOrSpace}
+            tabIndex={0}
+            role="button"
+          >
+            {item.content}
+          </div>
+        ))}
       </div>
-    </Option>
+    </div>
   );
 };
 

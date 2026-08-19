@@ -2,12 +2,14 @@ import { locale, deleteSheet, api } from "@fortune-sheet/core";
 import _ from "lodash";
 import React, {
   useContext,
+  useId,
   useRef,
   useState,
   useLayoutEffect,
   useCallback,
 } from "react";
 import WorkbookContext from "../../context";
+import { useAdjacentSubmenuPosition } from "../../hooks/useAdjacentSubmenuPosition";
 import { useAlert } from "../../hooks/useAlert";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
@@ -19,7 +21,7 @@ import "./index.css";
 import Menu from "./Menu";
 
 const SheetTabContextMenu: React.FC = () => {
-  const { context, setContext, settings } = useContext(WorkbookContext);
+  const { context, setContext, settings, refs } = useContext(WorkbookContext);
   const { x, y, sheet, onRename } = context.sheetTabContextMenu;
   const { sheetconfig } = locale(context);
   const [position, setPosition] = useState({ x: -1, y: -1 });
@@ -29,7 +31,9 @@ const SheetTabContextMenu: React.FC = () => {
     "pointer" | "keyboard"
   >("pointer");
   const { showAlert, hideAlert } = useAlert();
+  const changeColorMenuId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
+  const changeColorRowRef = useRef<HTMLDivElement>(null);
   const changeColorMenuRef = useRef<HTMLDivElement>(null);
 
   const close = useCallback(() => {
@@ -55,6 +59,13 @@ const SheetTabContextMenu: React.FC = () => {
     containerRef: changeColorMenuRef,
     autoFocus: changeColorOpenedBy === "keyboard",
     restoreFocus: changeColorOpenedBy === "keyboard",
+  });
+
+  useAdjacentSubmenuPosition({
+    open: isShowChangeColor,
+    triggerRef: changeColorRowRef,
+    menuRef: changeColorMenuRef,
+    boundaryRef: refs.workbookContainer,
   });
 
   const moveSheet = useCallback(
@@ -229,14 +240,10 @@ const SheetTabContextMenu: React.FC = () => {
         }
         if (name === "color") {
           return (
-            <Menu
+            <div
               key={name}
-              role="button"
-              expanded={isShowChangeColor}
-              onClick={() => {
-                setChangeColorOpenedBy("pointer");
-                setIsShowChangeColor(true);
-              }}
+              ref={changeColorRowRef}
+              style={{ position: "relative" }}
               onMouseEnter={() => {
                 setChangeColorOpenedBy("pointer");
                 setIsShowChangeColor(true);
@@ -246,25 +253,41 @@ const SheetTabContextMenu: React.FC = () => {
                   setIsShowChangeColor(false);
                 }
               }}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter" && e.key !== " ") return;
-                e.preventDefault();
-                e.stopPropagation();
-                if (e.repeat) return;
-                setChangeColorOpenedBy("keyboard");
-                setIsShowChangeColor(true);
-              }}
             >
-              {sheetconfig.changeColor}
-              <span className="change-color-triangle">
-                <SVGIcon name="rightArrow" width={18} />
-              </span>
+              <Menu
+                role="button"
+                expanded={isShowChangeColor}
+                hasPopup="menu"
+                controls={changeColorMenuId}
+                onClick={() => {
+                  setChangeColorOpenedBy("pointer");
+                  setIsShowChangeColor(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" && e.key !== " ") return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (e.repeat) return;
+                  setChangeColorOpenedBy("keyboard");
+                  setIsShowChangeColor(true);
+                }}
+              >
+                {sheetconfig.changeColor}
+                <span className="change-color-triangle">
+                  <SVGIcon name="rightArrow" width={18} />
+                </span>
+              </Menu>
               {isShowChangeColor && context.allowEdit && (
-                <div ref={changeColorMenuRef}>
+                <div
+                  id={changeColorMenuId}
+                  role="menu"
+                  ref={changeColorMenuRef}
+                  style={{ position: "absolute" }}
+                >
                   <ChangeColor triggerParentUpdate={updateShowInputColor} />
                 </div>
               )}
-            </Menu>
+            </div>
           );
         }
         if (name === "focus") {

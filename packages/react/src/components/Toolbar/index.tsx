@@ -1,6 +1,7 @@
 import React, {
   useContext,
   useCallback,
+  useId,
   useRef,
   useEffect,
   useState,
@@ -43,6 +44,7 @@ import Divider, { MenuDivider } from "./Divider";
 import Combo from "./Combo";
 import Select, { Option } from "./Select";
 import SVGIcon from "../SVGIcon";
+import { useAdjacentSubmenuPosition } from "../../hooks/useAdjacentSubmenuPosition";
 import { useDialog } from "../../hooks/useDialog";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
@@ -73,26 +75,16 @@ const MoreFormatOption: React.FC<{
   const { refs } = useContext(WorkbookContext);
   const [open, setOpen] = useState(false);
   const [openedBy, setOpenedBy] = useState<"pointer" | "keyboard">("pointer");
+  const menuId = useId();
+  const triggerRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    const subMenu = menuRef.current;
-    if (!subMenu || !open) return;
-    const menuItem = subMenu.parentElement as HTMLDivElement;
-    const menuItemRect = menuItem.getBoundingClientRect();
-    const workbookContainerRect =
-      refs.workbookContainer.current!.getBoundingClientRect();
-    const menuItemStyle = window.getComputedStyle(menuItem);
-    const menuItemPaddingRight = parseFloat(
-      menuItemStyle.getPropertyValue("padding-right").replace("px", "")
-    );
-    const subMenuWidth = parseFloat(subMenu.style.width.replace("px", ""));
-    if (workbookContainerRect.right - menuItemRect.right < subMenuWidth) {
-      subMenu.style.right = `${menuItemRect.width - menuItemPaddingRight}px`;
-    } else {
-      subMenu.style.right = `${-subMenuWidth}px`;
-    }
-  }, [open, refs.workbookContainer]);
+  useAdjacentSubmenuPosition({
+    open,
+    triggerRef,
+    menuRef,
+    boundaryRef: refs.workbookContainer,
+  });
 
   useEscapeToClose({
     open,
@@ -108,36 +100,41 @@ const MoreFormatOption: React.FC<{
   });
 
   return (
-    <Option
-      aria-haspopup
-      aria-expanded={open}
+    <div
       onMouseEnter={() => {
         setOpenedBy("pointer");
         setOpen(true);
       }}
       onMouseLeave={() => setOpen(false)}
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget) return;
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          e.stopPropagation();
-          setOpenedBy("keyboard");
-          setOpen(true);
-        }
-      }}
     >
-      <div className="fortune-toolbar-menu-line">
-        <div>{text}</div>
-        <SVGIcon name="rightArrow" width={14} />
-      </div>
+      <Option
+        ref={triggerRef}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={menuId}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpenedBy("keyboard");
+            setOpen(true);
+          }
+        }}
+      >
+        <div className="fortune-toolbar-menu-line">
+          <div>{text}</div>
+          <SVGIcon name="rightArrow" width={14} />
+        </div>
+      </Option>
       <div
         ref={menuRef}
+        id={menuId}
+        role="menu"
         className="more-format toolbar-item-sub-menu fortune-toolbar-select"
         style={{
           display: open ? "block" : "none",
           width: 150,
-          bottom: 10,
-          top: undefined,
         }}
       >
         {[
@@ -156,7 +153,7 @@ const MoreFormatOption: React.FC<{
           </div>
         ))}
       </div>
-    </Option>
+    </div>
   );
 };
 

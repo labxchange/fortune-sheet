@@ -25,35 +25,49 @@ type OptionProps = {
   onKeyDown?: (e: React.KeyboardEvent<HTMLDivElement>) => void;
   "aria-haspopup"?: boolean | "menu";
   "aria-expanded"?: boolean;
+  /** id of the role="menu" element this option's submenu renders, if any. */
+  "aria-controls"?: string;
 };
 
-const Option: React.FC<React.PropsWithChildren<OptionProps>> = ({
-  iconId,
-  onClick,
-  children,
-  onMouseLeave,
-  onMouseEnter,
-  onKeyDown,
-  "aria-haspopup": ariaHasPopup,
-  "aria-expanded": ariaExpanded,
-}) => {
-  return (
-    <div
-      onClick={onClick}
-      onKeyDown={onKeyDown ?? activateOnEnterOrSpace}
-      tabIndex={0}
-      role="button"
-      aria-haspopup={ariaHasPopup}
-      aria-expanded={ariaExpanded}
-      className="fortune-toolbar-select-option"
-      onMouseLeave={(e) => onMouseLeave?.(e)}
-      onMouseEnter={(e) => onMouseEnter?.(e)}
-    >
-      {iconId && <SVGIcon name={iconId} />}
-      <div className="fortuen-toolbar-text">{children}</div>
-    </div>
-  );
-};
+const Option = React.forwardRef<
+  HTMLDivElement,
+  React.PropsWithChildren<OptionProps>
+>(
+  (
+    {
+      iconId,
+      onClick,
+      children,
+      onMouseLeave,
+      onMouseEnter,
+      onKeyDown,
+      "aria-haspopup": ariaHasPopup,
+      "aria-expanded": ariaExpanded,
+      "aria-controls": ariaControls,
+    },
+    ref
+  ) => {
+    return (
+      <div
+        ref={ref}
+        onClick={onClick}
+        onKeyDown={onKeyDown ?? activateOnEnterOrSpace}
+        tabIndex={0}
+        role="button"
+        aria-haspopup={ariaHasPopup}
+        aria-expanded={ariaExpanded}
+        aria-controls={ariaControls}
+        className="fortune-toolbar-select-option"
+        onMouseLeave={(e) => onMouseLeave?.(e)}
+        onMouseEnter={(e) => onMouseEnter?.(e)}
+      >
+        {iconId && <SVGIcon name={iconId} />}
+        <div className="fortuen-toolbar-text">{children}</div>
+      </div>
+    );
+  }
+);
+Option.displayName = "Option";
 
 export { Option };
 

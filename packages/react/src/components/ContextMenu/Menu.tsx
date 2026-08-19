@@ -15,8 +15,14 @@ import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
  * pass it where the row really is just a button.
  */
 type AriaProps =
-  | { role?: undefined; expanded?: never }
-  | { role: "button"; expanded?: boolean };
+  | { role?: undefined; expanded?: never; hasPopup?: never; controls?: never }
+  | {
+      role: "button";
+      expanded?: boolean;
+      hasPopup?: "menu";
+      /** id of the role="menu" element this row's submenu renders, if any. */
+      controls?: string;
+    };
 
 type Props = React.PropsWithChildren<
   {
@@ -44,6 +50,8 @@ const Menu: React.FC<Props> = ({
   onKeyDown,
   role,
   expanded,
+  hasPopup,
+  controls,
   children,
 }) => {
   useEffect(() => {
@@ -61,6 +69,8 @@ const Menu: React.FC<Props> = ({
       className="luckysheet-cols-menuitem luckysheet-mousedown-cancel"
       role={role}
       aria-expanded={expanded}
+      aria-haspopup={hasPopup}
+      aria-controls={controls}
       onClick={(e) => onClick?.(e, containerRef.current!)}
       onKeyDown={onKeyDown ?? activateOnEnterOrSpace}
       onMouseLeave={(e) => onMouseLeave?.(e, containerRef.current!)}

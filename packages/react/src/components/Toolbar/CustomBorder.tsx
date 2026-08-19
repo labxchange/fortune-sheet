@@ -1,9 +1,10 @@
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, { useContext, useId, useRef, useState } from "react";
 import "./index.css";
 import { locale } from "@fortune-sheet/core";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
 import { CustomColor } from "./CustomColor";
+import { useAdjacentSubmenuPosition } from "../../hooks/useAdjacentSubmenuPosition";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
@@ -98,6 +99,8 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
     null
   );
   const [openedBy, setOpenedBy] = useState<"pointer" | "keyboard">("pointer");
+  const colorMenuId = useId();
+  const styleMenuId = useId();
   const colorOptionRef = useRef<HTMLDivElement | null>(null);
   const styleOptionRef = useRef<HTMLDivElement | null>(null);
   const colorRef = useRef<HTMLDivElement | null>(null);
@@ -108,29 +111,18 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
     ""
   );
 
-  useEffect(() => {
-    const positionSubmenu = (
-      optionRef: React.RefObject<HTMLDivElement | null>,
-      menuRef: React.RefObject<HTMLDivElement | null>
-    ) => {
-      const optionEl = optionRef.current;
-      const menuEl = menuRef.current;
-      if (!optionEl || !menuEl) return;
-      const menuItemRect = optionEl.getBoundingClientRect();
-      const workbookContainerRect =
-        refs.workbookContainer.current!.getBoundingClientRect();
-      if (
-        workbookContainerRect.width - menuItemRect.right >
-        parseFloat(menuEl.style.width.replace("px", ""))
-      ) {
-        menuEl.style.left = `${menuItemRect.width}px`;
-      } else {
-        menuEl.style.left = `-${menuEl.style.width}`;
-      }
-    };
-    if (openSubmenu === "color") positionSubmenu(colorOptionRef, colorRef);
-    if (openSubmenu === "style") positionSubmenu(styleOptionRef, styleRef);
-  }, [openSubmenu, refs.workbookContainer]);
+  useAdjacentSubmenuPosition({
+    open: openSubmenu === "color",
+    triggerRef: colorOptionRef,
+    menuRef: colorRef,
+    boundaryRef: refs.workbookContainer,
+  });
+  useAdjacentSubmenuPosition({
+    open: openSubmenu === "style",
+    triggerRef: styleOptionRef,
+    menuRef: styleRef,
+    boundaryRef: refs.workbookContainer,
+  });
 
   useEscapeToClose({
     open: openSubmenu === "color",
@@ -164,39 +156,45 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
     <div>
       {/* 边框颜色 */}
       <div
-        className="fortune-border-select-option"
         key="borderColor"
-        ref={colorOptionRef}
-        role="button"
-        tabIndex={0}
-        aria-haspopup="true"
-        aria-expanded={openSubmenu === "color"}
         onMouseEnter={() => {
           setOpenedBy("pointer");
           setOpenSubmenu("color");
         }}
         onMouseLeave={() => setOpenSubmenu(null)}
-        onKeyDown={(e) => {
-          if (e.target !== e.currentTarget) return;
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            e.stopPropagation();
-            setOpenedBy("keyboard");
-            setOpenSubmenu("color");
-          }
-        }}
       >
-        <div className="fortune-toolbar-menu-line">
-          {border.borderColor}
-          <SVGIcon name="rightArrow" style={{ width: "14px" }} />
+        <div
+          className="fortune-border-select-option"
+          ref={colorOptionRef}
+          role="button"
+          tabIndex={0}
+          aria-haspopup="menu"
+          aria-expanded={openSubmenu === "color"}
+          aria-controls={colorMenuId}
+          onKeyDown={(e) => {
+            if (e.target !== e.currentTarget) return;
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              setOpenedBy("keyboard");
+              setOpenSubmenu("color");
+            }
+          }}
+        >
+          <div className="fortune-toolbar-menu-line">
+            {border.borderColor}
+            <SVGIcon name="rightArrow" style={{ width: "14px" }} />
+          </div>
+          <div
+            ref={colorPreviewRef}
+            className="fortune-border-color-preview"
+            style={{ backgroundColor: changeColor }}
+          />
         </div>
         <div
-          ref={colorPreviewRef}
-          className="fortune-border-color-preview"
-          style={{ backgroundColor: changeColor }}
-        />
-        <div
           ref={colorRef}
+          id={colorMenuId}
+          role="menu"
           className="fortune-border-select-menu"
           style={{
             display: openSubmenu === "color" ? "block" : "none",
@@ -218,41 +216,47 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
       </div>
       {/* 边框样式 */}
       <div
-        className="fortune-border-select-option"
         key="borderStyle"
-        ref={styleOptionRef}
-        role="button"
-        tabIndex={0}
-        aria-haspopup="true"
-        aria-expanded={openSubmenu === "style"}
         onMouseEnter={() => {
           setOpenedBy("pointer");
           setOpenSubmenu("style");
         }}
         onMouseLeave={() => setOpenSubmenu(null)}
-        onKeyDown={(e) => {
-          if (e.target !== e.currentTarget) return;
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            e.stopPropagation();
-            setOpenedBy("keyboard");
-            setOpenSubmenu("style");
-          }
-        }}
       >
-        <div className="fortune-toolbar-menu-line">
-          {border.borderStyle}
-          <SVGIcon name="rightArrow" style={{ width: "14px" }} />
-        </div>
-        <div className="fortune-border-style-preview">
-          <svg width="90">
-            <g fill="none" stroke="black" strokeWidth={previewWith}>
-              <path strokeDasharray={previewdasharry} d="M0 0 l90 0" />
-            </g>
-          </svg>
+        <div
+          className="fortune-border-select-option"
+          ref={styleOptionRef}
+          role="button"
+          tabIndex={0}
+          aria-haspopup="menu"
+          aria-expanded={openSubmenu === "style"}
+          aria-controls={styleMenuId}
+          onKeyDown={(e) => {
+            if (e.target !== e.currentTarget) return;
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              setOpenedBy("keyboard");
+              setOpenSubmenu("style");
+            }
+          }}
+        >
+          <div className="fortune-toolbar-menu-line">
+            {border.borderStyle}
+            <SVGIcon name="rightArrow" style={{ width: "14px" }} />
+          </div>
+          <div className="fortune-border-style-preview">
+            <svg width="90">
+              <g fill="none" stroke="black" strokeWidth={previewWith}>
+                <path strokeDasharray={previewdasharry} d="M0 0 l90 0" />
+              </g>
+            </svg>
+          </div>
         </div>
         <div
           ref={styleRef}
+          id={styleMenuId}
+          role="menu"
           className="fortune-border-select-menu fortune-toolbar-select"
           style={{
             display: openSubmenu === "style" ? "block" : "none",

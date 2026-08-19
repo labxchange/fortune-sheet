@@ -89,6 +89,13 @@ describe("Toolbar keyboard accessibility", () => {
       expect(
         (document.activeElement as HTMLElement).closest(`.${menuClass}`)
       ).toBeTruthy();
+      // the submenu must be a sibling of the role="button" trigger, not a
+      // descendant of it, or its contents are invisible to screen readers
+      const submenuId = trigger.getAttribute("aria-controls");
+      expect(submenuId).toBeTruthy();
+      const submenu = document.getElementById(submenuId!)!;
+      expect(submenu.getAttribute("role")).toBe("menu");
+      expect(trigger.contains(submenu)).toBe(false);
 
       fireEvent.keyDown(document.activeElement!, { key: "Escape" });
       expect(document.activeElement).toBe(trigger);
@@ -121,6 +128,11 @@ describe("Toolbar keyboard accessibility", () => {
     expect(
       (document.activeElement as HTMLElement).closest(".more-format")
     ).toBeTruthy();
+    const submenuId = customFormatsRow.getAttribute("aria-controls");
+    expect(submenuId).toBeTruthy();
+    const submenu = document.getElementById(submenuId!)!;
+    expect(submenu.getAttribute("role")).toBe("menu");
+    expect(customFormatsRow.contains(submenu)).toBe(false);
 
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     expect(document.activeElement).toBe(customFormatsRow);
@@ -155,6 +167,11 @@ describe("Toolbar keyboard accessibility", () => {
         ".condition-format-sub-menu"
       )
     ).toBeTruthy();
+    const submenuId = highlightRow.getAttribute("aria-controls");
+    expect(submenuId).toBeTruthy();
+    const submenu = document.getElementById(submenuId!)!;
+    expect(submenu.getAttribute("role")).toBe("menu");
+    expect(highlightRow.contains(submenu)).toBe(false);
 
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     expect(document.activeElement).toBe(highlightRow);
