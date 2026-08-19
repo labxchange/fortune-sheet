@@ -49,6 +49,18 @@ export function useEscapeToClose({
       first?.focus();
     }
 
+    // Tracked continuously (rather than queried from containerRef at
+    // cleanup time) because several call sites conditionally unmount their
+    // container on close: React nulls that ref during the mutation phase,
+    // which runs before this passive effect's cleanup does.
+    let focusInsideContainer = !!containerRef.current?.contains(
+      document.activeElement
+    );
+    const handleFocusIn = (e: FocusEvent) => {
+      focusInsideContainer = !!containerRef.current?.contains(e.target as Node);
+    };
+    document.addEventListener("focusin", handleFocusIn);
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       // only the innermost open instance (topmost of the stack) should
@@ -64,10 +76,19 @@ export function useEscapeToClose({
     // input, a submenu item, ...) currently has focus
     document.addEventListener("keydown", handleKeyDown, true);
     return () => {
+      document.removeEventListener("focusin", handleFocusIn);
       document.removeEventListener("keydown", handleKeyDown, true);
       const index = openInstanceStack.indexOf(instanceId);
       if (index !== -1) openInstanceStack.splice(index, 1);
-      if (restoreFocus && previousActiveElement?.isConnected) {
+      // Only rescue focus if the user hasn't already deliberately moved it
+      // elsewhere (e.g. clicking a grid cell, which closes the popup via
+      // useOutsideClick). Restoring unconditionally would drag focus back
+      // to the trigger even after such a deliberate click.
+      if (
+        restoreFocus &&
+        focusInsideContainer &&
+        previousActiveElement?.isConnected
+      ) {
         previousActiveElement.focus();
       }
     };
