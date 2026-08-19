@@ -143,10 +143,10 @@ describe("getFilterColumnExtent", () => {
     expect(getFilterColumnExtent(ctx, 5)).toBeNull();
   });
 
-  it("excludes rows an applied criterion has hidden", () => {
-    // Rows 2-4 hidden, so the reachable data is row 1 and row 5 === "2" and "6".
-    // Without this the extent reads the same whether the filter hides nothing or
-    // nearly everything, which is the one thing the announcement exists to say.
+  it("keeps the endpoints when only middle rows are hidden", () => {
+    // Rows 2-4 hidden but 1 and 5 survive, so the extent is unchanged. Asserted
+    // separately from the clamping cases below, which move the endpoints — this
+    // one passes with or without the clamp and is not evidence of it.
     const hidden = makeContext({
       filterOptions,
       filter: { 0: criterion },
