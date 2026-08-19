@@ -167,7 +167,7 @@ function renderFilterMenu({
   const view = render(tree(openMenu(col)));
 
   const regions = () =>
-    Array.from(view.container.querySelectorAll('[role="alert"]'));
+    Array.from(view.container.querySelectorAll('[role="status"]'));
 
   return {
     ...view,

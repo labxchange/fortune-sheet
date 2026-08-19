@@ -556,16 +556,12 @@ const FilterMenu: React.FC = () => {
           makes the receiving region go "" -> text, a real insertion; the other
           goes text -> "", which is not announced.
 
-          role="alert", not role="status": polite means "drop if something else
-          is already speaking", and VoiceOver is still reading the button's
-          focus hint when the action fires, so a polite update is discarded and
-          nothing is spoken. Matches the live regions in SheetOverlay.
 
           Kept outside the collapsible "filter by values" container, which is
           display:none when collapsed and would remove them from the
           accessibility tree. */}
       {[0, 1].map((slot) => (
-        <div key={slot} className="sr-only" role="alert">
+        <div key={slot} className="sr-only" role="status">
           {announcement.slot === slot ? announcement.text : ""}
         </div>
       ))}
