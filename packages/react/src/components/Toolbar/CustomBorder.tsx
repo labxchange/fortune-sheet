@@ -97,6 +97,7 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
   const [openSubmenu, setOpenSubmenu] = useState<"color" | "style" | null>(
     null
   );
+  const [openedBy, setOpenedBy] = useState<"pointer" | "keyboard">("pointer");
   const colorOptionRef = useRef<HTMLDivElement | null>(null);
   const styleOptionRef = useRef<HTMLDivElement | null>(null);
   const colorRef = useRef<HTMLDivElement | null>(null);
@@ -135,11 +136,15 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
     open: openSubmenu === "color",
     onClose: () => setOpenSubmenu(null),
     containerRef: colorRef,
+    autoFocus: openedBy === "keyboard",
+    restoreFocus: openedBy === "keyboard",
   });
   useEscapeToClose({
     open: openSubmenu === "style",
     onClose: () => setOpenSubmenu(null),
     containerRef: styleRef,
+    autoFocus: openedBy === "keyboard",
+    restoreFocus: openedBy === "keyboard",
   });
   useRovingFocus({
     containerRef: styleRef,
@@ -166,13 +171,17 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
         tabIndex={0}
         aria-haspopup="true"
         aria-expanded={openSubmenu === "color"}
-        onMouseEnter={() => setOpenSubmenu("color")}
+        onMouseEnter={() => {
+          setOpenedBy("pointer");
+          setOpenSubmenu("color");
+        }}
         onMouseLeave={() => setOpenSubmenu(null)}
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget) return;
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             e.stopPropagation();
+            setOpenedBy("keyboard");
             setOpenSubmenu("color");
           }
         }}
@@ -216,13 +225,17 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
         tabIndex={0}
         aria-haspopup="true"
         aria-expanded={openSubmenu === "style"}
-        onMouseEnter={() => setOpenSubmenu("style")}
+        onMouseEnter={() => {
+          setOpenedBy("pointer");
+          setOpenSubmenu("style");
+        }}
         onMouseLeave={() => setOpenSubmenu(null)}
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget) return;
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             e.stopPropagation();
+            setOpenedBy("keyboard");
             setOpenSubmenu("style");
           }
         }}

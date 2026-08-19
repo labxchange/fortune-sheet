@@ -31,6 +31,7 @@ const ConditionFormatSubmenuOption: React.FC<{
 }> = ({ label, width, items }) => {
   const { refs } = useContext(WorkbookContext);
   const [open, setOpen] = useState(false);
+  const [openedBy, setOpenedBy] = useState<"pointer" | "keyboard">("pointer");
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   // 子菜单溢出屏幕时，重新定位子菜单位置
@@ -61,6 +62,8 @@ const ConditionFormatSubmenuOption: React.FC<{
     open,
     onClose: () => setOpen(false),
     containerRef: menuRef,
+    autoFocus: openedBy === "keyboard",
+    restoreFocus: openedBy === "keyboard",
   });
   useRovingFocus({
     containerRef: menuRef,
@@ -72,13 +75,17 @@ const ConditionFormatSubmenuOption: React.FC<{
     <Option
       aria-haspopup
       aria-expanded={open}
-      onMouseEnter={() => setOpen(true)}
+      onMouseEnter={() => {
+        setOpenedBy("pointer");
+        setOpen(true);
+      }}
       onMouseLeave={() => setOpen(false)}
       onKeyDown={(e) => {
         if (e.target !== e.currentTarget) return;
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           e.stopPropagation();
+          setOpenedBy("keyboard");
           setOpen(true);
         }
       }}

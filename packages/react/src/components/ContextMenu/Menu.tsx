@@ -32,6 +32,8 @@ type Props = React.PropsWithChildren<
       e: React.MouseEvent<HTMLDivElement, MouseEvent>,
       container: HTMLDivElement
     ) => void;
+    /** Override for menu items that open a nested submenu instead of clicking. */
+    onKeyDown?: (e: React.KeyboardEvent<HTMLDivElement>) => void;
   } & AriaProps
 >;
 
@@ -39,6 +41,7 @@ const Menu: React.FC<Props> = ({
   onClick,
   onMouseLeave,
   onMouseEnter,
+  onKeyDown,
   role,
   expanded,
   children,
@@ -59,7 +62,7 @@ const Menu: React.FC<Props> = ({
       role={role}
       aria-expanded={expanded}
       onClick={(e) => onClick?.(e, containerRef.current!)}
-      onKeyDown={activateOnEnterOrSpace}
+      onKeyDown={onKeyDown ?? activateOnEnterOrSpace}
       onMouseLeave={(e) => onMouseLeave?.(e, containerRef.current!)}
       onMouseEnter={(e) => onMouseEnter?.(e, containerRef.current!)}
       tabIndex={0}

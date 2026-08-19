@@ -1,4 +1,4 @@
-import { render, fireEvent, waitFor } from "@testing-library/react";
+import { render, fireEvent, waitFor, within } from "@testing-library/react";
 import React from "react";
 import Workbook from "../src/components/Workbook";
 
@@ -69,5 +69,33 @@ describe("Sheet tab keyboard accessibility", () => {
     // menu were still positioned from the click event's coordinates instead
     // of the trigger's own rect, this would render at 0 instead of ~500.
     expect(parseFloat(menu.style.left)).toBeCloseTo(500);
+  });
+
+  it("hovering the Change-color submenu does not steal focus, while keyboard opening still autofocuses and Escape restores it", () => {
+    const { getByRole, getByText } = render(
+      <Workbook data={[{ name: "Sheet1" }]} />
+    );
+    const sheetOptionsButton = getByRole("button", { name: "Sheet options" });
+
+    sheetOptionsButton.focus();
+    fireEvent.keyDown(sheetOptionsButton, { key: "Enter" });
+
+    const colorRow = getByText("Change color").closest(
+      '[role="button"]'
+    ) as HTMLElement;
+
+    sheetOptionsButton.focus();
+    fireEvent.mouseEnter(colorRow);
+    expect(document.activeElement).toBe(sheetOptionsButton);
+    fireEvent.mouseLeave(colorRow);
+    expect(document.activeElement).toBe(sheetOptionsButton);
+
+    colorRow.focus();
+    fireEvent.keyDown(colorRow, { key: "Enter" });
+    const submenuButtons = within(colorRow).getAllByRole("button");
+    expect(document.activeElement).toBe(submenuButtons[0]);
+
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(document.activeElement).toBe(colorRow);
   });
 });

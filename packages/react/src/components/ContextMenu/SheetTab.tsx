@@ -25,6 +25,9 @@ const SheetTabContextMenu: React.FC = () => {
   const [position, setPosition] = useState({ x: -1, y: -1 });
   const [isShowChangeColor, setIsShowChangeColor] = useState<boolean>(false);
   const [isShowInputColor, setIsShowInputColor] = useState<boolean>(false);
+  const [changeColorOpenedBy, setChangeColorOpenedBy] = useState<
+    "pointer" | "keyboard"
+  >("pointer");
   const { showAlert, hideAlert } = useAlert();
   const containerRef = useRef<HTMLDivElement>(null);
   const changeColorMenuRef = useRef<HTMLDivElement>(null);
@@ -50,6 +53,8 @@ const SheetTabContextMenu: React.FC = () => {
     open: isShowChangeColor,
     onClose: () => setIsShowChangeColor(false),
     containerRef: changeColorMenuRef,
+    autoFocus: changeColorOpenedBy === "keyboard",
+    restoreFocus: changeColorOpenedBy === "keyboard",
   });
 
   const moveSheet = useCallback(
@@ -228,14 +233,26 @@ const SheetTabContextMenu: React.FC = () => {
               key={name}
               role="button"
               expanded={isShowChangeColor}
-              onClick={() => setIsShowChangeColor(true)}
+              onClick={() => {
+                setChangeColorOpenedBy("pointer");
+                setIsShowChangeColor(true);
+              }}
               onMouseEnter={() => {
+                setChangeColorOpenedBy("pointer");
                 setIsShowChangeColor(true);
               }}
               onMouseLeave={() => {
                 if (!isShowInputColor) {
                   setIsShowChangeColor(false);
                 }
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.repeat) return;
+                setChangeColorOpenedBy("keyboard");
+                setIsShowChangeColor(true);
               }}
             >
               {sheetconfig.changeColor}

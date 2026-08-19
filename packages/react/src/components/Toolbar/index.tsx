@@ -72,6 +72,7 @@ const MoreFormatOption: React.FC<{
 }) => {
   const { refs } = useContext(WorkbookContext);
   const [open, setOpen] = useState(false);
+  const [openedBy, setOpenedBy] = useState<"pointer" | "keyboard">("pointer");
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -97,6 +98,8 @@ const MoreFormatOption: React.FC<{
     open,
     onClose: () => setOpen(false),
     containerRef: menuRef,
+    autoFocus: openedBy === "keyboard",
+    restoreFocus: openedBy === "keyboard",
   });
   useRovingFocus({
     containerRef: menuRef,
@@ -108,13 +111,17 @@ const MoreFormatOption: React.FC<{
     <Option
       aria-haspopup
       aria-expanded={open}
-      onMouseEnter={() => setOpen(true)}
+      onMouseEnter={() => {
+        setOpenedBy("pointer");
+        setOpen(true);
+      }}
       onMouseLeave={() => setOpen(false)}
       onKeyDown={(e) => {
         if (e.target !== e.currentTarget) return;
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           e.stopPropagation();
+          setOpenedBy("keyboard");
           setOpen(true);
         }
       }}
