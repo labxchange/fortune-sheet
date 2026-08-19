@@ -549,14 +549,23 @@ const FilterMenu: React.FC = () => {
 
   return (
     <>
-      {/* Two alternating status regions rather than one. A repeated bulk action
+      {/* Two alternating live regions rather than one. A repeated bulk action
           can produce identical text (inverting an even split, or re-applying
           Check all after a manual change), and identical text in a single
-          region is not a DOM change, so it is never announced. Kept outside the
-          collapsible "filter by values" container, which is display:none when
-          collapsed and would remove them from the accessibility tree. */}
+          region is not a DOM change, so it is never announced. Alternating
+          makes the receiving region go "" -> text, a real insertion; the other
+          goes text -> "", which is not announced.
+
+          role="alert", not role="status": polite means "drop if something else
+          is already speaking", and VoiceOver is still reading the button's
+          focus hint when the action fires, so a polite update is discarded and
+          nothing is spoken. Matches the live regions in SheetOverlay.
+
+          Kept outside the collapsible "filter by values" container, which is
+          display:none when collapsed and would remove them from the
+          accessibility tree. */}
       {[0, 1].map((slot) => (
-        <div key={slot} className="sr-only" role="status">
+        <div key={slot} className="sr-only" role="alert">
           {announcement.slot === slot ? announcement.text : ""}
         </div>
       ))}
