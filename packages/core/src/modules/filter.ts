@@ -226,25 +226,49 @@ export function isInFilterRegion(
 }
 
 /**
- * First and last cell of the given column within the filter range, as A1-style
- * references — the extent announced when the region is entered, so a user knows
- * how far the filtered data in that column runs.
+ * First and last cell of the given column that a user can actually reach within
+ * the filter range, as A1-style references — the extent announced when the
+ * region is entered, so a user knows how far the surviving filtered data in
+ * that column runs.
  *
  * The extent covers the *data* rows only. `startRow` is the header row that
  * carries the dropdown and is never hidden by a criterion — every consumer of
  * the range skips it (`getFilterColumnValues` and `orderbydatafiler` both start
  * at `startRow + 1`) — so naming it would overstate where the filtered data
- * begins. Hence `+ 2`: one to skip the header, one for the 1-based reference.
- * A range with no data rows below the header has no extent to announce.
+ * begins.
+ *
+ * Rows an applied criterion has hidden are excluded, because the point of the
+ * announcement is to convey how much data survived the filter: bounds taken
+ * straight from the range would read identically whether the filter hides
+ * nothing or nearly everything. `ctx.config.rowhidden` is where the hiding is
+ * recorded, keyed by row index with presence meaning hidden.
+ *
+ * Returns null for a column outside the range, and for a range whose data rows
+ * are all hidden or absent — neither has an extent to announce.
  */
 export function getFilterColumnExtent(ctx: Context, columnIndex: number) {
   const { filterOptions } = ctx;
   if (filterOptions == null) return null;
-  if (filterOptions.startRow >= filterOptions.endRow) return null;
+  if (
+    columnIndex < filterOptions.startCol ||
+    columnIndex > filterOptions.endCol
+  )
+    return null;
+  const rowhidden = ctx.config?.rowhidden || {};
+  let firstVisible: number | null = null;
+  let lastVisible: number | null = null;
+  for (let r = filterOptions.startRow + 1; r <= filterOptions.endRow; r += 1) {
+    if (!(r in rowhidden)) {
+      if (firstVisible == null) firstVisible = r;
+      lastVisible = r;
+    }
+  }
+  if (firstVisible == null || lastVisible == null) return null;
   const columnChar = indexToColumnChar(columnIndex);
+  // 1-based references.
   return {
-    start: `${columnChar}${filterOptions.startRow + 2}`,
-    end: `${columnChar}${filterOptions.endRow + 1}`,
+    start: `${columnChar}${firstVisible + 1}`,
+    end: `${columnChar}${lastVisible + 1}`,
   };
 }
 

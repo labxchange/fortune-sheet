@@ -1,42 +1,70 @@
 import { locale } from "../src/locale";
+import en from "../src/locale/en";
+import zh from "../src/locale/zh";
 import { Context } from "../src/context";
 
 // Every language the locale map resolves. "zh-TW" is included deliberately: it
 // is the one key that is not also its own file name, so it exercises the map.
 const LANGS = ["en", "zh", "es", "hi", "ru", "zh-TW"];
 
-// Strings that only a screen reader ever reads. Nothing renders them visibly, so
-// a locale missing one is not noticeable by eye — and `locale()` returns a single
-// language object with no per-key fallback to English, so the missing value
-// reaches `replaceHtml` as `undefined` and throws during render. The locale files
-// are each `// @ts-ignore`d in the map, so tsc does not catch it either.
-const SR_KEYS = [
-  "sheetIsFocused",
-  "sheetNotFocused",
-  "sheetSrIntro",
-  "cellHasFilterDropdown",
-  "cellFilterActive",
-  "enteredFilteredRegion",
-  "leftFilteredRegion",
-];
+const infoFor = (lang: string) => locale({ lang } as unknown as Context).info;
 
 describe("screen-reader locale coverage", () => {
+  // Strings only a screen reader reads are not noticeable by eye when a
+  // translation omits one, the locale files are each `@ts-ignore`d in the map so
+  // tsc does not catch it, and `replaceHtml` throws during render on an
+  // `undefined` value. `locale()` closes that by falling back per key to
+  // English, so the guard is every string English defines rather than a
+  // hand-maintained list that the next string added would not be on.
+  const enStringKeys = Object.entries(en.info)
+    .filter(([, value]) => typeof value === "string")
+    .map(([key]) => key);
+
   LANGS.forEach((lang) => {
-    it(`defines every screen-reader string for ${lang}`, () => {
-      const { info } = locale({ lang } as unknown as Context);
-      SR_KEYS.forEach((key) => {
-        const value = (info as unknown as Record<string, unknown>)[key];
-        expect(typeof value).toBe("string");
-        expect(value).not.toBe("");
+    it(`resolves every info string for ${lang}`, () => {
+      const info = infoFor(lang) as unknown as Record<string, unknown>;
+      // A string — empty included, since English deliberately leaves `row` and
+      // `column` blank where other languages carry a suffix. The hazard is
+      // `undefined` reaching `replaceHtml`, not emptiness.
+      enStringKeys.forEach((key) => {
+        expect(typeof info[key]).toBe("string");
       });
     });
 
     it(`keeps both extent placeholders in ${lang}`, () => {
-      const { info } = locale({ lang } as unknown as Context);
       // replaceHtml substitutes these by name; a translation that drops one
-      // would announce a region boundary without saying where it runs.
-      expect(info.enteredFilteredRegion).toContain("${start}");
-      expect(info.enteredFilteredRegion).toContain("${end}");
+      // would announce a region boundary without saying where it runs. No
+      // fallback covers this — the key is present, just malformed.
+      expect(infoFor(lang).enteredFilteredRegion).toContain("${start}");
+      expect(infoFor(lang).enteredFilteredRegion).toContain("${end}");
     });
+  });
+
+  it("prefers the translation over the English fallback", () => {
+    // The fallback must only fill gaps, never shadow a translated string.
+    expect(infoFor("zh").sheetIsFocused).toBe(zh.info.sheetIsFocused);
+    expect(infoFor("zh").sheetIsFocused).not.toBe(en.info.sheetIsFocused);
+  });
+
+  it("takes arrays from the translation whole rather than by index", () => {
+    // `functionlist` has a different number of entries per language, so an
+    // index-wise merge would splice English fields into misaligned translated
+    // entries.
+    expect(zh.functionlist.length).not.toBe(en.functionlist.length);
+    expect(locale({ lang: "zh" } as unknown as Context).functionlist).toEqual(
+      zh.functionlist
+    );
+  });
+
+  it("returns a referentially stable object per language", () => {
+    // Consumers list the result in effect dependency arrays; a fresh object per
+    // call would re-run those on every render.
+    expect(locale({ lang: "es" } as unknown as Context)).toBe(
+      locale({ lang: "es" } as unknown as Context)
+    );
+  });
+
+  it("falls back to English for an unknown language", () => {
+    expect(infoFor("kl").sheetIsFocused).toBe(en.info.sheetIsFocused);
   });
 });

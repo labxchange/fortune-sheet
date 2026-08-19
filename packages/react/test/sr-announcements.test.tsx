@@ -2,6 +2,11 @@ import { render, act } from "@testing-library/react";
 import React from "react";
 import Workbook, { WorkbookInstance } from "../src/components/Workbook";
 
+// Integration cover for the filter announcements: that the hook's two strings
+// reach the right live regions in a real grid, and that the announcements land
+// correctly across the commit sequence a real sheet switch produces. The
+// crossing state machine itself is unit-tested in `useFilterAnnouncements`.
+
 // Filter range covers rows 0-5, columns 2-4 (header row 0). `filter` is keyed
 // relative to startCol, so key 0 === column 2 — the only column with a criterion.
 const FILTER_SELECT = { row: [0, 5], column: [2, 4] };
@@ -70,7 +75,7 @@ describe("filter announcements", () => {
     container.querySelector("#sr-selection")?.textContent ?? "";
 
   /**
-   * Region crossings, which live in their own alert region: they are one-off
+   * Region crossings, which live in their own live region: they are one-off
    * events that land a commit after the cell text, so appending them to the
    * selection region would repeat the whole cell description.
    */
@@ -99,57 +104,28 @@ describe("filter announcements", () => {
     focusCell(2, 0);
   });
 
-  it("announces entering the filtered region once", () => {
+  it("announces entering the filtered region in its own region", () => {
     expect(focusCell(2, 2)).toContain(
       // Column 2 is C. Row 0 is the header that carries the dropdown and is
       // never hidden, so the filtered data runs C2:C6.
       "Entered filtered region: C. 2 through C. 6."
     );
+    // The crossing does not repeat the cell description.
+    expect(cellAnnouncement()).not.toContain("Entered filtered region");
   });
 
-  it("does not repeat the announcement on the next cell inside", () => {
-    // The region keeps the phrase it already holds; role="alert" speaks on
-    // content change, so leaving it in place says nothing a second time — and
-    // unlike clearing it, cannot erase a phrase still being read.
-    const entered = focusCell(2, 2);
-    expect(focusCell(3, 2)).toBe(entered);
+  it("announces crossings politely rather than interrupting the cell", () => {
+    // The crossing lands a commit after `#sr-selection` has the cell reference
+    // and value, so an assertive region would preempt the announcement the user
+    // navigated to hear.
+    const region = container.querySelector("#sr-filterRegion");
+    expect(region?.getAttribute("role")).toBe("status");
   });
 
-  it("announces the new column when moving between two filtered columns", () => {
-    focusCell(2, 2);
-    // Column 4 also has a criterion. Membership is per-column, so this is an
-    // entry into E — not a silent move within one undifferentiated region.
-    const acrossColumns = focusCell(2, 4);
-    expect(acrossColumns).toContain(
-      "Entered filtered region: E. 2 through E. 6."
-    );
-    // Still inside filtered data, so there is nothing to report as left.
-    expect(acrossColumns).not.toContain("Left filtered region.");
-  });
-
-  it("stays silent moving down within one filtered column", () => {
-    const entered = focusCell(2, 2);
-    expect(focusCell(4, 2)).toBe(entered);
-  });
-
-  it("announces leaving when moving to an unfiltered column in the range", () => {
-    focusCell(2, 2);
-    // Column 3 is inside the filter block but has no criterion — an exit, since
-    // membership is per-column rather than per-block.
-    expect(focusCell(2, 3)).toContain("Left filtered region.");
-  });
-
-  it("announces leaving the filtered region entirely", () => {
-    focusCell(2, 2);
-    expect(focusCell(2, 0)).toContain("Left filtered region.");
-  });
-
-  it("names the entered column in the extent", () => {
-    focusCell(2, 0);
-    // Entering at column 4 (E) announces E's extent, not the range's first column.
-    expect(focusCell(2, 4)).toContain(
-      "Entered filtered region: E. 2 through E. 6."
-    );
+  it("announces the dropdown and active filter on a filtered header cell", () => {
+    focusCell(0, 2);
+    expect(cellAnnouncement()).toContain("Has filter dropdown.");
+    expect(cellAnnouncement()).toContain("Filter active.");
   });
 
   it("keeps the crossing announced across an unrelated re-render", () => {
@@ -163,31 +139,12 @@ describe("filter announcements", () => {
     expect(regionAnnouncement()).toContain("Entered filtered region: C. 2");
   });
 
-  it("announces the dropdown and active filter on a filtered header cell", () => {
-    focusCell(0, 2);
-    expect(cellAnnouncement()).toContain("Has filter dropdown.");
-    expect(cellAnnouncement()).toContain("Filter active.");
-  });
-
-  it("omits the active phrase on a header with no criterion", () => {
-    focusCell(0, 3);
-    expect(cellAnnouncement()).toContain("Has filter dropdown.");
-    expect(cellAnnouncement()).not.toContain("Filter active.");
-  });
-
   it("does not announce a transition on first render", () => {
     const { container: fresh } = render(
       <Workbook lang="en" data={[sheet as any]} />
     );
     const text = fresh.querySelector("#sr-filterRegion")?.textContent ?? "";
     expect(text).toBe("");
-  });
-
-  it("leaves cells outside the region unannotated", () => {
-    // Baseline is already outside, so no crossing has ever been announced.
-    focusCell(3, 0);
-    expect(cellAnnouncement()).not.toContain("filter");
-    expect(regionAnnouncement()).toBe("");
   });
 });
 
@@ -284,5 +241,38 @@ describe("filter announcements across sheets", () => {
     // Unchanged, so nothing new is spoken — in particular not "left", which the
     // user did not do.
     expect(regionText()).toBe(beforeSwitch);
+  });
+
+  it("re-announces the same column after switching away and back", () => {
+    // Switching away announces nothing, so returning to the same filtered column
+    // reaches a phrase the region already holds — which a live region would not
+    // speak unless the text itself differs.
+    const ref = React.createRef<WorkbookInstance>();
+    const { container } = render(
+      <Workbook ref={ref} lang="en" data={[sheet as any, plainSheet as any]} />
+    );
+    const regionText = () =>
+      container.querySelector("#sr-filterRegion")?.textContent ?? "";
+
+    act(() => {
+      ref.current?.setSelection([{ row: [2, 2], column: [2, 2] }]);
+    });
+    const entered = regionText();
+    expect(entered).toContain("Entered filtered region: C. 2 through C. 6.");
+
+    act(() => {
+      ref.current?.activateSheet({ id: "s2" });
+    });
+    expect(regionText()).toBe(entered);
+
+    act(() => {
+      ref.current?.activateSheet({ id: "s1" });
+    });
+    const back = regionText();
+    expect(back).toContain("Entered filtered region: C. 2 through C. 6.");
+    // Changed, so it is spoken — and the difference is a zero-width space, which
+    // adds no spoken word.
+    expect(back).not.toBe(entered);
+    expect(back.replace(/\u200B/g, "")).toBe(entered.replace(/\u200B/g, ""));
   });
 });

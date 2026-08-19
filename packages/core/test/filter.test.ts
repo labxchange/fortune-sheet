@@ -135,6 +135,61 @@ describe("getFilterColumnExtent", () => {
     });
     expect(getFilterColumnExtent(headerOnly, 2)).toBeNull();
   });
+
+  it("returns null for a column outside the filter range", () => {
+    // Guards the helper itself rather than relying on every caller to check:
+    // the bounds it would otherwise report belong to no filter at all.
+    expect(getFilterColumnExtent(ctx, 1)).toBeNull();
+    expect(getFilterColumnExtent(ctx, 5)).toBeNull();
+  });
+
+  it("excludes rows an applied criterion has hidden", () => {
+    // Rows 2-4 hidden, so the reachable data is row 1 and row 5 === "2" and "6".
+    // Without this the extent reads the same whether the filter hides nothing or
+    // nearly everything, which is the one thing the announcement exists to say.
+    const hidden = makeContext({
+      filterOptions,
+      filter: { 0: criterion },
+      config: { rowhidden: { 2: 0, 3: 0, 4: 0 } },
+    });
+    expect(getFilterColumnExtent(hidden, 2)).toEqual({
+      start: "C2",
+      end: "C6",
+    });
+  });
+
+  it("clamps both ends to the surviving rows", () => {
+    const hidden = makeContext({
+      filterOptions,
+      filter: { 0: criterion },
+      config: { rowhidden: { 1: 0, 2: 0, 5: 0 } },
+    });
+    expect(getFilterColumnExtent(hidden, 2)).toEqual({
+      start: "C4",
+      end: "C5",
+    });
+  });
+
+  it("collapses to a single reference when one row survives", () => {
+    const hidden = makeContext({
+      filterOptions,
+      filter: { 0: criterion },
+      config: { rowhidden: { 2: 0, 3: 0, 4: 0, 5: 0 } },
+    });
+    expect(getFilterColumnExtent(hidden, 2)).toEqual({
+      start: "C2",
+      end: "C2",
+    });
+  });
+
+  it("returns null when the criterion hides every data row", () => {
+    const hidden = makeContext({
+      filterOptions,
+      filter: { 0: criterion },
+      config: { rowhidden: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } },
+    });
+    expect(getFilterColumnExtent(hidden, 2)).toBeNull();
+  });
 });
 
 describe("isFilterStateCurrent", () => {
