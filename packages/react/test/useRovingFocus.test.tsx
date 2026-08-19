@@ -35,6 +35,27 @@ const HorizontalList: React.FC = () => {
   );
 };
 
+const ListWithTextEntry: React.FC = () => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  useRovingFocus({ containerRef, orientation: "horizontal" });
+  return (
+    <div ref={containerRef}>
+      <div role="button" tabIndex={0}>
+        <span
+          contentEditable
+          suppressContentEditableWarning
+          data-testid="rename-field"
+        >
+          Sheet1
+        </span>
+      </div>
+      <div role="button" tabIndex={0}>
+        Tab 2
+      </div>
+    </div>
+  );
+};
+
 const Grid: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   useRovingFocus({ containerRef, orientation: "grid", columns: 3 });
@@ -110,5 +131,27 @@ describe("useRovingFocus", () => {
     expect(document.activeElement).toBe(tab2);
     fireEvent.keyDown(tab2, { key: "Home" });
     expect(document.activeElement).toBe(tab1);
+  });
+
+  it("does not hijack arrow/Home/End keys from a contentEditable field, but still roves from a plain item", () => {
+    const { getByTestId, getByText } = render(<ListWithTextEntry />);
+    const renameField = getByTestId("rename-field");
+    const tab2 = getByText("Tab 2");
+
+    renameField.focus();
+    fireEvent.keyDown(renameField, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(renameField);
+    fireEvent.keyDown(renameField, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(renameField);
+    fireEvent.keyDown(renameField, { key: "End" });
+    expect(document.activeElement).toBe(renameField);
+    fireEvent.keyDown(renameField, { key: "Home" });
+    expect(document.activeElement).toBe(renameField);
+
+    // the guard only exempts text-entry targets; roving still works from a
+    // plain item in the same container
+    tab2.focus();
+    fireEvent.keyDown(tab2, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(renameField.closest('[role="button"]'));
   });
 });

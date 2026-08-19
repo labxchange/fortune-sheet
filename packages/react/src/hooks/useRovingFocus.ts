@@ -3,6 +3,23 @@ import React, { useEffect } from "react";
 const DEFAULT_FOCUSABLE_SELECTOR =
   '[role="button"]:not([aria-disabled="true"])';
 
+// A React onKeyDown handler inside the container can't defend itself against
+// this hook's native listener: since React 17, synthetic events are
+// delegated from a listener at the app root, so a native listener on an
+// ancestor (this container) always fires first on the real DOM bubble path,
+// regardless of any stopPropagation() called from a React handler. Text
+// entry (a rename field, a native input, ...) must be excluded here instead.
+// Checked via the contenteditable attribute (inherited via closest(), same
+// as the isContentEditable property) rather than the isContentEditable
+// property itself, which jsdom doesn't implement.
+const isTextEntry = (el: EventTarget | null): boolean => {
+  const node = el as HTMLElement | null;
+  if (!node || typeof node.closest !== "function") return false;
+  return !!node.closest(
+    'input, textarea, select, [contenteditable="true"], [contenteditable=""]'
+  );
+};
+
 export type RovingFocusOrientation = "horizontal" | "vertical" | "grid";
 
 export type UseRovingFocusOptions = {
@@ -42,6 +59,7 @@ export function useRovingFocus({
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isTextEntry(e.target)) return;
       const items = getItems();
       if (items.length === 0) return;
       const current = items.indexOf(document.activeElement as HTMLElement);
