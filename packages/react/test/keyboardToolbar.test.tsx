@@ -2,6 +2,7 @@ import { render, fireEvent, within } from "@testing-library/react";
 import React from "react";
 import Workbook from "../src/components/Workbook";
 import Button from "../src/components/Toolbar/Button";
+import Combo from "../src/components/Toolbar/Combo";
 
 describe("Toolbar keyboard accessibility", () => {
   it("does not activate a disabled button (Undo, with no history) via Enter or Space", () => {
@@ -48,7 +49,7 @@ describe("Toolbar keyboard accessibility", () => {
     // index 1 is the dropdown-arrow region, which always toggles the popup
     // (the main button applies the most-recent color instead, when set)
     const [, fontColorArrow] = getAllByRole("button", {
-      name: /^Font color:/,
+      name: /^Font color/,
     });
 
     fireEvent.mouseDown(fontColorArrow);
@@ -82,7 +83,7 @@ describe("Toolbar keyboard accessibility", () => {
   it("Font color's arrow toggles the picker via mousedown; its main button still applies the last color directly instead of toggling", () => {
     const { getAllByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
     const [fontColorMain, fontColorArrow] = getAllByRole("button", {
-      name: /^Font color:/,
+      name: /^Font color/,
     });
 
     // main button has a custom onClick (apply the last-used color) — a
@@ -112,7 +113,7 @@ describe("Toolbar keyboard accessibility", () => {
     );
     // index 1 is the dropdown-arrow region, which always toggles the popup
     // (the main button applies the border directly, when clicked)
-    const [, borderArrow] = getAllByRole("button", { name: /^Border:/ });
+    const [, borderArrow] = getAllByRole("button", { name: /^Border/ });
     const undoButton = getByRole("button", { name: "Undo" });
 
     fireEvent.mouseDown(borderArrow);
@@ -223,6 +224,160 @@ describe("Toolbar keyboard accessibility", () => {
 
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     expect(document.activeElement).toBe(highlightRow);
+  });
+});
+
+describe("Combo popup ARIA belongs to the control that opens the popup", () => {
+  it("keeps popup state off the main button when it has its own action", () => {
+    const { getAllByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+    const [main, arrow] = getAllByRole("button", { name: /^Font color/ });
+
+    // The main button applies the most recent colour and never opens the
+    // popup, so claiming one told the user to expect a menu that pressing it
+    // would never produce.
+    expect(main.hasAttribute("aria-haspopup")).toBe(false);
+    expect(main.hasAttribute("aria-expanded")).toBe(false);
+    expect(main.hasAttribute("aria-controls")).toBe(false);
+
+    // The colour picker is a grid of swatch buttons, not a menu, so the arrow
+    // is a plain disclosure: expanded + controls, no haspopup.
+    expect(arrow.hasAttribute("aria-haspopup")).toBe(false);
+    expect(arrow.getAttribute("aria-expanded")).toBe("false");
+    expect(arrow.hasAttribute("aria-controls")).toBe(false);
+
+    fireEvent.mouseDown(arrow);
+
+    expect(arrow.getAttribute("aria-expanded")).toBe("true");
+    const popupId = arrow.getAttribute("aria-controls");
+    expect(popupId).toBeTruthy();
+    const popup = document.getElementById(popupId!)!;
+    expect(popup).toBeTruthy();
+    expect(popup.classList.contains("fortune-toolbar-combo-popup")).toBe(true);
+
+    // the other half of the old bug: the main button read "collapsed" while
+    // the arrow's popup was open
+    expect(main.hasAttribute("aria-expanded")).toBe(false);
+  });
+
+  it("keeps popup state on the main button when the main button is the toggle", () => {
+    const { getAllByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+    const [main] = getAllByRole("button", { name: /^Format:/ });
+
+    expect(main.getAttribute("aria-haspopup")).toBe("menu");
+    expect(main.getAttribute("aria-expanded")).toBe("false");
+    // referencing an id that is not in the DOM is invalid, and the popup is
+    // rendered only while open
+    expect(main.hasAttribute("aria-controls")).toBe(false);
+
+    fireEvent.mouseDown(main);
+
+    expect(main.getAttribute("aria-expanded")).toBe("true");
+    const popupId = main.getAttribute("aria-controls");
+    expect(popupId).toBeTruthy();
+    expect(
+      document
+        .getElementById(popupId!)!
+        .classList.contains("fortune-toolbar-combo-popup")
+    ).toBe(true);
+
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(main.getAttribute("aria-expanded")).toBe("false");
+    expect(main.hasAttribute("aria-controls")).toBe(false);
+  });
+
+  it("names an icon-only combo without a dangling colon", () => {
+    const { getAllByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+
+    // icon-only: no text to append, so the name is just the tooltip
+    const [fontColorMain] = getAllByRole("button", { name: /^Font color/ });
+    expect(fontColorMain.getAttribute("aria-label")).toBe("Font color");
+
+    // Border passed a hardcoded text="边框设置" that Combo never rendered
+    // (iconId wins), so it reached the accessible name and nothing else
+    const [borderMain] = getAllByRole("button", { name: /^Border/ });
+    expect(borderMain.getAttribute("aria-label")).toBe("Border");
+
+    // a combo that really has text still gets "tooltip: value"
+    const [formatMain] = getAllByRole("button", { name: /^Format:/ });
+    expect(formatMain.getAttribute("aria-label")).toBe("Format: Automatic");
+  });
+});
+
+describe("Combo main button with an unavailable action", () => {
+  const getFontColor = (
+    getAllByRole: ReturnType<typeof render>["getAllByRole"]
+  ) => getAllByRole("button", { name: /^Font color/ });
+
+  it("reports the colour button as disabled until a colour has been picked", () => {
+    const { getAllByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+    const [main, arrow] = getFontColor(getAllByRole);
+
+    // onClick is `if (color) pick(color)` and there is no recent colour on a
+    // fresh sheet, so the button looked live and silently did nothing
+    expect(main.getAttribute("aria-disabled")).toBe("true");
+    // the arrow must stay enabled — it is how the first colour gets picked
+    expect(arrow.hasAttribute("aria-disabled")).toBe(false);
+    fireEvent.mouseDown(arrow);
+    expect(
+      document.querySelector(".fortune-toolbar-color-picker")
+    ).toBeTruthy();
+  });
+
+  it("swallows the disabled colour button's activation keys", () => {
+    const { getAllByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+    const [main] = getFontColor(getAllByRole);
+    expect(main.getAttribute("aria-disabled")).toBe("true");
+
+    main.focus();
+    // fireEvent returns false when preventDefault was called. The grid's own
+    // keydown handler is a React handler on .fortune-container, an ancestor of
+    // the toolbar, so a disabled control has to consume Enter/Space rather
+    // than ignore them — otherwise Enter reaches handleGlobalEnter and moves
+    // the selection. (A native addEventListener on the ancestor cannot show
+    // this: it fires before React's root dispatch, so React's stopPropagation
+    // could never stop it. The stopPropagation half of onActivationKeyDown is
+    // covered against a React ancestor in the Button specs below.)
+    expect(fireEvent.keyDown(main, { key: "Enter" })).toBe(false);
+    expect(fireEvent.keyDown(main, { key: " " })).toBe(false);
+
+    // and pressing it does not open the popup either
+    expect(document.querySelector(".fortune-toolbar-color-picker")).toBeNull();
+  });
+
+  // Asserted against Combo directly rather than by picking a colour in a
+  // rendered Workbook: `disabled` is derived from
+  // refs.globalCache.recentTextColor, a mutable ref, so it only refreshes on
+  // the next render — and on a sheet with no selection handleTextColor
+  // produces no state change, immer returns identical state, and React bails
+  // out of re-rendering, so the flip never lands. Same property as the
+  // existing swatch-bar indicator, which reads the same ref.
+  it("gates the main button's own action on disabled", () => {
+    const onClick = jest.fn();
+    const props = {
+      tooltip: "Font color",
+      iconId: "font-color",
+      hasPopup: false as const,
+      onClick,
+    };
+    const { getByRole, rerender } = render(
+      <Combo {...props} disabled>
+        {() => <div />}
+      </Combo>
+    );
+    const main = getByRole("button", { name: "Font color" });
+
+    fireEvent.click(main);
+    expect(fireEvent.keyDown(main, { key: "Enter" })).toBe(false);
+    expect(fireEvent.keyDown(main, { key: " " })).toBe(false);
+    expect(onClick).not.toHaveBeenCalled();
+
+    rerender(<Combo {...props}>{() => <div />}</Combo>);
+
+    expect(main.hasAttribute("aria-disabled")).toBe(false);
+    fireEvent.click(main);
+    expect(onClick).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(main, { key: "Enter" });
+    expect(onClick).toHaveBeenCalledTimes(2);
   });
 });
 

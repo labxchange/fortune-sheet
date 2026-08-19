@@ -286,6 +286,18 @@ const Toolbar: React.FC<{
             <Combo
               iconId={name}
               tooltip={tooltip}
+              // the popup is a grid of swatch buttons, not a menu
+              hasPopup={false}
+              // Applying "the most recent colour" is unavailable until one has
+              // been picked through the popup, and this button's onClick is a
+              // no-op in that state. Saying so beats looking live and silently
+              // doing nothing. The arrow stays enabled — it is how the user
+              // picks the first colour.
+              disabled={
+                !(name === "font-color"
+                  ? refs.globalCache.recentTextColor
+                  : refs.globalCache.recentBackgroundColor)
+              }
               onClick={() => {
                 const color =
                   name === "font-color"
@@ -1129,7 +1141,6 @@ const Toolbar: React.FC<{
             iconId="border-all"
             key={name}
             tooltip={tooltip}
-            text="边框设置"
             onClick={() =>
               setContext((ctx) => {
                 handleBorder(ctx, "border-all", customColor, customStyle);
