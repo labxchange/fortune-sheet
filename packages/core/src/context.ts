@@ -218,8 +218,6 @@ export type Context = {
   // 只读模式公式被引用单元格强制高光
   forceFormulaRef?: Boolean;
 
-  sheetFocused: boolean; // property to track sheet focus for keyboard navigation
-
   getRefs: () => RefValues;
 };
 
@@ -492,8 +490,6 @@ export function defaultContext(refs: RefValues): Context {
 
     luckysheetPaintModelOn: false,
     luckysheetPaintSingle: false,
-
-    sheetFocused: true,
 
     // 默认单元格
     defaultCell: {

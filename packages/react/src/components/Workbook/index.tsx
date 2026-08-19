@@ -22,6 +22,7 @@ import {
   calcSelectionInfo,
   groupValuesRefresh,
   setFormulaCellInfoMap,
+  GRID_ROOT_CLASS,
 } from "@fortune-sheet/core";
 import React, {
   useMemo,
@@ -751,7 +752,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
         // deal with multi instance case, only the focused sheet handles the paste
         if (
           cellInput.current === document.activeElement ||
-          document.activeElement?.className === "fortune-sheet-overlay"
+          document.activeElement?.className === GRID_ROOT_CLASS
         ) {
           let { clipboardData } = e;
           if (!clipboardData) {
@@ -866,7 +867,6 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             <section id="shortcut-list" className="sr-only" aria-hidden="true">
               <h2 id="shortcuts-heading">{info.shortcuts}</h2>
               <ul>
-                <li>{info.toggleSheetFocusShortcut}</li>
                 <li>{info.selectRangeShortcut}</li>
                 <li>{info.autoFillDownShortcut}</li>
                 <li>{info.autoFillRightShortcut}</li>

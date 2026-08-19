@@ -42,8 +42,8 @@ describe("screen-reader locale coverage", () => {
 
   it("prefers the translation over the English fallback", () => {
     // The fallback must only fill gaps, never shadow a translated string.
-    expect(infoFor("zh").sheetIsFocused).toBe(zh.info.sheetIsFocused);
-    expect(infoFor("zh").sheetIsFocused).not.toBe(en.info.sheetIsFocused);
+    expect(infoFor("zh").currentCellInput).toBe(zh.info.currentCellInput);
+    expect(infoFor("zh").currentCellInput).not.toBe(en.info.currentCellInput);
   });
 
   it("takes arrays from the translation whole rather than by index", () => {
@@ -65,6 +65,6 @@ describe("screen-reader locale coverage", () => {
   });
 
   it("falls back to English for an unknown language", () => {
-    expect(infoFor("kl").sheetIsFocused).toBe(en.info.sheetIsFocused);
+    expect(infoFor("kl").currentCellInput).toBe(en.info.currentCellInput);
   });
 });

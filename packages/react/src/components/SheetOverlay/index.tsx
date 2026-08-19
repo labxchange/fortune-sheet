@@ -5,7 +5,6 @@ import React, {
   useEffect,
   useLayoutEffect,
   useMemo,
-  useState,
 } from "react";
 import "./index.css";
 import {
@@ -35,6 +34,7 @@ import {
   handleKeydownForZoom,
   formatRefForSr,
   api,
+  GRID_ROOT_CLASS,
 } from "@fortune-sheet/core";
 import _ from "lodash";
 import WorkbookContext, { SetContextOptions } from "../../context";
@@ -61,8 +61,6 @@ const SheetOverlay: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomAddRowInputRef = useRef<HTMLInputElement>(null);
   const dataVerificationHintBoxRef = useRef<HTMLDivElement>(null);
-  const [lastRangeText, setLastRangeText] = useState("");
-  const [lastCellValue, setLastCellValue] = useState("");
   const { showAlert } = useAlert();
   // const isMobile = browser.mobilecheck();
   const cellAreaMouseDown = useCallback(
@@ -471,16 +469,9 @@ const SheetOverlay: React.FC = () => {
 
   const computedCellValue = cellValue();
 
-  useEffect(() => {
-    if (context.sheetFocused) {
-      setLastRangeText(String(rangeText));
-      setLastCellValue(String(cellValue()));
-    }
-  }, [context.sheetFocused]); // Runs only when sheet focus toggles
-
   return (
     <main
-      className="fortune-sheet-overlay"
+      className={GRID_ROOT_CLASS}
       ref={containerRef}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
@@ -495,6 +486,20 @@ const SheetOverlay: React.FC = () => {
         <div
           className="fortune-left-top"
           onClick={onLeftTopClick}
+          onKeyDown={(e) => {
+            // A focusable control has to be operable by keyboard (WCAG 2.1.1).
+            // Enter and Space never reach the grid's own handler now that grid
+            // keys are scoped to the grid, so select-all is wired up here.
+            if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") {
+              return;
+            }
+            if (e.repeat) return;
+            e.preventDefault();
+            e.stopPropagation();
+            onLeftTopClick();
+          }}
+          role="button"
+          aria-label={info.selectAllCells}
           tabIndex={0}
           style={{
             width: context.rowHeaderWidth - 1.5,
@@ -918,13 +923,6 @@ const SheetOverlay: React.FC = () => {
       */}
       <div id="sr-filterRegion" className="sr-only" role="status">
         {regionAnnouncement}
-      </div>
-      <div id="sr-sheetFocus" className="sr-only" role="alert">
-        {context.sheetFocused
-          ? `${lastRangeText} ${lastCellValue ? `${lastCellValue}.` : ""} ${
-              info.sheetIsFocused
-            }`
-          : `Toolbar. ${info.sheetNotFocused}`}
       </div>
     </main>
   );
