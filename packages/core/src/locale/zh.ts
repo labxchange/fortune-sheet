@@ -11053,6 +11053,10 @@ export default {
     pageInfoFull: "共${total}条，${totalPage}页，已显示全部数据",
 
     sheetSrIntro: "使用方向键在单元格之间移动。",
+    cellHasFilterDropdown: "有筛选下拉菜单。",
+    cellFilterActive: "筛选器已启用。",
+    enteredFilteredRegion: "已进入筛选区域：${start} 至 ${end}。",
+    leftFilteredRegion: "已离开筛选区域。",
     currentCellInput: "当前单元格输入",
     newSheet: "新表",
     sheetOptions: "图纸选项",

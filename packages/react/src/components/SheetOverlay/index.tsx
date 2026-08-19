@@ -32,6 +32,7 @@ import {
   fixRowStyleOverflowInFreeze,
   fixColumnStyleOverflowInFreeze,
   handleKeydownForZoom,
+  formatRefForSr,
   api,
   GRID_ROOT_CLASS,
 } from "@fortune-sheet/core";
@@ -49,6 +50,7 @@ import ImgBoxs from "../ImgBoxs";
 import NotationBoxes from "../NotationBoxes";
 import RangeDialog from "../DataVerification/RangeDialog";
 import { useDialog } from "../../hooks/useDialog";
+import { useFilterAnnouncements } from "../../hooks/useFilterAnnouncements";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
 
@@ -438,12 +440,13 @@ const SheetOverlay: React.FC = () => {
       context.currentSheetId,
       lastSelection
     );
-    // Return with formatting for better screen reading
-    // Format single-cell selections (e.g., "AA12" → "AA. 12")
-    // Format range selections (e.g., "A1:BB100" → "A. 1: BB. 100")
-    return rawRangeTxt.replace(/([A-Z]+)(\d+)/g, "$1. $2");
+    // Spaced for screen reading: "AA12" -> "AA. 12", "A1:BB100" -> "A. 1: BB. 100".
+    return formatRefForSr(rawRangeTxt);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context.currentSheetId, context.luckysheet_select_save]);
+
+  const { cellAnnouncement: filterCellAnnouncement, regionAnnouncement } =
+    useFilterAnnouncements(context, info);
 
   const cellValue = () => {
     if ((context.luckysheet_select_save?.length ?? 0) > 0) {
@@ -910,8 +913,16 @@ const SheetOverlay: React.FC = () => {
       </div>
       <div id="sr-selection" className="sr-only" role="alert">
         {!rangeText.includes("NaN")
-          ? `${rangeText} ${computedCellValue}`
+          ? `${rangeText} ${computedCellValue}${filterCellAnnouncement}`
           : `A1. ${info.sheetSrIntro}`}
+      </div>
+      {/*
+        Polite, not assertive: the crossing lands a commit after `#sr-selection`
+        has the cell reference and value, so an assertive region would interrupt
+        the cell announcement the user navigated to hear, typically mid-word.
+      */}
+      <div id="sr-filterRegion" className="sr-only" role="status">
+        {regionAnnouncement}
       </div>
     </main>
   );

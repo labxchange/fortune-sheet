@@ -11019,6 +11019,10 @@ export default {
     pageInfoFull: "共${total}條,${totalPage}頁,已顯示全部數據",
 
     sheetSrIntro: "使用方向鍵在儲存格之間移動。",
+    cellHasFilterDropdown: "有篩選下拉選單。",
+    cellFilterActive: "篩選器已啟用。",
+    enteredFilteredRegion: "已進入篩選區域：${start} 至 ${end}。",
+    leftFilteredRegion: "已離開篩選區域。",
     currentCellInput: "目前儲存格輸入",
     newSheet: "新表",
     sheetOptions: "圖紙選項",

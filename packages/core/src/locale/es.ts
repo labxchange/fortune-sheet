@@ -11042,6 +11042,11 @@ export default {
       "Total ${total}，página ${totalPage}，Se muestran todos los datos",
 
     sheetSrIntro: "Use las teclas de flecha para moverse entre celdas.",
+    cellHasFilterDropdown: "Tiene menú de filtro.",
+    cellFilterActive: "Filtro activo.",
+    enteredFilteredRegion:
+      "Se entró en la región filtrada: ${start} hasta ${end}.",
+    leftFilteredRegion: "Se salió de la región filtrada.",
     currentCellInput: "Entrada de celda actual",
     newSheet: "Nueva hoja",
     sheetOptions: "Opciones de hoja",

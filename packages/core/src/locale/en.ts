@@ -11070,6 +11070,10 @@ export default {
     pageInfoFull: "Total ${total}，${totalPage} page，All data displayed",
 
     sheetSrIntro: "Use the arrow keys to move between cells.",
+    cellHasFilterDropdown: "Has filter dropdown.",
+    cellFilterActive: "Filter active.",
+    enteredFilteredRegion: "Entered filtered region: ${start} through ${end}.",
+    leftFilteredRegion: "Left filtered region.",
     currentCellInput: "Current cell input",
     newSheet: "New sheet",
     sheetOptions: "Sheet options",

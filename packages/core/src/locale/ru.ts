@@ -12949,6 +12949,11 @@ export default {
     pageInfoFull: "Всего ${total}, ${totalPage} страниц, все данные отображены",
     sheetSrIntro:
       "Используйте клавиши со стрелками для перемещения между ячейками.",
+    cellHasFilterDropdown: "Есть раскрывающийся список фильтра.",
+    cellFilterActive: "Фильтр активен.",
+    enteredFilteredRegion:
+      "Вход в отфильтрованную область: с ${start} по ${end}.",
+    leftFilteredRegion: "Выход из отфильтрованной области.",
     currentCellInput: "Ввод текущей ячейки",
     newSheet: "Новый лист",
     sheetOptions: "Параметры листа",
