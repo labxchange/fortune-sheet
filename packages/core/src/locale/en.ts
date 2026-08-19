@@ -11073,6 +11073,10 @@ export default {
     sheetNotFocused: "Sheet focus lock disabled.",
     sheetSrIntro:
       "To toggle sheet focus to assist with toolbar and other non-sheet navigation, use Shift, Control, F.",
+    cellHasFilterDropdown: "Has filter dropdown.",
+    cellFilterActive: "Filter active.",
+    enteredFilteredRegion: "Entered filtered region: ${start} through ${end}.",
+    leftFilteredRegion: "Left filtered region.",
     currentCellInput: "Current cell input",
     newSheet: "New sheet",
     sheetOptions: "Sheet options",

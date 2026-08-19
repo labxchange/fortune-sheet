@@ -11045,6 +11045,11 @@ export default {
     sheetNotFocused: "Bloqueo de enfoque de hoja desactivado.",
     sheetSrIntro:
       "Para alternar el foco de la hoja para ayudar con la barra de herramientas y otra navegación que no sea de hoja, use Mayús, Control, F.",
+    cellHasFilterDropdown: "Tiene menú de filtro.",
+    cellFilterActive: "Filtro activo.",
+    enteredFilteredRegion:
+      "Se entró en la región filtrada: ${start} hasta ${end}.",
+    leftFilteredRegion: "Se salió de la región filtrada.",
     currentCellInput: "Entrada de celda actual",
     newSheet: "Nueva hoja",
     sheetOptions: "Opciones de hoja",

@@ -54,6 +54,15 @@ export function rgbToHex(color: string): string {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 
+/**
+ * Space a cell reference between its column and row so a screen reader reads it
+ * as a column and a row rather than one token: "AA12" -> "AA. 12". Ranges are
+ * handled too, each side being a reference of the same shape.
+ */
+export function formatRefForSr(ref: string) {
+  return ref.replace(/([A-Z]+)(\d+)/g, "$1. $2");
+}
+
 // 列下标  数字转字母
 export function indexToColumnChar(n: number) {
   const orda = "a".charCodeAt(0);
