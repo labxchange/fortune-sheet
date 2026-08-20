@@ -643,11 +643,20 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               workbookContainer.current?.querySelector<HTMLElement>(region);
             if (container) {
               e.preventDefault();
-              (
-                container.querySelector<HTMLElement>(
-                  '[tabindex="0"]:not([aria-disabled="true"])'
-                ) ?? container
-              ).focus();
+              // The grid is entered at its root, which holds tabIndex -1 for
+              // the purpose: landing on one of the controls inside it (the
+              // select-all corner, a filter funnel) makes the grid guard in
+              // handleGlobalKeyDown treat focus as outside the grid, and the
+              // arrow keys then move nothing. The toolbar and the tab strip are
+              // roving-tabindex composites, so those are entered at whichever
+              // item currently holds tabIndex 0.
+              const target =
+                e.code === "KeyS"
+                  ? container
+                  : container.querySelector<HTMLElement>(
+                      '[tabindex="0"]:not([aria-disabled="true"])'
+                    ) ?? container;
+              target.focus();
               return;
             }
           }

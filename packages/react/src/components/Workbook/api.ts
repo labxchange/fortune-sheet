@@ -62,8 +62,23 @@ export function generateAPIs(
   };
 
   return {
-    /** Move keyboard focus to the cell grid. */
-    focusSpreadsheet: () => focusRegion(`.${GRID_ROOT_CLASS}`),
+    /**
+     * Move keyboard focus to the cell grid, ready to navigate.
+     *
+     * Deliberately not `focusRegion`: the grid root contains focusable controls
+     * of its own (the select-all corner, the filter funnels), and landing on
+     * one of those makes `handleGlobalKeyDown`'s grid guard classify focus as
+     * *outside* the grid, so the arrow keys would move nothing. The root itself
+     * carries tabIndex -1 for exactly this purpose.
+     */
+    focusSpreadsheet: () => {
+      const grid = workbookContainer?.querySelector<HTMLElement>(
+        `.${GRID_ROOT_CLASS}`
+      );
+      if (!grid) return false;
+      grid.focus();
+      return true;
+    },
 
     /** Move keyboard focus to the toolbar. */
     focusToolbar: () => focusRegion(".fortune-toolbar"),
