@@ -4,9 +4,11 @@ import { initSheetData } from "../api/sheet";
 import { Context } from "../context";
 import { locale } from "../locale";
 import { Settings } from "../settings";
-import { CellMatrix, Sheet } from "../types";
+import { CellMatrix, GlobalCache, Sheet } from "../types";
 import { generateRandomSheetName, getSheetIndex } from "../utils";
 import { setFormulaCellInfo } from "./formulaHelper";
+import { cancelActiveImgItem } from "./image";
+import { cancelNormalSelected } from "./cell";
 
 function storeSheetParam(ctx: Context) {
   const index = getSheetIndex(ctx, ctx.currentSheetId);
@@ -27,6 +29,57 @@ export function storeSheetParamALL(ctx: Context) {
   const index = getSheetIndex(ctx, ctx.currentSheetId);
   if (index == null) return;
   ctx.luckysheetfile[index].config = ctx.config;
+}
+
+/**
+ * Make `id` the active sheet, preserving the outgoing sheet's scroll and
+ * selection. Shared by the sheet tabs and by the Alt+Arrow shortcut so both
+ * routes leave the workbook in the same state.
+ */
+export function switchToSheet(
+  ctx: Context,
+  globalCache: GlobalCache,
+  id: string
+) {
+  if (id === ctx.currentSheetId) return;
+  const index = getSheetIndex(ctx, id);
+  if (index == null) return;
+  const sheet = ctx.luckysheetfile[index];
+
+  ctx.sheetScrollRecord[ctx.currentSheetId] = {
+    scrollLeft: ctx.scrollLeft,
+    scrollTop: ctx.scrollTop,
+    luckysheet_select_status: ctx.luckysheet_select_status,
+    luckysheet_select_save: ctx.luckysheet_select_save,
+    luckysheet_selection_range: ctx.luckysheet_selection_range,
+  };
+  ctx.dataVerificationDropDownList = false;
+  ctx.currentSheetId = id;
+  ctx.zoomRatio = sheet.zoomRatio || 1;
+  // Shift+F8 mode is scoped to the sheet it was started on.
+  ctx.selectionModeActive = false;
+  cancelActiveImgItem(ctx, globalCache);
+  cancelNormalSelected(ctx);
+}
+
+/**
+ * The id of the sheet before or after the active one in tab order, skipping
+ * hidden sheets. Returns undefined at either end — sheet navigation stops
+ * rather than wrapping, so holding the shortcut cannot cycle forever.
+ */
+export function getAdjacentSheetId(
+  ctx: Context,
+  direction: "previous" | "next"
+): string | undefined {
+  const visible = _.sortBy(
+    ctx.luckysheetfile.filter((sheet) => sheet.hide !== 1),
+    (sheet) => Number(sheet.order)
+  );
+  const current = _.findIndex(visible, (s) => s.id === ctx.currentSheetId);
+  if (current === -1) return undefined;
+
+  const target = visible[current + (direction === "next" ? 1 : -1)];
+  return target?.id;
 }
 
 export function changeSheet(

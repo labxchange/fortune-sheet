@@ -1,0 +1,57 @@
+.fortune-shortcuts-title {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.fortune-shortcuts-section {
+  margin-top: 18px;
+}
+
+.fortune-shortcuts-section-title {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.fortune-shortcuts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.fortune-shortcuts-table th,
+.fortune-shortcuts-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid #e0e0e0;
+  color: #1a1a1a;
+}
+
+.fortune-shortcuts-table th {
+  font-weight: 600;
+  /* The header row repeats per section and is mainly there to give the key
+     column a programmatic name; keep it quiet visually. */
+  font-size: 12px;
+  color: #595959;
+}
+
+.fortune-shortcuts-table td:last-child,
+.fortune-shortcuts-table th:last-child {
+  width: 40%;
+  white-space: nowrap;
+}
+
+.fortune-shortcuts-table kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px solid #c4c4c4;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: #f5f5f5;
+  font-family: inherit;
+  font-size: 12px;
+  color: #1a1a1a;
+}

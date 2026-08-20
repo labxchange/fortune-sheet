@@ -11,6 +11,8 @@ type Props = {
   onCancel?: () => void;
   containerStyle?: React.CSSProperties;
   contentStyle?: React.CSSProperties;
+  /** Id of the element naming this dialog, usually its heading. */
+  labelledBy?: string;
   children?: React.ReactNode;
 };
 
@@ -21,6 +23,7 @@ const Dialog: React.FC<Props> = ({
   children,
   containerStyle,
   contentStyle,
+  labelledBy,
 }) => {
   const { context } = useContext(WorkbookContext);
   const { button } = locale(context);
@@ -84,17 +87,21 @@ const Dialog: React.FC<Props> = ({
       ref={dialogRef}
       role="dialog"
       aria-modal="true"
-      // No aria-labelledby: it pointed at #fortune-sort-title, which only
-      // exists inside CustomSort, so every other dialog carried a reference to
-      // a missing element. It was paired with a hardcoded, untranslated
-      // aria-label="Dialog" that added nothing over the role. role="dialog"
-      // plus aria-modal already has AT announce the role and read the
-      // contents, and the sort dialog's title is the first thing inside it.
-      // A `labelledBy` prop would be better still, but wants threading through
-      // showDialog. Tracked, not just deferred:
+      // Callers that own a heading pass its id — the `labelledBy` prop the
+      // comment here used to defer to, now that a caller (ShortcutsDialog)
+      // needs it:
       // https://app.asana.com/1/1201629421181554/project/1210962482862973/task/1217671504196361
-      // Note while it is open: a role="dialog" with no name at all trips axe's
-      // aria-dialog-name rule, which the useless "Dialog" name used to satisfy.
+      //
+      // Callers that pass nothing still name themselves by content:
+      // role="dialog" plus aria-modal already has AT announce the role and read
+      // what is inside, and the hardcoded, untranslated aria-label="Dialog"
+      // that used to be here added nothing over the role. (It was paired with
+      // an aria-labelledby pointing at #fortune-sort-title, which exists only
+      // inside CustomSort, so every other dialog referenced a missing element.)
+      // Those callers do still trip axe's aria-dialog-name rule, which the
+      // useless "Dialog" name used to satisfy — the task above stays open until
+      // showDialog threads a name through for them too.
+      aria-labelledby={labelledBy}
       tabIndex={-1}
     >
       <div className="fortune-modal-dialog-header">

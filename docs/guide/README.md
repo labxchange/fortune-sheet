@@ -163,3 +163,19 @@ Please refer to [Overall configuration](./config.md) for detailed information.
 |  ENTER | Edit cell |
 |  TAB / SHIFT + TAB | Move cell selection box to the right and left |
 |  DELETE | Clear cell data |
+|  CTRL + SPACE | Select entire column |
+|  SHIFT + SPACE | Select entire row |
+|  SHIFT + F8 | Add another range to the selection |
+|  CTRL + SHIFT + V | Paste values only |
+|  ALT + UP/DOWN | Previous / next sheet |
+|  CTRL + CMD + R (Mac) / CTRL + ALT + R | Open the filter menu for the focused column |
+|  CTRL + SHIFT + M | Open context menu |
+|  CTRL + SHIFT + R | Open row header context menu |
+|  CTRL + SHIFT + L | Open column header context menu |
+|  CTRL/CMD + ALT + T / S / B | Move focus to the toolbar / grid / sheet tab bar |
+|  CTRL/CMD + / | Open the keyboard shortcuts dialog |
+
+The shortcuts dialog is the in-app reference for the list above. It is opened by
+`CTRL/CMD + /` or from the `keyboard-shortcuts` toolbar item, and an embedding
+application can append its own groups to it through the `extraShortcutSections`
+prop on `Workbook`.

@@ -163,6 +163,12 @@ const Toolbar: React.FC<{
     useContext(WorkbookContext);
   const contextRef = useRef(context);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Arrow-key movement between toolbar buttons, the navigation half of the
+  // ARIA toolbar pattern. Purely additive: every button keeps its own tab
+  // stop, so Tab behaves exactly as before. Collapsing those into a single
+  // roving tab stop means giving eight heterogeneous item components a shared
+  // owner for tabIndex, which is left as a follow-up.
+  useRovingFocus({ containerRef, orientation: "horizontal" });
   const [toolbarWrapIndex, setToolbarWrapIndex] = useState(-1); // -1 means pending for item location calculation
   const [itemLocations, setItemLocations] = useState<number[]>([]);
   const { showDialog, hideDialog } = useDialog();
@@ -571,6 +577,20 @@ const Toolbar: React.FC<{
               </Select>
             )}
           </Combo>
+        );
+      }
+      if (name === "keyboard-shortcuts") {
+        return (
+          <Button
+            iconId={name}
+            tooltip={tooltip}
+            key={name}
+            onClick={() =>
+              setContext((draftCtx) => {
+                draftCtx.showShortcutsDialog = true;
+              })
+            }
+          />
         );
       }
       if (name === "undo") {
