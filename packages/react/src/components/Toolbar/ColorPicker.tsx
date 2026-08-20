@@ -126,8 +126,10 @@ const ColorPicker: React.FC<Props> = ({ onPick }) => {
               onKeyDown={activateOnEnterOrSpace}
               tabIndex={0}
               role="gridcell"
-              // a bare hex is read out character by character; fall back to it
-              // only for locales that have not filled in the names yet
+              // a bare hex is read out character by character ("pound, e,
+              // zero, six, six, six, six"), so every swatch is named. All six
+              // locales cover the whole palette; the hex fallback is only for
+              // a colour added here without a matching locale entry.
               aria-label={colorNames?.[c] ?? c}
               style={{ backgroundColor: c }}
             />

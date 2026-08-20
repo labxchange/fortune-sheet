@@ -11979,6 +11979,11 @@ export default {
     editLink: "Editar enlace",
     removeLink: "Eliminar enlace",
   },
+  linkTypeList: [
+    { text: "Páginas web", value: "webpage" },
+    { text: "Rango de celdas", value: "cellrange" },
+    { text: "Hoja", value: "sheet" },
+  ],
   dataVerification: {
     cellRange: "Rango celdas",
     selectCellRange: "Haz clic para seleccionar un rango de celdas",

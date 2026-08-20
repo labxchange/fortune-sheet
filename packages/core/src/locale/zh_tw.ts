@@ -11988,6 +11988,11 @@ export default {
     editLink: "編輯連結",
     removeLink: "刪除連結",
   },
+  linkTypeList: [
+    { text: "網頁", value: "webpage" },
+    { text: "儲存格範圍", value: "cellrange" },
+    { text: "工作表", value: "sheet" },
+  ],
   dataVerification: {
     cellRange: "儲存格範圍",
     selectCellRange: "點擊選擇儲存格範圍",
