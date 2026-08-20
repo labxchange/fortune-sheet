@@ -31,6 +31,11 @@
   color: #fff;
 }
 
+#fortune-search-replace .tabBox span:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+}
+
 #fortune-search-replace .ctBox {
   padding: 5px 10px;
   border: 1px solid rgb(235, 235, 235);
@@ -131,6 +136,12 @@
 #fortune-search-replace #searchAllbox .boxMain .boxItem.on {
   background-color: #8c89fe;
   color: #fff;
+}
+
+#fortune-search-replace #searchAllbox .boxMain .boxItem:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+  outline-offset: -2px;
 }
 
 #fortune-search-replace #searchAllbox .boxMain .boxItem span {

@@ -2,6 +2,7 @@ import { Context, getSheetIndex, locale } from "@fortune-sheet/core";
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import WorkbookContext from "../../context";
 import ColorPicker from "../Toolbar/ColorPicker";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 import "./index.css";
 
 type Props = {
@@ -37,7 +38,9 @@ export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
       <div
         className="color-reset"
         onClick={() => setSelectColor(undefined)}
+        onKeyDown={activateOnEnterOrSpace}
         tabIndex={0}
+        role="button"
       >
         {sheetconfig.resetColor}
       </div>
@@ -53,13 +56,16 @@ export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
           onBlur={() => {
             triggerParentUpdate(false);
           }}
+          onKeyDown={(e) => e.stopPropagation()}
         />
         <div
           className="button-basic button-primary"
           onClick={() => {
             certainBtn();
           }}
+          onKeyDown={activateOnEnterOrSpace}
           tabIndex={0}
+          role="button"
         >
           {button.confirm}
         </div>

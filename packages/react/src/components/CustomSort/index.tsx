@@ -15,6 +15,7 @@ import React, {
 import WorkbookContext from "../../context";
 import "./index.css";
 import { useDialog } from "../../hooks/useDialog";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 
 type RadioChangeEvent = React.ChangeEvent<HTMLInputElement>;
 
@@ -171,12 +172,7 @@ const CustomSort: React.FC<{}> = () => {
         <div
           className="button-basic button-primary"
           onClick={handleSortConfirm}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              handleSortConfirm();
-            }
-          }}
+          onKeyDown={activateOnEnterOrSpace}
           tabIndex={0}
           role="button"
         >

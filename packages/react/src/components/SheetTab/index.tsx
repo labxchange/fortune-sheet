@@ -13,15 +13,27 @@ import SVGIcon from "../SVGIcon";
 import "./index.css";
 import SheetItem from "./SheetItem";
 import ZoomControl from "../ZoomControl";
+import { useRovingFocus } from "../../hooks/useRovingFocus";
+import {
+  activateOnEnterOrSpace,
+  mouseDownToggleHandlers,
+} from "../../utils/keyboardActivation";
 
 const SheetTab: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
+  const allSheetsRef = useRef<HTMLDivElement>(null);
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const leftScrollRef = useRef<HTMLDivElement>(null);
   const rightScrollRef = useRef<HTMLDivElement>(null);
   const [isShowScrollBtn, setIsShowScrollBtn] = useState<boolean>(false);
   const [isShowBoundary, setIsShowBoundary] = useState<boolean>(true);
   const { info } = locale(context);
+
+  useRovingFocus({
+    containerRef: tabContainerRef,
+    orientation: "horizontal",
+    itemSelector: ".luckysheet-sheets-item",
+  });
 
   const scrollDelta = 150;
 
@@ -82,6 +94,7 @@ const SheetTab: React.FC = () => {
           <div
             className="fortune-sheettab-button"
             onClick={onAddSheetClick}
+            onKeyDown={activateOnEnterOrSpace}
             tabIndex={0}
             aria-label={info.newSheet}
             role="button"
@@ -94,16 +107,20 @@ const SheetTab: React.FC = () => {
             <div
               id="all-sheets"
               className="fortune-sheettab-button"
-              ref={tabContainerRef}
-              onMouseDown={(e) => {
-                e.stopPropagation();
+              ref={allSheetsRef}
+              role="button"
+              tabIndex={0}
+              aria-label={info.allSheets}
+              aria-haspopup
+              aria-expanded={!!context.showSheetList}
+              {...mouseDownToggleHandlers(() => {
                 setContext((ctx) => {
                   ctx.showSheetList = _.isUndefined(ctx.showSheetList)
                     ? true
                     : !ctx.showSheetList;
                   ctx.sheetTabContextMenu = {};
                 });
-              }}
+              })}
             >
               <SVGIcon name="all-sheets" width={16} height={16} />
             </div>
@@ -124,6 +141,12 @@ const SheetTab: React.FC = () => {
             className="fortune-sheettab-container-c"
             id="fortune-sheettab-container-c"
             ref={tabContainerRef}
+            // Completes the manual-activation tabs pattern the arrow-key
+            // navigation already implements: without tablist/tab/aria-selected
+            // a screen reader heard the tab text and nothing else — no "tab",
+            // no position, no selected state.
+            role="tablist"
+            aria-label={info.allSheets}
           >
             {_.sortBy(context.luckysheetfile, (s) => Number(s.order)).map(
               (sheet) => {
@@ -147,7 +170,10 @@ const SheetTab: React.FC = () => {
             onClick={() => {
               scrollBy(-scrollDelta);
             }}
+            onKeyDown={activateOnEnterOrSpace}
             tabIndex={0}
+            role="button"
+            aria-label={info.scrollLeft}
           >
             <SVGIcon name="arrow-doubleleft" width={12} height={12} />
           </div>
@@ -160,7 +186,10 @@ const SheetTab: React.FC = () => {
             onClick={() => {
               scrollBy(scrollDelta);
             }}
+            onKeyDown={activateOnEnterOrSpace}
             tabIndex={0}
+            role="button"
+            aria-label={info.scrollRight}
           >
             <SVGIcon name="arrow-doubleright" width={12} height={12} />
           </div>

@@ -2,29 +2,48 @@ import { locale, deleteSheet, api } from "@fortune-sheet/core";
 import _ from "lodash";
 import React, {
   useContext,
+  useId,
   useRef,
   useState,
   useLayoutEffect,
   useCallback,
 } from "react";
 import WorkbookContext from "../../context";
+import { useAdjacentSubmenuPosition } from "../../hooks/useAdjacentSubmenuPosition";
 import { useAlert } from "../../hooks/useAlert";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
+import { useEscapeToClose } from "../../hooks/useEscapeToClose";
+import { useRovingFocus } from "../../hooks/useRovingFocus";
+import { onActivate } from "../../utils/keyboardActivation";
 import { ChangeColor } from "../ChangeColor";
 import SVGIcon from "../SVGIcon";
 import Divider from "./Divider";
 import "./index.css";
 import Menu from "./Menu";
 
+/**
+ * Only one sheet-tab options menu can be open at a time, so a constant id is
+ * enough to wire it to whichever tab's trigger opened it. The trigger lives in
+ * SheetTab/SheetItem, a different subtree, so a useId() generated here would
+ * not be reachable from there.
+ */
+export const SHEET_TAB_MENU_ID = "fortune-sheet-tab-options-menu";
+
 const SheetTabContextMenu: React.FC = () => {
-  const { context, setContext, settings } = useContext(WorkbookContext);
+  const { context, setContext, settings, refs } = useContext(WorkbookContext);
   const { x, y, sheet, onRename } = context.sheetTabContextMenu;
   const { sheetconfig } = locale(context);
   const [position, setPosition] = useState({ x: -1, y: -1 });
   const [isShowChangeColor, setIsShowChangeColor] = useState<boolean>(false);
   const [isShowInputColor, setIsShowInputColor] = useState<boolean>(false);
+  const [changeColorOpenedBy, setChangeColorOpenedBy] = useState<
+    "pointer" | "keyboard"
+  >("pointer");
   const { showAlert, hideAlert } = useAlert();
+  const changeColorMenuId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
+  const changeColorRowRef = useRef<HTMLDivElement>(null);
+  const changeColorMenuRef = useRef<HTMLDivElement>(null);
 
   const close = useCallback(() => {
     setContext((ctx) => {
@@ -40,6 +59,23 @@ const SheetTabContextMenu: React.FC = () => {
   }, [x, y]);
 
   useOutsideClick(containerRef, close, [close]);
+  const isOpen = sheet != null && x != null && y != null;
+  useEscapeToClose({ open: isOpen, onClose: close, containerRef });
+  useRovingFocus({ containerRef, orientation: "vertical", enabled: isOpen });
+  useEscapeToClose({
+    open: isShowChangeColor,
+    onClose: () => setIsShowChangeColor(false),
+    containerRef: changeColorMenuRef,
+    autoFocus: changeColorOpenedBy === "keyboard",
+    restoreFocus: changeColorOpenedBy === "keyboard",
+  });
+
+  useAdjacentSubmenuPosition({
+    open: isShowChangeColor,
+    triggerRef: changeColorRowRef,
+    menuRef: changeColorMenuRef,
+    boundaryRef: refs.workbookContainer,
+  });
 
   const moveSheet = useCallback(
     (delta: number) => {
@@ -102,6 +138,8 @@ const SheetTabContextMenu: React.FC = () => {
 
   return (
     <div
+      id={SHEET_TAB_MENU_ID}
+      role="menu"
       className="fortune-context-menu luckysheet-cols-menu"
       onContextMenu={(e) => e.stopPropagation()}
       style={{ left: position.x, top: position.y, overflow: "visible" }}
@@ -112,6 +150,7 @@ const SheetTabContextMenu: React.FC = () => {
           return (
             <Menu
               key={name}
+              role="button"
               onClick={() => {
                 const shownSheets = context.luckysheetfile.filter(
                   (singleSheet) =>
@@ -148,6 +187,7 @@ const SheetTabContextMenu: React.FC = () => {
           return (
             <Menu
               key={name}
+              role="button"
               onClick={() => {
                 onRename?.();
                 close();
@@ -161,6 +201,7 @@ const SheetTabContextMenu: React.FC = () => {
           return (
             <React.Fragment key={name}>
               <Menu
+                role="button"
                 onClick={() => {
                   moveSheet(-1.5);
                   close();
@@ -169,6 +210,7 @@ const SheetTabContextMenu: React.FC = () => {
                 {sheetconfig.moveLeft}
               </Menu>
               <Menu
+                role="button"
                 onClick={() => {
                   moveSheet(1.5);
                   close();
@@ -183,6 +225,7 @@ const SheetTabContextMenu: React.FC = () => {
           return (
             <Menu
               key={name}
+              role="button"
               onClick={() => {
                 hideSheet();
                 close();
@@ -196,6 +239,7 @@ const SheetTabContextMenu: React.FC = () => {
           return (
             <Menu
               key={name}
+              role="button"
               onClick={() => {
                 copySheet();
                 close();
@@ -207,9 +251,12 @@ const SheetTabContextMenu: React.FC = () => {
         }
         if (name === "color") {
           return (
-            <Menu
+            <div
               key={name}
+              ref={changeColorRowRef}
+              style={{ position: "relative" }}
               onMouseEnter={() => {
+                setChangeColorOpenedBy("pointer");
                 setIsShowChangeColor(true);
               }}
               onMouseLeave={() => {
@@ -218,20 +265,43 @@ const SheetTabContextMenu: React.FC = () => {
                 }
               }}
             >
-              {sheetconfig.changeColor}
-              <span className="change-color-triangle">
-                <SVGIcon name="rightArrow" width={18} />
-              </span>
+              <Menu
+                role="button"
+                expanded={isShowChangeColor}
+                hasPopup="menu"
+                controls={changeColorMenuId}
+                onClick={() => {
+                  setChangeColorOpenedBy("pointer");
+                  setIsShowChangeColor(true);
+                }}
+                onKeyDown={onActivate(() => {
+                  setChangeColorOpenedBy("keyboard");
+                  setIsShowChangeColor(true);
+                })}
+              >
+                {sheetconfig.changeColor}
+                <span className="change-color-triangle">
+                  <SVGIcon name="rightArrow" width={18} />
+                </span>
+              </Menu>
               {isShowChangeColor && context.allowEdit && (
-                <ChangeColor triggerParentUpdate={updateShowInputColor} />
+                <div
+                  id={changeColorMenuId}
+                  role="menu"
+                  ref={changeColorMenuRef}
+                  style={{ position: "absolute" }}
+                >
+                  <ChangeColor triggerParentUpdate={updateShowInputColor} />
+                </div>
               )}
-            </Menu>
+            </div>
           );
         }
         if (name === "focus") {
           return (
             <Menu
               key={name}
+              role="button"
               onClick={() => {
                 focusSheet();
                 close();

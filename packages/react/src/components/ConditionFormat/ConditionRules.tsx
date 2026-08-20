@@ -4,6 +4,7 @@ import { locale, setConditionRules } from "@fortune-sheet/core";
 import produce from "immer";
 import WorkbookContext from "../../context";
 import { useDialog } from "../../hooks/useDialog";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 
 const ConditionRules: React.FC<{ type: string }> = ({ type }) => {
   const { context, setContext } = useContext(WorkbookContext);
@@ -325,7 +326,9 @@ const ConditionRules: React.FC<{ type: string }> = ({ type }) => {
           // hideDialog();
           close("confirm");
         }}
+        onKeyDown={activateOnEnterOrSpace}
         tabIndex={0}
+        role="button"
       >
         {button.confirm}
       </div>
@@ -335,7 +338,9 @@ const ConditionRules: React.FC<{ type: string }> = ({ type }) => {
           // hideDialog();
           close("close");
         }}
+        onKeyDown={activateOnEnterOrSpace}
         tabIndex={0}
+        role="button"
       >
         {button.cancel}
       </div>

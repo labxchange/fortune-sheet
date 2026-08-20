@@ -53,6 +53,7 @@ import { useDialog } from "../../hooks/useDialog";
 import { useFilterAnnouncements } from "../../hooks/useFilterAnnouncements";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 
 const SheetOverlay: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
@@ -486,21 +487,16 @@ const SheetOverlay: React.FC = () => {
         <div
           className="fortune-left-top"
           onClick={onLeftTopClick}
-          onKeyDown={(e) => {
-            // A focusable control has to be operable by keyboard (WCAG 2.1.1).
-            // Enter and Space never reach the grid's own handler now that grid
-            // keys are scoped to the grid, so select-all is wired up here.
-            if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") {
-              return;
-            }
-            if (e.repeat) return;
-            e.preventDefault();
-            e.stopPropagation();
-            onLeftTopClick();
-          }}
+          // A focusable control has to be operable by keyboard (WCAG 2.1.1).
+          // Via the shared helper rather than a hand-rolled handler: it
+          // forwards to onClick above instead of duplicating onLeftTopClick,
+          // and carries the target/currentTarget guard the inline copies
+          // lacked. The legacy "Spacebar" key name master handled here is now
+          // covered in isActivationKey, so every call site gets it.
+          onKeyDown={activateOnEnterOrSpace}
+          tabIndex={0}
           role="button"
           aria-label={info.selectAllCells}
-          tabIndex={0}
           style={{
             width: context.rowHeaderWidth - 1.5,
             height: context.columnHeaderHeight - 1.5,
@@ -869,7 +865,6 @@ const SheetOverlay: React.FC = () => {
                   onKeyPress={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
                   onDoubleClick={(e) => e.stopPropagation()}
-                  tabIndex={0}
                   style={{
                     left: context.scrollLeft,
                     display: context.allowEdit ? "block" : "none",
@@ -880,7 +875,9 @@ const SheetOverlay: React.FC = () => {
                     onClick={() => {
                       handleBottomAddRow();
                     }}
+                    onKeyDown={activateOnEnterOrSpace}
                     tabIndex={0}
+                    role="button"
                   >
                     {info.add}
                   </div>
@@ -901,7 +898,9 @@ const SheetOverlay: React.FC = () => {
                         ctx.scrollTop = 0;
                       });
                     }}
+                    onKeyDown={activateOnEnterOrSpace}
                     tabIndex={0}
+                    role="button"
                   >
                     {info.backTop}
                   </span>

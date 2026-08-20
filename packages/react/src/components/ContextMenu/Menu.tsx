@@ -1,4 +1,5 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef } from "react";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 
 /**
  * `role` and `expanded` are paired deliberately. `aria-expanded` is not a
@@ -14,8 +15,14 @@ import React, { useRef, useEffect } from "react";
  * pass it where the row really is just a button.
  */
 type AriaProps =
-  | { role?: undefined; expanded?: never }
-  | { role: "button"; expanded?: boolean };
+  | { role?: undefined; expanded?: never; hasPopup?: never; controls?: never }
+  | {
+      role: "button";
+      expanded?: boolean;
+      hasPopup?: "menu";
+      /** id of the role="menu" element this row's submenu renders, if any. */
+      controls?: string;
+    };
 
 type Props = React.PropsWithChildren<
   {
@@ -31,6 +38,8 @@ type Props = React.PropsWithChildren<
       e: React.MouseEvent<HTMLDivElement, MouseEvent>,
       container: HTMLDivElement
     ) => void;
+    /** Override for menu items that open a nested submenu instead of clicking. */
+    onKeyDown?: (e: React.KeyboardEvent<HTMLDivElement>) => void;
   } & AriaProps
 >;
 
@@ -38,18 +47,21 @@ const Menu: React.FC<Props> = ({
   onClick,
   onMouseLeave,
   onMouseEnter,
+  onKeyDown,
   role,
   expanded,
+  hasPopup,
+  controls,
   children,
 }) => {
-  useEffect(() => {
-    // focus on mount for keyboard nav
-    const element = document.querySelector(".luckysheet-cols-menuitem");
-    if (element) {
-      (element as HTMLDivElement).focus();
-    }
-  }, []);
-
+  // Autofocusing the first row on open is useEscapeToClose's job (every
+  // consumer of this component uses it). This component used to do it too,
+  // via a document-wide querySelector on mount — which fired once per row
+  // (~8 times for one menu), could focus a row in a different, already-open
+  // menu, and ran before useEscapeToClose captured document.activeElement,
+  // so the element to restore focus to on close was recorded as a menu row
+  // instead of the trigger. That row is unmounted by the time the menu
+  // closes, so the restore was skipped and focus fell to <body>.
   const containerRef = useRef<HTMLDivElement>(null);
   return (
     <div
@@ -57,20 +69,10 @@ const Menu: React.FC<Props> = ({
       className="luckysheet-cols-menuitem luckysheet-mousedown-cancel"
       role={role}
       aria-expanded={expanded}
+      aria-haspopup={hasPopup}
+      aria-controls={controls}
       onClick={(e) => onClick?.(e, containerRef.current!)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
-          if (e.repeat) return;
-          e.preventDefault();
-          e.stopPropagation();
-          containerRef.current?.dispatchEvent(
-            new MouseEvent("click", {
-              bubbles: true,
-              cancelable: true,
-            })
-          );
-        }
-      }}
+      onKeyDown={onKeyDown ?? activateOnEnterOrSpace}
       onMouseLeave={(e) => onMouseLeave?.(e, containerRef.current!)}
       onMouseEnter={(e) => onMouseEnter?.(e, containerRef.current!)}
       tabIndex={0}

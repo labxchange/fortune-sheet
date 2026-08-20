@@ -27,6 +27,8 @@ import Menu from "./Menu";
 import SVGIcon from "../SVGIcon";
 import { useAlert } from "../../hooks/useAlert";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
+import { useEscapeToClose } from "../../hooks/useEscapeToClose";
+import { useRovingFocus } from "../../hooks/useRovingFocus";
 
 const SelectItem: React.FC<{
   item: FilterValue;
@@ -232,6 +234,16 @@ const FilterMenu: React.FC = () => {
   }, [setContext]);
 
   useOutsideClick(containerRef, close, [close]);
+  useEscapeToClose({
+    open: filterContextMenu != null,
+    onClose: close,
+    containerRef,
+  });
+  useRovingFocus({
+    containerRef,
+    orientation: "vertical",
+    enabled: filterContextMenu != null,
+  });
 
   const initialExpand = useCallback((key: string) => {
     const expand = dateTreeExpandState.current[key];

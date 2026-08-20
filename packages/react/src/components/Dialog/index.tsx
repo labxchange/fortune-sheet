@@ -2,6 +2,7 @@ import { locale } from "@fortune-sheet/core";
 import React, { useContext, useEffect, useRef } from "react";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 import "./index.css";
 
 type Props = {
@@ -76,13 +77,6 @@ const Dialog: React.FC<Props> = ({
     };
   }, [onCancel]);
 
-  const activateOnEnter = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      e.currentTarget.click();
-    }
-  };
-
   return (
     <div
       className="fortune-dialog"
@@ -90,15 +84,24 @@ const Dialog: React.FC<Props> = ({
       ref={dialogRef}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="fortune-sort-title"
-      aria-label="Dialog"
+      // No aria-labelledby: it pointed at #fortune-sort-title, which only
+      // exists inside CustomSort, so every other dialog carried a reference to
+      // a missing element. It was paired with a hardcoded, untranslated
+      // aria-label="Dialog" that added nothing over the role. role="dialog"
+      // plus aria-modal already has AT announce the role and read the
+      // contents, and the sort dialog's title is the first thing inside it.
+      // A `labelledBy` prop would be better still, but wants threading through
+      // showDialog. Tracked, not just deferred:
+      // https://app.asana.com/1/1201629421181554/project/1210962482862973/task/1217671504196361
+      // Note while it is open: a role="dialog" with no name at all trips axe's
+      // aria-dialog-name rule, which the useless "Dialog" name used to satisfy.
       tabIndex={-1}
     >
       <div className="fortune-modal-dialog-header">
         <div
           className="fortune-modal-dialog-icon-close"
           onClick={onCancel}
-          onKeyDown={activateOnEnter}
+          onKeyDown={activateOnEnterOrSpace}
           tabIndex={0}
           role="button"
           aria-label={button.close}
@@ -115,8 +118,9 @@ const Dialog: React.FC<Props> = ({
             <div
               className="fortune-message-box-button button-default"
               onClick={onOk}
-              onKeyDown={activateOnEnter}
+              onKeyDown={activateOnEnterOrSpace}
               tabIndex={0}
+              role="button"
             >
               {button.confirm}
             </div>
@@ -125,16 +129,18 @@ const Dialog: React.FC<Props> = ({
               <div
                 className="fortune-message-box-button button-primary"
                 onClick={onOk}
-                onKeyDown={activateOnEnter}
+                onKeyDown={activateOnEnterOrSpace}
                 tabIndex={0}
+                role="button"
               >
                 {button.confirm}
               </div>
               <div
                 className="fortune-message-box-button button-default"
                 onClick={onCancel}
-                onKeyDown={activateOnEnter}
+                onKeyDown={activateOnEnterOrSpace}
                 tabIndex={0}
+                role="button"
               >
                 {button.cancel}
               </div>

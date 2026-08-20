@@ -1,6 +1,5 @@
 .condition-format-sub-menu {
   position: absolute;
-  top: -8px;
   box-shadow: 0 2px 4px rgb(0 0 0 / 20%);
   background: #fff;
   border: 1px solid rgba(0, 0, 0, 0.2);
@@ -21,6 +20,11 @@
 
 .condition-format-item:hover {
   background: #efefef;
+}
+
+.condition-format-item:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
 }
 
 .condition-format-item span {
@@ -62,6 +66,11 @@
   color: #333;
   background-color: #fff;
   border: 1px solid #ccc;
+}
+
+.condition-rules .button-basic:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
 }
 
 .condition-rules {

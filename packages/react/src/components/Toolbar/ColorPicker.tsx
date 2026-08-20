@@ -1,4 +1,8 @@
-import React from "react";
+import React, { useContext, useRef, useState } from "react";
+import { locale } from "@fortune-sheet/core";
+import WorkbookContext from "../../context";
+import { useRovingFocus } from "../../hooks/useRovingFocus";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 
 const palette = [
   [
@@ -88,19 +92,60 @@ type Props = {
 };
 
 const ColorPicker: React.FC<Props> = ({ onPick }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { context } = useContext(WorkbookContext);
+  const { info } = locale(context);
+  // the locale objects infer exact literal keys, so a hex from `palette`
+  // can't index them without widening
+  const colorNames = info.colorNames as Record<string, string> | undefined;
+  // Roving tabindex: the grid pattern exists so a grid costs one tab stop with
+  // arrows moving inside it. Every swatch being tabbable made Tab step through
+  // all 64, contradicting the grid role announced below. Keyed on focus rather
+  // than on selection (unlike the sheet tabs, a palette has no selected cell),
+  // which also leaves the tab stop where the user last was.
+  const [activeIndex, setActiveIndex] = useState(0);
+  useRovingFocus({
+    containerRef,
+    orientation: "grid",
+    columns: palette[0].length,
+    // the swatches are gridcells now, so the default [role="button"] selector
+    // would match nothing
+    itemSelector: '[role="gridcell"]',
+  });
   return (
-    <div className="fortune-toolbar-color-picker">
+    // grid/row/gridcell so the 2D model the arrow keys already implement is
+    // also the one the accessibility tree exposes — previously AT announced a
+    // flat run of 64 buttons with no row or column position.
+    <div
+      className="fortune-toolbar-color-picker"
+      ref={containerRef}
+      role="grid"
+      aria-label={info.colorPalette}
+    >
       {palette.map((rows, i) => (
-        <div key={i} className="fortune-toolbar-color-picker-row">
-          {rows.map((c) => (
-            <div
-              key={c}
-              className="fortune-toolbar-color-picker-item"
-              onClick={() => onPick(c)}
-              tabIndex={0}
-              style={{ backgroundColor: c }}
-            />
-          ))}
+        <div key={i} className="fortune-toolbar-color-picker-row" role="row">
+          {rows.map((c, j) => {
+            const index = i * palette[0].length + j;
+            return (
+              <div
+                key={c}
+                className="fortune-toolbar-color-picker-item"
+                onClick={() => onPick(c)}
+                onKeyDown={activateOnEnterOrSpace}
+                // useRovingFocus focuses items directly, so a tabIndex of -1
+                // leaves arrow navigation unchanged
+                tabIndex={index === activeIndex ? 0 : -1}
+                onFocus={() => setActiveIndex(index)}
+                role="gridcell"
+                // a bare hex is read out character by character ("pound, e,
+                // zero, six, six, six, six"), so every swatch is named. All six
+                // locales cover the whole palette; the hex fallback is only for
+                // a colour added here without a matching locale entry.
+                aria-label={colorNames?.[c] ?? c}
+                style={{ backgroundColor: c }}
+              />
+            );
+          })}
         </div>
       ))}
     </div>

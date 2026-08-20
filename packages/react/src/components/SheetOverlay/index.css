@@ -114,6 +114,13 @@
   background-color: white;
 }
 
+.fortune-left-top:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+  z-index: 100;
+  outline-offset: -2px;
+}
+
 .fortune-add-row-button {
   padding: 1px 20px;
   margin-right: 5px;
@@ -129,6 +136,11 @@
   color: rgb(38, 42, 51);
   background-color: rgb(255, 255, 255);
   border: 1px solid rgb(200, 200, 200);
+}
+
+.fortune-add-row-button:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
 }
 
 .luckysheet-cell-selected-focus {

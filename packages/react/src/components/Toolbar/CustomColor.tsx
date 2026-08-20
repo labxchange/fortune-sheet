@@ -2,6 +2,7 @@ import { locale } from "@fortune-sheet/core";
 import React, { useContext, useState } from "react";
 import WorkbookContext from "../../context";
 import ColorPicker from "../Toolbar/ColorPicker";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 import "./index.css";
 
 type Props = {
@@ -19,7 +20,9 @@ export const CustomColor: React.FC<Props> = ({ onCustomPick, onColorPick }) => {
       <div
         className="color-reset"
         onClick={() => onCustomPick(undefined)}
+        onKeyDown={activateOnEnterOrSpace}
         tabIndex={0}
+        role="button"
       >
         {sheetconfig.resetColor}
       </div>
@@ -35,7 +38,9 @@ export const CustomColor: React.FC<Props> = ({ onCustomPick, onColorPick }) => {
           onClick={() => {
             onCustomPick(inputColor);
           }}
+          onKeyDown={activateOnEnterOrSpace}
           tabIndex={0}
+          role="button"
         >
           {button.confirm}
         </div>

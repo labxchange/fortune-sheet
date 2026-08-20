@@ -57,6 +57,13 @@
   align-items: center;
 }
 
+.fortune-toolbar-button:focus-visible,
+.fortune-toolbar-combo-button:focus-visible,
+.fortune-toolbar-combo-arrow:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+}
+
 .fortune-toolbar-button:hover,
 .fortune-toolbar-combo:hover {
   background-color: rgba(0, 0, 0, 0.06);
@@ -121,6 +128,12 @@
   background: #efefef;
 }
 
+.fortune-toolbar-select-option:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+  outline-offset: -3px;
+}
+
 .fortune-toolbar-select::-webkit-scrollbar {
   display: none;
 }
@@ -139,6 +152,12 @@
   height: 16px;
   margin: 1px;
   cursor: pointer;
+}
+
+.fortune-toolbar-color-picker-item:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+  z-index: 2000;
 }
 
 .fortune-tooltip {
@@ -235,6 +254,13 @@
   background: rgb(230, 230, 230);
 }
 
+#fortune-custom-color .color-reset:focus-visible,
+.button-basic:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+  z-index: 2000;
+}
+
 #fortune-custom-color .custom-color {
   position: relative;
   margin: auto;
@@ -273,7 +299,6 @@
 
 .fortune-border-select-menu {
   position: absolute;
-  bottom: 0px;
 }
 
 .fortune-border-color-preview {
@@ -293,6 +318,11 @@
   cursor: pointer;
 }
 
+.fortune-border-select-option:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+}
+
 .fortune-border-style-preview {
   height: 3px;
   overflow: hidden;
@@ -305,4 +335,9 @@
 .fortune-border-style-picker-menu:hover {
   background: #efefef;
   cursor: pointer;
+}
+
+.fortune-border-style-picker-menu:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
 }

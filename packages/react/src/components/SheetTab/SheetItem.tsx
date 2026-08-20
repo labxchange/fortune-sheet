@@ -16,6 +16,11 @@ import React, {
 import WorkbookContext from "../../context";
 import { useAlert } from "../../hooks/useAlert";
 import SVGIcon from "../SVGIcon";
+import {
+  activateOnEnterOrSpace,
+  mouseDownToggleHandlers,
+} from "../../utils/keyboardActivation";
+import { SHEET_TAB_MENU_ID } from "../ContextMenu/SheetTab";
 
 type Props = {
   sheet: Sheet;
@@ -29,6 +34,9 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
   const editable = useRef<HTMLSpanElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [svgColor, setSvgColor] = useState<string>("#c3c3c3");
+  const optionsRef = useRef<HTMLSpanElement>(null);
+  const optionsMenuOpen = context.sheetTabContextMenu?.sheet?.id === sheet.id;
+  const isActiveSheet = context.currentSheetId === sheet.id;
   const { showAlert } = useAlert();
   const { info } = locale(context);
 
@@ -137,9 +145,72 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
     [context.allowEdit, isDropPlaceholder, setContext, sheet.id]
   );
 
+  /** Shared by the tab itself and by the options trigger, which switches to
+   * the sheet it belongs to before opening. Previously the trigger only set
+   * currentSheetId and relied on its click bubbling to the tab's own onClick
+   * for the rest, which meant a keyboard-opened menu skipped that half. */
+  const switchToThisSheet = useCallback(
+    (draftCtx: typeof context) => {
+      draftCtx.sheetScrollRecord[draftCtx.currentSheetId] = {
+        scrollLeft: draftCtx.scrollLeft,
+        scrollTop: draftCtx.scrollTop,
+        luckysheet_select_status: draftCtx.luckysheet_select_status,
+        luckysheet_select_save: draftCtx.luckysheet_select_save,
+        luckysheet_selection_range: draftCtx.luckysheet_selection_range,
+      };
+      draftCtx.dataVerificationDropDownList = false;
+      draftCtx.currentSheetId = sheet.id!;
+      draftCtx.zoomRatio = sheet.zoomRatio || 1;
+      cancelActiveImgItem(draftCtx, refs.globalCache);
+      cancelNormalSelected(draftCtx);
+    },
+    [refs.globalCache, sheet.id, sheet.zoomRatio]
+  );
+
+  const toggleOptionsMenu = useCallback(() => {
+    if (isDropPlaceholder || context.allowEdit === false) return;
+    const rect = refs.workbookContainer.current!.getBoundingClientRect();
+    // anchored to the trigger's own position rather than the mouse pointer,
+    // since a keyboard-activated press has no real pageX/pageY
+    const triggerRect = optionsRef.current!.getBoundingClientRect();
+    setContext((ctx) => {
+      if (ctx.sheetTabContextMenu?.sheet?.id === sheet.id) {
+        ctx.sheetTabContextMenu = {};
+        return;
+      }
+      switchToThisSheet(ctx);
+      ctx.sheetTabContextMenu = {
+        x: triggerRect.left - rect.left - window.scrollX,
+        y: triggerRect.bottom - rect.top - window.scrollY,
+        sheet,
+        onRename: () => setEditing(true),
+      };
+    });
+  }, [
+    context.allowEdit,
+    isDropPlaceholder,
+    refs.workbookContainer,
+    setContext,
+    sheet,
+    switchToThisSheet,
+  ]);
+
   return (
     <div
-      role="button"
+      role="tab"
+      // Named explicitly: a tab computes its name from its contents, which
+      // would otherwise absorb the options caret's "Sheet options" label —
+      // every tab announced as "Sheet1 Sheet options". Matches the visible
+      // text exactly, so there is no label-in-name concern, and the caret
+      // stays exposed as its own button.
+      aria-label={sheet.name}
+      aria-selected={isActiveSheet}
+      // Roving tabindex: exactly one tab is in the tab order, so Tab enters the
+      // strip once instead of stepping through every sheet (20 sheets used to
+      // mean 20 Tab presses). Arrows move focus within it; Enter/Space commits.
+      // Keyed on selection rather than on focus — a simplification the APG
+      // would have follow focus, which useRovingFocus does not track.
+      tabIndex={isActiveSheet ? 0 : -1}
       onDragOver={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -172,22 +243,9 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
       }
       onClick={() => {
         if (isDropPlaceholder) return;
-        setContext((draftCtx) => {
-          draftCtx.sheetScrollRecord[draftCtx.currentSheetId] = {
-            scrollLeft: draftCtx.scrollLeft,
-            scrollTop: draftCtx.scrollTop,
-            luckysheet_select_status: draftCtx.luckysheet_select_status,
-            luckysheet_select_save: draftCtx.luckysheet_select_save,
-            luckysheet_selection_range: draftCtx.luckysheet_selection_range,
-          };
-          draftCtx.dataVerificationDropDownList = false;
-          draftCtx.currentSheetId = sheet.id!;
-          draftCtx.zoomRatio = sheet.zoomRatio || 1;
-          cancelActiveImgItem(draftCtx, refs.globalCache);
-          cancelNormalSelected(draftCtx);
-        });
+        setContext(switchToThisSheet);
       }}
-      tabIndex={0}
+      onKeyDown={activateOnEnterOrSpace}
       onContextMenu={(e) => {
         if (isDropPlaceholder) return;
         const rect = refs.workbookContainer.current!.getBoundingClientRect();
@@ -224,26 +282,25 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
         {sheet.name}
       </span>
       <span
+        ref={optionsRef}
         className="luckysheet-sheets-item-function"
         onMouseEnter={() => setSvgColor("#5c5c5c")}
         onMouseLeave={() => setSvgColor("#c3c3c3")}
-        onClick={(e) => {
-          if (isDropPlaceholder || context.allowEdit === false) return;
-          const rect = refs.workbookContainer.current!.getBoundingClientRect();
-          const { pageX, pageY } = e;
-          setContext((ctx) => {
-            // 右击的时候先进行跳转
-            ctx.currentSheetId = sheet.id!;
-            ctx.sheetTabContextMenu = {
-              x: pageX - rect.left - window.scrollX,
-              y: pageY - rect.top - window.scrollY,
-              sheet,
-              onRename: () => setEditing(true),
-            };
-          });
-        }}
-        tabIndex={0}
+        // The toggle runs on mousedown, with stopPropagation, so that pressing
+        // this trigger while its menu is open cannot be seen as an outside
+        // click by the menu's useOutsideClick (which listens on mousedown):
+        // that closed the menu a moment before click reopened it, which is why
+        // a second press appeared to do nothing. Enter/Space call the toggle
+        // directly for the same reason.
+        {...mouseDownToggleHandlers(toggleOptionsMenu)}
+        // follows the tab's own roving tabindex, or the strip would still cost
+        // one Tab stop per sheet via the carets
+        tabIndex={isActiveSheet ? 0 : -1}
+        role="button"
         aria-label={info.sheetOptions}
+        aria-haspopup="menu"
+        aria-expanded={optionsMenuOpen}
+        aria-controls={optionsMenuOpen ? SHEET_TAB_MENU_ID : undefined}
       >
         <SVGIcon name="downArrow" width={12} style={{ fill: svgColor }} />
       </span>

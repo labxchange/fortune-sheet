@@ -25,6 +25,11 @@
   cursor: pointer;
 }
 
+.fortune-link-modify-modal .link-content:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+}
+
 .fortune-link-modify-modal .divider {
   width: 1px;
   height: 16px;
@@ -85,6 +90,11 @@
   border-color: #4d90fe;
 }
 
+.fortune-link-modify-select:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+}
+
 .fortune-link-modify-input.error-input,
 .fortune-link-modify-modal .range-selection-input.error-input {
   border: 1px solid #ef4e2f !important;
@@ -101,6 +111,11 @@
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
+}
+
+.fortune-link-modify-cell-selector:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
 }
 
 .fortune-link-modify-modal .modal-title {
@@ -133,6 +148,11 @@
   right: 22px;
   top: 22px;
   cursor: pointer;
+}
+
+.fortune-link-modify-modal .modal-icon-close:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
 }
 
 .fortune-link-modify-modal .validation-input-tip {

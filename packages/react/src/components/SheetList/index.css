@@ -34,6 +34,11 @@
   background-color: #efefef;
 }
 
+.fortune-sheet-list-item:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+}
+
 .fortune-sheet-hidden-button {
   margin-right: 15px;
   display: inline-flex;
@@ -44,6 +49,11 @@
 
 .fortune-sheet-hidden-button :hover {
   background-color: #d0d0d0;
+}
+
+.fortune-sheet-hidden-button:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
 }
 
 .fortune-sheet-selected-check-sapce {

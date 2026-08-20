@@ -23,6 +23,8 @@ import regeneratorRuntime from "regenerator-runtime";
 import WorkbookContext, { SetContextOptions } from "../../context";
 import { useAlert } from "../../hooks/useAlert";
 import { useDialog } from "../../hooks/useDialog";
+import { useEscapeToClose } from "../../hooks/useEscapeToClose";
+import { useRovingFocus } from "../../hooks/useRovingFocus";
 import Divider from "./Divider";
 import "./index.css";
 import Menu from "./Menu";
@@ -35,6 +37,22 @@ const ContextMenu: React.FC = () => {
   const { contextMenu } = context;
   const { showAlert } = useAlert();
   const { rightclick, drag, generalDialog, info } = locale(context);
+
+  const closeContextMenu = useCallback(() => {
+    setContext((draftCtx) => {
+      draftCtx.contextMenu = {};
+    });
+  }, [setContext]);
+  useEscapeToClose({
+    open: !_.isEmpty(contextMenu),
+    onClose: closeContextMenu,
+    containerRef,
+  });
+  useRovingFocus({
+    containerRef,
+    orientation: "vertical",
+    enabled: !_.isEmpty(contextMenu),
+  });
   const getMenuElement = useCallback(
     (name: string, i: number) => {
       const selection = context.luckysheet_select_save?.[0];
@@ -45,6 +63,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 if (draftCtx.luckysheet_select_save?.length! > 1) {
@@ -65,6 +84,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={async () => {
               let clipboardText = "";
               const sessionClipboardText =
@@ -240,6 +260,7 @@ const ContextMenu: React.FC = () => {
           selection?.column_select && (
             <Menu
               key="delete-col"
+              role="button"
               onClick={() => {
                 if (!selection) return;
                 const [st_index, ed_index] = selection.column;
@@ -293,6 +314,7 @@ const ContextMenu: React.FC = () => {
           selection?.row_select && (
             <Menu
               key="delete-row"
+              role="button"
               onClick={() => {
                 if (!selection) return;
                 const [st_index, ed_index] = selection.row;
@@ -344,6 +366,7 @@ const ContextMenu: React.FC = () => {
           ["hideSelected", "showHide"].map((item) => (
             <Menu
               key={item}
+              role="button"
               onClick={() => {
                 setContext((draftCtx) => {
                   let msg = "";
@@ -370,6 +393,7 @@ const ContextMenu: React.FC = () => {
           ["hideSelected", "showHide"].map((item) => (
             <Menu
               key={item}
+              role="button"
               onClick={() => {
                 setContext((draftCtx) => {
                   let msg = "";
@@ -516,6 +540,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 const allowEdit = isAllowEdit(draftCtx);
@@ -545,6 +570,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 sortSelection(draftCtx, true);
@@ -560,6 +586,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 sortSelection(draftCtx, false);
@@ -575,6 +602,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 showDialog(<CustomSort />);
@@ -590,6 +618,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 createFilter(draftCtx);
@@ -605,6 +634,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 showImgChooser();
@@ -620,6 +650,7 @@ const ContextMenu: React.FC = () => {
         return (
           <Menu
             key={name}
+            role="button"
             onClick={() => {
               setContext((draftCtx) => {
                 handleLink(draftCtx);
