@@ -11092,9 +11092,9 @@ export default {
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of
-    // those is noise, not a name. English placeholders outside en.ts: the keys
-    // are here so translators can fill them; ColorPicker falls back to the hex
-    // when a locale has no entry.
+    // those is noise, not a name. Composed from the palette's structure
+    // (greyscale row, pure-hue row, then three tints and three shades per
+    // hue); ColorPicker falls back to the hex for anything not listed.
     colorPalette: "Colour palette",
     colorNames: {
       "#000000": "Black",
