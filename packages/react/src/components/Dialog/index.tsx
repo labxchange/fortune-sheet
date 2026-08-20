@@ -84,8 +84,14 @@ const Dialog: React.FC<Props> = ({
       ref={dialogRef}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="fortune-sort-title"
-      aria-label="Dialog"
+      // No aria-labelledby: it pointed at #fortune-sort-title, which only
+      // exists inside CustomSort, so every other dialog carried a reference to
+      // a missing element. It was paired with a hardcoded, untranslated
+      // aria-label="Dialog" that added nothing over the role. role="dialog"
+      // plus aria-modal already has AT announce the role and read the
+      // contents, and the sort dialog's title is the first thing inside it.
+      // A `labelledBy` prop would be better still, but wants threading through
+      // showDialog — grouped with the dialog-semantics follow-up.
       tabIndex={-1}
     >
       <div className="fortune-modal-dialog-header">
@@ -111,6 +117,7 @@ const Dialog: React.FC<Props> = ({
               onClick={onOk}
               onKeyDown={activateOnEnterOrSpace}
               tabIndex={0}
+              role="button"
             >
               {button.confirm}
             </div>
@@ -121,6 +128,7 @@ const Dialog: React.FC<Props> = ({
                 onClick={onOk}
                 onKeyDown={activateOnEnterOrSpace}
                 tabIndex={0}
+                role="button"
               >
                 {button.confirm}
               </div>
@@ -129,6 +137,7 @@ const Dialog: React.FC<Props> = ({
                 onClick={onCancel}
                 onKeyDown={activateOnEnterOrSpace}
                 tabIndex={0}
+                role="button"
               >
                 {button.cancel}
               </div>

@@ -141,6 +141,12 @@ const SheetTab: React.FC = () => {
             className="fortune-sheettab-container-c"
             id="fortune-sheettab-container-c"
             ref={tabContainerRef}
+            // Completes the manual-activation tabs pattern the arrow-key
+            // navigation already implements: without tablist/tab/aria-selected
+            // a screen reader heard the tab text and nothing else — no "tab",
+            // no position, no selected state.
+            role="tablist"
+            aria-label={info.allSheets}
           >
             {_.sortBy(context.luckysheetfile, (s) => Number(s.order)).map(
               (sheet) => {

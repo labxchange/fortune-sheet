@@ -36,6 +36,7 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
   const [svgColor, setSvgColor] = useState<string>("#c3c3c3");
   const optionsRef = useRef<HTMLSpanElement>(null);
   const optionsMenuOpen = context.sheetTabContextMenu?.sheet?.id === sheet.id;
+  const isActiveSheet = context.currentSheetId === sheet.id;
   const { showAlert } = useAlert();
   const { info } = locale(context);
 
@@ -196,7 +197,14 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
 
   return (
     <div
-      role="button"
+      role="tab"
+      aria-selected={isActiveSheet}
+      // Roving tabindex: exactly one tab is in the tab order, so Tab enters the
+      // strip once instead of stepping through every sheet (20 sheets used to
+      // mean 20 Tab presses). Arrows move focus within it; Enter/Space commits.
+      // Keyed on selection rather than on focus — a simplification the APG
+      // would have follow focus, which useRovingFocus does not track.
+      tabIndex={isActiveSheet ? 0 : -1}
       onDragOver={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -232,7 +240,6 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
         setContext(switchToThisSheet);
       }}
       onKeyDown={activateOnEnterOrSpace}
-      tabIndex={0}
       onContextMenu={(e) => {
         if (isDropPlaceholder) return;
         const rect = refs.workbookContainer.current!.getBoundingClientRect();
@@ -280,7 +287,9 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
         // a second press appeared to do nothing. Enter/Space call the toggle
         // directly for the same reason.
         {...mouseDownToggleHandlers(toggleOptionsMenu)}
-        tabIndex={0}
+        // follows the tab's own roving tabindex, or the strip would still cost
+        // one Tab stop per sheet via the carets
+        tabIndex={isActiveSheet ? 0 : -1}
         role="button"
         aria-label={info.sheetOptions}
         aria-haspopup="menu"

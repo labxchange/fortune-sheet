@@ -1,4 +1,6 @@
-import React, { useRef } from "react";
+import React, { useContext, useRef } from "react";
+import { locale } from "@fortune-sheet/core";
+import WorkbookContext from "../../context";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 
@@ -91,15 +93,31 @@ type Props = {
 
 const ColorPicker: React.FC<Props> = ({ onPick }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { context } = useContext(WorkbookContext);
+  const { info } = locale(context);
+  // the locale objects infer exact literal keys, so a hex from `palette`
+  // can't index them without widening
+  const colorNames = info.colorNames as Record<string, string> | undefined;
   useRovingFocus({
     containerRef,
     orientation: "grid",
     columns: palette[0].length,
+    // the swatches are gridcells now, so the default [role="button"] selector
+    // would match nothing
+    itemSelector: '[role="gridcell"]',
   });
   return (
-    <div className="fortune-toolbar-color-picker" ref={containerRef}>
+    // grid/row/gridcell so the 2D model the arrow keys already implement is
+    // also the one the accessibility tree exposes — previously AT announced a
+    // flat run of 64 buttons with no row or column position.
+    <div
+      className="fortune-toolbar-color-picker"
+      ref={containerRef}
+      role="grid"
+      aria-label={info.colorPalette}
+    >
       {palette.map((rows, i) => (
-        <div key={i} className="fortune-toolbar-color-picker-row">
+        <div key={i} className="fortune-toolbar-color-picker-row" role="row">
           {rows.map((c) => (
             <div
               key={c}
@@ -107,8 +125,10 @@ const ColorPicker: React.FC<Props> = ({ onPick }) => {
               onClick={() => onPick(c)}
               onKeyDown={activateOnEnterOrSpace}
               tabIndex={0}
-              role="button"
-              aria-label={c}
+              role="gridcell"
+              // a bare hex is read out character by character; fall back to it
+              // only for locales that have not filled in the names yet
+              aria-label={colorNames?.[c] ?? c}
               style={{ backgroundColor: c }}
             />
           ))}

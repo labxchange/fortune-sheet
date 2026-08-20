@@ -227,7 +227,7 @@
 .fortune-sheettab-button:focus-visible {
   outline: var(--border_focus_outer, 3px) solid
     var(--color_border_focus_outer, #0063c3);
-    z-index: 2000;
+  z-index: 2000;
 }
 
 .luckysheet-noselected-text {

@@ -44,6 +44,37 @@ describe("Sheet tab keyboard accessibility", () => {
     expect(tab2.className).toContain("luckysheet-sheets-item-active");
   });
 
+  it("exposes the sheet strip as a tablist with a roving tabindex", () => {
+    const { getByText, getAllByRole, getByRole } = render(
+      <Workbook data={[{ name: "Sheet1" }, { name: "Sheet2" }]} />
+    );
+
+    // the arrow-key behaviour above is only half the manual-activation tabs
+    // pattern; without these a screen reader hears the tab text and nothing
+    // else — no "tab", no position, no selected state
+    expect(getByRole("tablist")).toBeTruthy();
+    const tabs = getAllByRole("tab");
+    expect(tabs).toHaveLength(2);
+
+    const tab1 = getByText("Sheet1").closest(".luckysheet-sheets-item")!;
+    const tab2 = getByText("Sheet2").closest(".luckysheet-sheets-item")!;
+
+    expect(tab1.getAttribute("aria-selected")).toBe("true");
+    expect(tab2.getAttribute("aria-selected")).toBe("false");
+    // exactly one tab stop for the whole strip, however many sheets there are
+    expect(tab1.getAttribute("tabindex")).toBe("0");
+    expect(tab2.getAttribute("tabindex")).toBe("-1");
+
+    fireEvent.keyDown(tab1 as HTMLElement, { key: "ArrowRight" });
+    fireEvent.keyDown(tab2 as HTMLElement, { key: "Enter" });
+
+    // aria-selected follows the active sheet, not merely focus
+    expect(tab1.getAttribute("aria-selected")).toBe("false");
+    expect(tab2.getAttribute("aria-selected")).toBe("true");
+    expect(tab1.getAttribute("tabindex")).toBe("-1");
+    expect(tab2.getAttribute("tabindex")).toBe("0");
+  });
+
   it("opens the sheet options menu via keyboard anchored to the trigger, not a stale mouse position", () => {
     const { getByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
     const sheetOptionsButton = getByRole("button", { name: "Sheet options" });

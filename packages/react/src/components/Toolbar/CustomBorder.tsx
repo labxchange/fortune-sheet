@@ -7,7 +7,10 @@ import { CustomColor } from "./CustomColor";
 import { useAdjacentSubmenuPosition } from "../../hooks/useAdjacentSubmenuPosition";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
-import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
+import {
+  activateOnEnterOrSpace,
+  onActivate,
+} from "../../utils/keyboardActivation";
 
 const size = [
   {
@@ -171,15 +174,10 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
           aria-haspopup="menu"
           aria-expanded={openSubmenu === "color"}
           aria-controls={colorMenuId}
-          onKeyDown={(e) => {
-            if (e.target !== e.currentTarget) return;
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              e.stopPropagation();
-              setOpenedBy("keyboard");
-              setOpenSubmenu("color");
-            }
-          }}
+          onKeyDown={onActivate(() => {
+            setOpenedBy("keyboard");
+            setOpenSubmenu("color");
+          })}
         >
           <div className="fortune-toolbar-menu-line">
             {border.borderColor}
@@ -231,15 +229,10 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
           aria-haspopup="menu"
           aria-expanded={openSubmenu === "style"}
           aria-controls={styleMenuId}
-          onKeyDown={(e) => {
-            if (e.target !== e.currentTarget) return;
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              e.stopPropagation();
-              setOpenedBy("keyboard");
-              setOpenSubmenu("style");
-            }
-          }}
+          onKeyDown={onActivate(() => {
+            setOpenedBy("keyboard");
+            setOpenSubmenu("style");
+          })}
         >
           <div className="fortune-toolbar-menu-line">
             {border.borderStyle}

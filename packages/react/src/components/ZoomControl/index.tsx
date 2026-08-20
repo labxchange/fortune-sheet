@@ -125,7 +125,10 @@ const ZoomControl: React.FC = () => {
           role="button"
           aria-haspopup
           aria-expanded={radioMenuOpen}
-          aria-label={`${(context.zoomRatio * 100).toFixed(0)}%`}
+          // no aria-label: it would only repeat the visible "100%" below, and
+          // an accessible name that duplicates the text content adds nothing.
+          // Naming it "Zoom level: 100%" would read better but needs a new
+          // locale string in all six files, which is a separate change.
         >
           {(context.zoomRatio * 100).toFixed(0)}%
         </div>

@@ -54,10 +54,23 @@ describe("Toolbar keyboard accessibility", () => {
 
     fireEvent.mouseDown(fontColorArrow);
     const grid = document.querySelector(".fortune-toolbar-color-picker")!;
-    const swatches = within(grid as HTMLElement).getAllByRole("button");
+    // the swatches are gridcells inside rows, so the arrow-key model the user
+    // is given matches what AT can perceive
+    expect(grid.getAttribute("role")).toBe("grid");
+    expect(within(grid as HTMLElement).getAllByRole("row")).toHaveLength(8);
+    const swatches = within(grid as HTMLElement).getAllByRole("gridcell");
+    expect(swatches).toHaveLength(64);
     (swatches[0] as HTMLElement).focus();
     fireEvent.keyDown(swatches[0], { key: "ArrowRight" });
     expect(document.activeElement).toBe(swatches[1]);
+
+    // named, rather than announcing "pound, e, zero, six, six, six, six"
+    expect(swatches[0].getAttribute("aria-label")).toBe("Black");
+    expect(
+      within(grid as HTMLElement)
+        .getAllByRole("gridcell")
+        .find((el) => el.getAttribute("aria-label") === "Light red 1")
+    ).toBeTruthy();
   });
 
   it("closes a Combo dropdown (Format) when its own trigger is clicked again", () => {

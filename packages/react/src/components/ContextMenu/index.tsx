@@ -24,6 +24,7 @@ import WorkbookContext, { SetContextOptions } from "../../context";
 import { useAlert } from "../../hooks/useAlert";
 import { useDialog } from "../../hooks/useDialog";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
+import { useRovingFocus } from "../../hooks/useRovingFocus";
 import Divider from "./Divider";
 import "./index.css";
 import Menu from "./Menu";
@@ -46,6 +47,11 @@ const ContextMenu: React.FC = () => {
     open: !_.isEmpty(contextMenu),
     onClose: closeContextMenu,
     containerRef,
+  });
+  useRovingFocus({
+    containerRef,
+    orientation: "vertical",
+    enabled: !_.isEmpty(contextMenu),
   });
   const getMenuElement = useCallback(
     (name: string, i: number) => {

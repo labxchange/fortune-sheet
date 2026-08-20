@@ -48,7 +48,10 @@ import { useAdjacentSubmenuPosition } from "../../hooks/useAdjacentSubmenuPositi
 import { useDialog } from "../../hooks/useDialog";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
-import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
+import {
+  activateOnEnterOrSpace,
+  onActivate,
+} from "../../utils/keyboardActivation";
 import { FormulaSearch } from "../FormulaSearch";
 import { SplitColumn } from "../SplitColumn";
 import { LocationCondition } from "../LocationCondition";
@@ -112,15 +115,10 @@ const MoreFormatOption: React.FC<{
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}
-        onKeyDown={(e) => {
-          if (e.target !== e.currentTarget) return;
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            e.stopPropagation();
-            setOpenedBy("keyboard");
-            setOpen(true);
-          }
-        }}
+        onKeyDown={onActivate(() => {
+          setOpenedBy("keyboard");
+          setOpen(true);
+        })}
       >
         <div className="fortune-toolbar-menu-line">
           <div>{text}</div>
