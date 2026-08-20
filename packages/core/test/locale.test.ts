@@ -1,6 +1,10 @@
 import { locale } from "../src/locale";
 import en from "../src/locale/en";
+import es from "../src/locale/es";
+import hi from "../src/locale/hi";
+import ru from "../src/locale/ru";
 import zh from "../src/locale/zh";
+import zh_tw from "../src/locale/zh_tw";
 import { Context } from "../src/context";
 
 // Every language the locale map resolves. "zh-TW" is included deliberately: it
@@ -66,5 +70,119 @@ describe("screen-reader locale coverage", () => {
 
   it("falls back to English for an unknown language", () => {
     expect(infoFor("kl").currentCellInput).toBe(en.info.currentCellInput);
+  });
+});
+
+/**
+ * Locale strings are load-bearing for accessible names now — a toolbar
+ * tooltip is also the control's aria-label — so a key English defines and a
+ * translation omits is an a11y gap, not just a cosmetic one. The English
+ * fallback in `locale()` keeps it from being a *broken* control (the string
+ * resolves, in English), which is why the keys below are recorded rather than
+ * treated as failures: they are untranslated, not missing at runtime.
+ *
+ * The point of the test is to stop *new* drift. Adding a key to `en` without
+ * adding it to the other five now fails the build instead of waiting to be
+ * noticed in review, which is how the last three rounds found one.
+ *
+ * Scoped to keys English has and a translation lacks. The reverse — es and
+ * zh_tw each carry ~170 key paths English no longer has — is stale leftovers
+ * that nothing reads, and asserting on them would mean deleting translated
+ * strings to satisfy a test.
+ */
+describe("locale key parity", () => {
+  const flattenKeys = (obj: unknown, prefix = ""): string[] =>
+    Object.entries(obj as Record<string, unknown>).flatMap(([key, value]) =>
+      // arrays are taken whole by the merge, so they are leaves here too
+      value && typeof value === "object" && !Array.isArray(value)
+        ? flattenKeys(value, `${prefix}${key}.`)
+        : [`${prefix}${key}`]
+    );
+
+  // Exact, not a floor: a key that gets translated has to come off this list,
+  // so the allow-list can't quietly outlive the gap it documents.
+  const UNTRANSLATED: Record<string, string[]> = {
+    es: [
+      "toolbar.clear-format",
+      "toolbar.format-painter",
+      "toolbar.currency-format",
+      "toolbar.percentage-format",
+      "toolbar.number-decrease",
+      "toolbar.number-increase",
+      "toolbar.border-all",
+      "toolbar.merge-all",
+      "toolbar.strike-through",
+      "toolbar.align-left",
+      "toolbar.align-center",
+      "toolbar.align-right",
+      "toolbar.align-top",
+      "toolbar.align-mid",
+      "toolbar.align-bottom",
+      "format.tipDecimalPlaces",
+      "format.select",
+      "format.format",
+      "format.currency",
+      "currencyDetail",
+      "border.borderDefault",
+      "border.borderStyle",
+      "splitText.splitSymbols",
+      "splitText.tipNoSelect",
+      "drag.affectPivot",
+    ],
+    hi: [],
+    ru: [],
+    zh: ["toolbar.paintFormat", "protection.enterHintTitle"],
+    zh_tw: [
+      "toolbar.clear-format",
+      "toolbar.format-painter",
+      "toolbar.currency-format",
+      "toolbar.percentage-format",
+      "toolbar.number-decrease",
+      "toolbar.number-increase",
+      "toolbar.border-all",
+      "toolbar.merge-all",
+      "toolbar.strike-through",
+      "toolbar.align-left",
+      "toolbar.align-center",
+      "toolbar.align-right",
+      "toolbar.align-top",
+      "toolbar.align-mid",
+      "toolbar.align-bottom",
+      "format.tipDecimalPlaces",
+      "format.select",
+      "format.format",
+      "format.currency",
+      "currencyDetail",
+      "border.borderDefault",
+      "border.borderStyle",
+      "protection.enterHintTitle",
+    ],
+  };
+
+  // Keyed by file name rather than by the locale map's key, since the gap is
+  // in the translation file itself — "zh-TW" resolves through the fallback.
+  const FILES: Record<string, unknown> = { es, hi, ru, zh, zh_tw };
+
+  it.each(Object.keys(UNTRANSLATED))(
+    "%s defines every key English does, bar the recorded backlog",
+    (lang) => {
+      const translated = new Set(flattenKeys(FILES[lang]));
+      const missing = flattenKeys(en).filter((key) => !translated.has(key));
+      expect(missing.sort()).toEqual([...UNTRANSLATED[lang]].sort());
+    }
+  );
+
+  it("resolves an untranslated key to the English string rather than undefined", () => {
+    // What makes the backlog above tolerable. sortAndFilter is the tooltip and
+    // accessible name of the filter combo, and was itself missing from es and
+    // zh_tw until this was checked.
+    const untranslated = UNTRANSLATED.es[0].split(".");
+    const resolved = locale({ lang: "es" } as unknown as Context) as any;
+    expect(resolved[untranslated[0]][untranslated[1]]).toBe(
+      (en as any)[untranslated[0]][untranslated[1]]
+    );
+    expect(
+      locale({ lang: "es" } as unknown as Context).toolbar.sortAndFilter
+    ).toBe("Ordenar y filtrar");
   });
 });

@@ -1,7 +1,7 @@
 import React from "react";
 import SVGIcon from "../SVGIcon";
 import {
-  isActivationKey,
+  mouseDownToggleHandlers,
   onActivationKeyDown,
 } from "../../utils/keyboardActivation";
 
@@ -35,37 +35,18 @@ const Button: React.FC<Props> = ({
   // const style: CSSProperties = { userSelect: "none" };
   // Every activation path honours `disabled` identically, so that the
   // aria-disabled announced below is the truth for mouse, keyboard and screen
-  // reader alike. In onMouseDown mode, click only swallows the event (the
-  // action lives on mousedown), so it stays attached either way.
-  let handleClick = onClick;
-  if (onMouseDown) {
-    handleClick = (e) => e.stopPropagation();
-  } else if (disabled) {
-    handleClick = undefined;
-  }
+  // reader alike. In onMouseDown mode all three handlers come from the shared
+  // helper, which owns that consistency (and the target === currentTarget
+  // guard) rather than each trigger re-deriving it.
+  const toggleHandlers = onMouseDown
+    ? mouseDownToggleHandlers<HTMLDivElement>(onMouseDown, disabled)
+    : undefined;
   return (
     <div
       className="fortune-toolbar-button fortune-toolbar-item"
-      onMouseDown={
-        onMouseDown && !disabled
-          ? (e) => {
-              e.stopPropagation();
-              onMouseDown();
-            }
-          : undefined
-      }
-      onClick={handleClick}
-      onKeyDown={
-        onMouseDown
-          ? (e) => {
-              if (!isActivationKey(e.key)) return;
-              e.preventDefault();
-              e.stopPropagation();
-              if (disabled || e.repeat) return;
-              onMouseDown();
-            }
-          : onActivationKeyDown(disabled)
-      }
+      onMouseDown={toggleHandlers?.onMouseDown}
+      onClick={toggleHandlers?.onClick ?? (disabled ? undefined : onClick)}
+      onKeyDown={toggleHandlers?.onKeyDown ?? onActivationKeyDown(disabled)}
       tabIndex={0}
       data-tips={tooltip}
       role="button"

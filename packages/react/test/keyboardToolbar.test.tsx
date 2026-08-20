@@ -60,9 +60,20 @@ describe("Toolbar keyboard accessibility", () => {
     expect(within(grid as HTMLElement).getAllByRole("row")).toHaveLength(8);
     const swatches = within(grid as HTMLElement).getAllByRole("gridcell");
     expect(swatches).toHaveLength(64);
+
+    // A grid costs one tab stop, with arrows moving inside it. All 64 being
+    // tabbable would contradict the role announced above — Tab would step
+    // swatch by swatch through the whole palette.
+    const tabbable = () =>
+      swatches.filter((el) => el.getAttribute("tabindex") === "0");
+    expect(tabbable()).toEqual([swatches[0]]);
+
     (swatches[0] as HTMLElement).focus();
     fireEvent.keyDown(swatches[0], { key: "ArrowRight" });
     expect(document.activeElement).toBe(swatches[1]);
+    // the tab stop follows focus, so Tab-away-and-back returns to where the
+    // user was rather than resetting to the first swatch
+    expect(tabbable()).toEqual([swatches[1]]);
 
     // named, rather than announcing "pound, e, zero, six, six, six, six"
     expect(swatches[0].getAttribute("aria-label")).toBe("Black");

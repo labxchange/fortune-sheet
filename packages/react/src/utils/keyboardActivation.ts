@@ -89,20 +89,35 @@ export function onActivationKeyDown<T extends HTMLElement = HTMLElement>(
  * click becomes a no-op (stopPropagation only); Enter/Space runs the
  * toggle directly rather than forwarding to .click(), since click no
  * longer does the toggling.
+ *
+ * Takes `disabled` so an aria-disabled trigger can use this rather than
+ * hand-rolling the keydown preamble and losing shouldActivate's
+ * target === currentTarget guard.
  */
 export function mouseDownToggleHandlers<T extends HTMLElement = HTMLElement>(
-  onToggle: () => void
+  onToggle: () => void,
+  disabled?: boolean
 ): {
   onMouseDown: (e: React.MouseEvent<T>) => void;
   onClick: (e: React.MouseEvent<T>) => void;
   onKeyDown: (e: React.KeyboardEvent<T>) => void;
 } {
   return {
+    // Bails before stopPropagation, not after: a disabled trigger must stay
+    // out of the way entirely, including letting the mousedown through to
+    // whatever outside-click listener is waiting to close another popup.
     onMouseDown: (e) => {
+      if (disabled) return;
       e.stopPropagation();
       onToggle();
     },
     onClick: (e) => e.stopPropagation(),
-    onKeyDown: onActivate<T>(onToggle),
+    // Unlike mousedown, the key is consumed even when disabled — see
+    // onActivationKeyDown above: an unstopped Enter reaches
+    // handleGlobalEnter and moves the selection, so a disabled button
+    // would do more than an enabled one.
+    onKeyDown: onActivate<T>(() => {
+      if (!disabled) onToggle();
+    }),
   };
 }

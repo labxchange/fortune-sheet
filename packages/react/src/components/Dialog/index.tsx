@@ -91,7 +91,10 @@ const Dialog: React.FC<Props> = ({
       // plus aria-modal already has AT announce the role and read the
       // contents, and the sort dialog's title is the first thing inside it.
       // A `labelledBy` prop would be better still, but wants threading through
-      // showDialog — grouped with the dialog-semantics follow-up.
+      // showDialog. Tracked, not just deferred:
+      // https://app.asana.com/1/1201629421181554/project/1210962482862973/task/1217671504196361
+      // Note while it is open: a role="dialog" with no name at all trips axe's
+      // aria-dialog-name rule, which the useless "Dialog" name used to satisfy.
       tabIndex={-1}
     >
       <div className="fortune-modal-dialog-header">

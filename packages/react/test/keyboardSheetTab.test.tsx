@@ -59,6 +59,19 @@ describe("Sheet tab keyboard accessibility", () => {
     const tab1 = getByText("Sheet1").closest(".luckysheet-sheets-item")!;
     const tab2 = getByText("Sheet2").closest(".luckysheet-sheets-item")!;
 
+    // Named explicitly, because a tab computes its name from its contents and
+    // would otherwise pick up the options caret's "Sheet options" label —
+    // every tab announcing "Sheet1 Sheet options". Asserted on the attribute
+    // rather than via getAllByRole({ name }), which can't see the difference:
+    // dom-accessibility-api omits the nested label here where Chrome includes
+    // it, so a name query passes either way.
+    expect(tab1.getAttribute("aria-label")).toBe("Sheet1");
+    expect(tab2.getAttribute("aria-label")).toBe("Sheet2");
+    // and the caret is still its own control inside the tab
+    expect(
+      within(tab1 as HTMLElement).getByRole("button", { name: "Sheet options" })
+    ).toBeTruthy();
+
     expect(tab1.getAttribute("aria-selected")).toBe("true");
     expect(tab2.getAttribute("aria-selected")).toBe("false");
     // exactly one tab stop for the whole strip, however many sheets there are

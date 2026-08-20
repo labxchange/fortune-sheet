@@ -10950,6 +10950,7 @@ export default {
     insertImage: "Insertar imagen",
     insertLink: "Insertar enlace",
     link: "Insertar enlace",
+    sortAndFilter: "Ordenar y filtrar",
     dataVerification: "Verificación de datos",
     protection: "Proteger la hoja",
 

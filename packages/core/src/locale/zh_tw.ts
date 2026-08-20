@@ -10935,6 +10935,7 @@ export default {
     insertImage: "插入圖片",
     insertLink: "插入連結",
     link: "插入連結",
+    sortAndFilter: "排序和篩選",
     dataVerification: "數據驗證",
     protection: "保護工作表內容",
     clearText: "清除顏色選擇",

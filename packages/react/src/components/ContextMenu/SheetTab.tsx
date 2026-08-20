@@ -14,6 +14,7 @@ import { useAlert } from "../../hooks/useAlert";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
+import { onActivate } from "../../utils/keyboardActivation";
 import { ChangeColor } from "../ChangeColor";
 import SVGIcon from "../SVGIcon";
 import Divider from "./Divider";
@@ -273,14 +274,10 @@ const SheetTabContextMenu: React.FC = () => {
                   setChangeColorOpenedBy("pointer");
                   setIsShowChangeColor(true);
                 }}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter" && e.key !== " ") return;
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (e.repeat) return;
+                onKeyDown={onActivate(() => {
                   setChangeColorOpenedBy("keyboard");
                   setIsShowChangeColor(true);
-                }}
+                })}
               >
                 {sheetconfig.changeColor}
                 <span className="change-color-triangle">

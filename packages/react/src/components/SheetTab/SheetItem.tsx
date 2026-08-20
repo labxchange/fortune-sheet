@@ -198,6 +198,12 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
   return (
     <div
       role="tab"
+      // Named explicitly: a tab computes its name from its contents, which
+      // would otherwise absorb the options caret's "Sheet options" label —
+      // every tab announced as "Sheet1 Sheet options". Matches the visible
+      // text exactly, so there is no label-in-name concern, and the caret
+      // stays exposed as its own button.
+      aria-label={sheet.name}
       aria-selected={isActiveSheet}
       // Roving tabindex: exactly one tab is in the tab order, so Tab enters the
       // strip once instead of stepping through every sheet (20 sheets used to
