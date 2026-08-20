@@ -14098,6 +14098,11 @@ export default {
     filterValueByAllBtn: "Выбрать все",
     filterValueByClearBtn: "Очистить",
     filterValueByInverseBtn: "Инвертировать",
+    filterValueByAllAnnouncement: "All filter options selected.",
+    filterValueByClearAnnouncement: "All filter options cleared.",
+    filterValueByInverseAnnouncement: "Filter selections inverted.",
+    filterValueBySelectedCountAnnouncement:
+      "${selected} of ${total} options now selected.",
     filterValueByTip: "Фильтр по значениям",
     filterConform: "Подтвердить",
     filterCancel: "Отменить",

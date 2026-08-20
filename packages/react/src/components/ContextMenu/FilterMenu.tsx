@@ -5,6 +5,7 @@ import {
   getFilterColumnColors,
   orderbydatafiler,
   saveFilter,
+  replaceHtml,
   FilterValue,
   FilterDate,
   FilterColor,
@@ -29,6 +30,20 @@ import { useAlert } from "../../hooks/useAlert";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
+
+type BulkActionName = "selectAll" | "clearAll" | "inverse";
+
+// Every bulk action is one set transform over "unchecked" keys. The same
+// transform is applied to unchecked dates, unchecked values and hidden rows,
+// so an action cannot update one of those domains and forget another.
+const BULK_ACTION_TRANSFORMS: Record<
+  BulkActionName,
+  <T>(current: T[], universe: T[]) => T[]
+> = {
+  selectAll: () => [],
+  clearAll: (_current, universe) => universe,
+  inverse: (current, universe) => _.xor(current, universe),
+};
 
 const SelectItem: React.FC<{
   item: FilterValue;
@@ -222,6 +237,15 @@ const FilterMenu: React.FC = () => {
     fcColors: FilterColor[];
   }>({ bgColors: [], fcColors: [] });
   const [showSubMenu, setShowSubMenu] = useState(false);
+  // Announcement text plus the region it currently occupies. Alternating the
+  // region is what makes a repeated action audible: the message text may be
+  // identical, but "" -> text in the receiving region is always a real
+  // insertion, and removals are not announced.
+  const [announcement, setAnnouncement] = useState<{
+    text: string;
+    slot: number;
+    col: number | null;
+  }>({ text: "", slot: 0, col: null });
   const { showAlert } = useAlert();
   const mouseHoverSubMenu = useRef<boolean>(false);
   contextRef.current = context;
@@ -271,25 +295,62 @@ const FilterMenu: React.FC = () => {
     [data.flattenValues]
   );
 
-  const selectAll = useCallback(() => {
-    setDatesUncheck([]);
-    setValuesUncheck([]);
-    hiddenRows.current = [];
-  }, []);
+  const bulkActionMessage = useCallback(
+    (action: BulkActionName, selected: number, total: number) => {
+      if (action === "selectAll") return filter.filterValueByAllAnnouncement;
+      if (action === "clearAll") return filter.filterValueByClearAnnouncement;
+      const inverted = filter.filterValueByInverseAnnouncement;
+      // Nothing to count when the column has no options at all.
+      if (total === 0) return inverted;
+      const count = replaceHtml(filter.filterValueBySelectedCountAnnouncement, {
+        selected,
+        total,
+      });
+      return `${inverted} ${count}`;
+    },
+    [filter]
+  );
 
-  const clearAll = useCallback(() => {
-    setDatesUncheck(_.keys(data.dateRowMap));
-    setValuesUncheck(_.keys(data.valueRowMap));
-    hiddenRows.current = data.visibleRows;
-  }, [data.dateRowMap, data.valueRowMap, data.visibleRows]);
+  const applyBulkAction = useCallback(
+    (action: BulkActionName) => {
+      const transform = BULK_ACTION_TRANSFORMS[action];
+      const dateKeys = _.keys(data.dateRowMap);
+      const valueKeys = _.keys(data.valueRowMap);
 
-  const inverseSelect = useCallback(() => {
-    setDatesUncheck(produce((draft) => _.xor(draft, _.keys(data.dateRowMap))));
-    setValuesUncheck(
-      produce((draft) => _.xor(draft, _.keys(data.valueRowMap)))
-    );
-    hiddenRows.current = _.xor(hiddenRows.current, data.visibleRows);
-  }, [data.dateRowMap, data.valueRowMap, data.visibleRows]);
+      // Computed up front so the announcement describes the state this action
+      // produces; reading the state variables back would yield the previous
+      // render's values.
+      const nextDatesUncheck = transform(datesUncheck, dateKeys);
+      const nextValuesUncheck = transform(valuesUncheck, valueKeys);
+      hiddenRows.current = transform(hiddenRows.current, data.visibleRows);
+
+      setDatesUncheck(nextDatesUncheck);
+      setValuesUncheck(nextValuesUncheck);
+
+      // Counts selectable options, not rendered rows. dateRowMap is keyed by
+      // day, so the year and month rows of the date tree are excluded: they are
+      // group nodes whose state is derived from their days, not options a user
+      // can independently select.
+      const total = dateKeys.length + valueKeys.length;
+      const unchecked = nextDatesUncheck.length + nextValuesUncheck.length;
+      const selected = Math.min(Math.max(total - unchecked, 0), total);
+
+      setAnnouncement((prev) => ({
+        text: bulkActionMessage(action, selected, total),
+        slot: prev.slot === 0 ? 1 : 0,
+        col,
+      }));
+    },
+    [
+      bulkActionMessage,
+      col,
+      data.dateRowMap,
+      data.valueRowMap,
+      data.visibleRows,
+      datesUncheck,
+      valuesUncheck,
+    ]
+  );
 
   const onColorSelectChange = useCallback(
     (key: string, color: string, checked: boolean) => {
@@ -493,6 +554,24 @@ const FilterMenu: React.FC = () => {
 
   return (
     <>
+      {/* Two alternating live regions rather than one. A repeated bulk action
+          can produce identical text (inverting an even split, or re-applying
+          Check all after a manual change), and identical text in a single
+          region is not a DOM change, so it is never announced. Alternating
+          makes the receiving region go "" -> text, a real insertion; the other
+          goes text -> "", which is not announced.
+
+
+          Kept outside the collapsible "filter by values" container, which is
+          display:none when collapsed and would remove them from the
+          accessibility tree. */}
+      {[0, 1].map((slot) => (
+        <div key={slot} className="sr-only" role="status">
+          {announcement.slot === slot && announcement.col === col
+            ? announcement.text
+            : ""}
+        </div>
+      ))}
       <div
         className="fortune-context-menu luckysheet-cols-menu fortune-filter-menu"
         id="luckysheet-\${menuid}-menu"
@@ -629,7 +708,7 @@ const FilterMenu: React.FC = () => {
                       <button
                         type="button"
                         className="fortune-byvalue-btn"
-                        onClick={selectAll}
+                        onClick={() => applyBulkAction("selectAll")}
                       >
                         {filter.filterValueByAllBtn}
                       </button>
@@ -637,7 +716,7 @@ const FilterMenu: React.FC = () => {
                       <button
                         type="button"
                         className="fortune-byvalue-btn"
-                        onClick={clearAll}
+                        onClick={() => applyBulkAction("clearAll")}
                       >
                         {filter.filterValueByClearBtn}
                       </button>
@@ -645,7 +724,7 @@ const FilterMenu: React.FC = () => {
                       <button
                         type="button"
                         className="fortune-byvalue-btn"
-                        onClick={inverseSelect}
+                        onClick={() => applyBulkAction("inverse")}
                       >
                         {filter.filterValueByInverseBtn}
                       </button>

@@ -11540,6 +11540,11 @@ export default {
     filterValueByAllBtn: "सभी को चुनें",
     filterValueByClearBtn: "साफ़ करें",
     filterValueByInverseBtn: "विपरीत",
+    filterValueByAllAnnouncement: "All filter options selected.",
+    filterValueByClearAnnouncement: "All filter options cleared.",
+    filterValueByInverseAnnouncement: "Filter selections inverted.",
+    filterValueBySelectedCountAnnouncement:
+      "${selected} of ${total} options now selected.",
     filterValueByTip: "मान के आधार पर फ़िल्टर करें",
     filterConform: "पुष्टि करें",
     filterCancel: "रद्द करें",
