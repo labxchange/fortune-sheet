@@ -12948,18 +12948,22 @@ export default {
     tipRowHeightLimit: "Высота строки должна быть от 0 до 545",
     tipColumnWidthLimit: "Ширина столбца должна быть от 0 до 2038",
     pageInfoFull: "Всего ${total}, ${totalPage} страниц, все данные отображены",
-    sheetIsFocused: "Фокус листа включен.",
-    sheetNotFocused: "Фокус листа отключен.",
     sheetSrIntro:
-      "Для переключения фокуса листа для помощи с навигацией по панели инструментов и другим элементам вне листа используйте Shift, Control, F.",
+      "Используйте клавиши со стрелками для перемещения между ячейками.",
+    cellHasFilterDropdown: "Есть раскрывающийся список фильтра.",
+    cellFilterActive: "Фильтр активен.",
+    enteredFilteredRegion:
+      "Вход в отфильтрованную область: с ${start} по ${end}.",
+    leftFilteredRegion: "Выход из отфильтрованной области.",
     currentCellInput: "Ввод текущей ячейки",
     newSheet: "Новый лист",
     sheetOptions: "Параметры листа",
     allSheets: "Все листы",
-    selectAll: "Выбрать все ячейки",
     scrollLeft: "Прокрутить вкладки влево",
     scrollRight: "Прокрутить вкладки вправо",
     Dropdown: "Выпадающий список",
+    selectAllCells: "Выделить все ячейки",
+    columnOptions: "Параметры столбца",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of
@@ -13035,8 +13039,6 @@ export default {
     },
     zoomIn: "Увеличить",
     zoomOut: "Уменьшить",
-    toggleSheetFocusShortcut:
-      "Переключение блокировки фокуса листа: Shift, Control, F.",
     selectRangeShortcut: "Выбор диапазона: Shift, клавиши со стрелками.",
     autoFillDownShortcut:
       "Автозаполнение вниз из первой ячейки: Control или Meta, D.",

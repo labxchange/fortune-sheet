@@ -12,6 +12,7 @@ import {
   handleColFreezeHandleMouseDown,
   getSheetIndex,
   fixPositionOnFrozenCells,
+  locale,
 } from "@fortune-sheet/core";
 import _ from "lodash";
 import React, {
@@ -27,6 +28,7 @@ import SVGIcon from "../SVGIcon";
 
 const ColumnHeader: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
+  const { info } = locale(context);
   const containerRef = useRef<HTMLDivElement>(null);
   const colChangeSizeRef = useRef<HTMLDivElement>(null);
   const [hoverLocation, setHoverLocation] = useState({
@@ -121,6 +123,22 @@ const ColumnHeader: React.FC = () => {
     }
     setHoverLocation({ col: -1, col_pre: -1, col_index: -1 });
   }, [context.luckysheet_cols_change_size]);
+
+  // Opening the column-header menu is shared by the caret's click and key
+  // handlers: only the horizontal anchor differs between a pointer position and
+  // the caret's own box.
+  const openHeaderMenu = useCallback(
+    (x: number) => {
+      setContext((ctx) => {
+        ctx.contextMenu = {
+          x,
+          y: 90,
+          headerMenu: true,
+        };
+      });
+    },
+    [setContext]
+  );
 
   const onColSizeHandleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
@@ -255,14 +273,28 @@ const ColumnHeader: React.FC = () => {
             <span
               className="header-arrow"
               onClick={(e) => {
-                setContext((ctx) => {
-                  ctx.contextMenu = {
-                    x: e.pageX,
-                    y: 90,
-                    headerMenu: true,
-                  };
-                });
+                openHeaderMenu(e.pageX);
               }}
+              onKeyDown={(e) => {
+                // A focusable control has to be operable by keyboard (WCAG
+                // 2.1.1). Enter and Space never reach the grid's own handler now
+                // that grid keys are scoped to the grid, so the menu is opened
+                // here, anchored to the caret instead of to a pointer position.
+                if (
+                  e.key !== "Enter" &&
+                  e.key !== " " &&
+                  e.key !== "Spacebar"
+                ) {
+                  return;
+                }
+                if (e.repeat) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const rect = e.currentTarget.getBoundingClientRect();
+                openHeaderMenu(rect.left + window.scrollX);
+              }}
+              role="button"
+              aria-label={info.columnOptions}
               tabIndex={0}
             >
               <SVGIcon name="headDownArrow" width={12} />

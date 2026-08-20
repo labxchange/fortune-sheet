@@ -11075,18 +11075,20 @@ export default {
     tipColumnWidthLimit: "The column width must be between 0 ~ 2038",
     pageInfoFull: "Total ${total}，${totalPage} page，All data displayed",
 
-    sheetIsFocused: "Sheet focus lock enabled.",
-    sheetNotFocused: "Sheet focus lock disabled.",
-    sheetSrIntro:
-      "To toggle sheet focus to assist with toolbar and other non-sheet navigation, use Shift, Control, F.",
+    sheetSrIntro: "Use the arrow keys to move between cells.",
+    cellHasFilterDropdown: "Has filter dropdown.",
+    cellFilterActive: "Filter active.",
+    enteredFilteredRegion: "Entered filtered region: ${start} through ${end}.",
+    leftFilteredRegion: "Left filtered region.",
     currentCellInput: "Current cell input",
     newSheet: "New sheet",
     sheetOptions: "Sheet options",
     allSheets: "All sheets",
-    selectAll: "Select all cells",
     scrollLeft: "Scroll tabs left",
     scrollRight: "Scroll tabs right",
     Dropdown: "Dropdown",
+    selectAllCells: "Select all cells",
+    columnOptions: "Column options",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of
@@ -11162,7 +11164,6 @@ export default {
     },
     zoomIn: "Zoom in",
     zoomOut: "Zoom out",
-    toggleSheetFocusShortcut: "Toggle sheet focus lock: Shift, Control, F.",
     selectRangeShortcut: "Select range: Shift, arrow keys.",
     autoFillDownShortcut:
       "Auto-fill selection down from first cell: Control or Meta key, D.",

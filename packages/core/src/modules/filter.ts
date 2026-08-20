@@ -2,7 +2,12 @@ import _ from "lodash";
 import { locale } from "../locale";
 import { Context, getFlowdata } from "../context";
 import { Cell, CellMatrix } from "../types";
-import { getSheetIndex, isAllowEdit, rgbToHex } from "../utils";
+import {
+  getSheetIndex,
+  indexToColumnChar,
+  isAllowEdit,
+  rgbToHex,
+} from "../utils";
 import { update } from "./format";
 import { normalizeSelection } from "./selection";
 import { isRealNull } from "./validation";
@@ -181,6 +186,140 @@ export function createFilterOptions(
     file.filter_select = luckysheet_filter_save;
   }
   ctx.filterOptions = options;
+}
+
+/**
+ * Whether the given (absolute) column index currently has a filter criterion
+ * applied to it. `ctx.filter` is keyed relative to the filter range's start
+ * column, and only holds an entry while a criterion is active on that column,
+ * so a column inside the filter range with no criterion returns false.
+ */
+export function isColumnFilterActive(ctx: Context, columnIndex: number) {
+  const { filterOptions } = ctx;
+  if (filterOptions == null) return false;
+  if (
+    columnIndex < filterOptions.startCol ||
+    columnIndex > filterOptions.endCol
+  )
+    return false;
+  return ctx.filter?.[columnIndex - filterOptions.startCol] != null;
+}
+
+/**
+ * Whether the cell falls inside the block the filter spans, regardless of
+ * whether its own column has a criterion applied. Used to announce crossing
+ * into or out of the filtered region.
+ */
+export function isInFilterRegion(
+  ctx: Context,
+  rowIndex: number,
+  columnIndex: number
+) {
+  const { filterOptions } = ctx;
+  if (filterOptions == null) return false;
+  return (
+    rowIndex >= filterOptions.startRow &&
+    rowIndex <= filterOptions.endRow &&
+    columnIndex >= filterOptions.startCol &&
+    columnIndex <= filterOptions.endCol
+  );
+}
+
+/**
+ * First and last cell of the given column that a user can actually reach within
+ * the filter range, as A1-style references — the extent announced when the
+ * region is entered, so a user knows how far the surviving filtered data in
+ * that column runs.
+ *
+ * The extent covers the *data* rows only. `startRow` is the header row that
+ * carries the dropdown and is never hidden by a criterion — every consumer of
+ * the range skips it (`getFilterColumnValues` and `orderbydatafiler` both start
+ * at `startRow + 1`) — so naming it would overstate where the filtered data
+ * begins.
+ *
+ * Rows an applied criterion has hidden are excluded, because the point of the
+ * announcement is to convey how much data survived the filter: bounds taken
+ * straight from the range would read identically whether the filter hides
+ * nothing or nearly everything. `ctx.config.rowhidden` is where the hiding is
+ * recorded, keyed by row index with presence meaning hidden.
+ *
+ * Returns null for a column outside the range, and for a range whose data rows
+ * are all hidden or absent — neither has an extent to announce.
+ */
+export function getFilterColumnExtent(ctx: Context, columnIndex: number) {
+  const { filterOptions } = ctx;
+  if (filterOptions == null) return null;
+  if (
+    columnIndex < filterOptions.startCol ||
+    columnIndex > filterOptions.endCol
+  )
+    return null;
+  const rowhidden = ctx.config?.rowhidden || {};
+  let firstVisible: number | null = null;
+  let lastVisible: number | null = null;
+  for (let r = filterOptions.startRow + 1; r <= filterOptions.endRow; r += 1) {
+    if (!(r in rowhidden)) {
+      if (firstVisible == null) firstVisible = r;
+      lastVisible = r;
+    }
+  }
+  if (firstVisible == null || lastVisible == null) return null;
+  const columnChar = indexToColumnChar(columnIndex);
+  // 1-based references.
+  return {
+    start: `${columnChar}${firstVisible + 1}`,
+    end: `${columnChar}${lastVisible + 1}`,
+  };
+}
+
+/**
+ * Whether `ctx.filterOptions` and `ctx.filter` describe the *current* sheet.
+ *
+ * Both are sheet-agnostic mirrors of the active sheet's `filter_select` and
+ * `filter`, rebuilt by an effect in `FilterOption` one commit *after* the sheet
+ * changes — so on the first render following a sheet switch they still hold the
+ * previous sheet's range and criteria. Callers that combine them with the new
+ * sheet's selection use this to ignore that stale window rather than report a
+ * filter the current sheet does not have.
+ */
+export function isFilterStateCurrent(ctx: Context) {
+  const sheetIndex = getSheetIndex(ctx, ctx.currentSheetId);
+  if (sheetIndex == null) return false;
+  const sheet = ctx.luckysheetfile[sheetIndex];
+  const filterSelect = sheet?.filter_select;
+  const { filterOptions } = ctx;
+  if (filterSelect == null || _.size(filterSelect) === 0)
+    return filterOptions == null;
+  if (filterOptions == null) return false;
+  return (
+    filterOptions.startRow === filterSelect.row[0] &&
+    filterOptions.endRow === filterSelect.row[1] &&
+    filterOptions.startCol === filterSelect.column[0] &&
+    filterOptions.endCol === filterSelect.column[1] &&
+    // Two sheets can share an identical range while holding different
+    // criteria, which the bounds alone cannot distinguish.
+    _.isEqual(ctx.filter ?? {}, sheet.filter ?? {})
+  );
+}
+
+/**
+ * Whether the cell carries a filter dropdown control. `createFilterOptions`
+ * pushes one item per column at the top row of the range, so every column in
+ * the range has a dropdown on its header cell whether or not a criterion is
+ * currently applied to it.
+ */
+export function isFilterDropdownCell(
+  ctx: Context,
+  rowIndex: number,
+  columnIndex: number
+) {
+  const { filterOptions } = ctx;
+  if (filterOptions == null) return false;
+  return (
+    rowIndex === filterOptions.startRow &&
+    columnIndex >= filterOptions.startCol &&
+    columnIndex <= filterOptions.endCol
+  );
 }
 
 export function clearFilter(ctx: Context) {

@@ -1,7 +1,10 @@
 import React from "react";
 
 export function isActivationKey(key: string): boolean {
-  return key === "Enter" || key === " ";
+  // "Spacebar" is the legacy name older engines report for the space key; the
+  // select-all corner handled it in its own inline handler, so it lives here
+  // now rather than being lost when that moved to the shared helper.
+  return key === "Enter" || key === " " || key === "Spacebar";
 }
 
 /**

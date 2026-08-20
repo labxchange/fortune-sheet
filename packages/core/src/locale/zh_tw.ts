@@ -11019,18 +11019,20 @@ export default {
     tipColumnWidthLimit: "列寬必須在0 ~ 2038之間",
     pageInfoFull: "共${total}條,${totalPage}頁,已顯示全部數據",
 
-    sheetIsFocused: "已啟用工作表焦點鎖定。",
-    sheetNotFocused: "工作表焦點鎖定已停用。",
-    sheetSrIntro:
-      "若要切換工作表焦點以輔助工具列和其他非工作表導航，請使用 Shift、Control、F。",
+    sheetSrIntro: "使用方向鍵在儲存格之間移動。",
+    cellHasFilterDropdown: "有篩選下拉選單。",
+    cellFilterActive: "篩選器已啟用。",
+    enteredFilteredRegion: "已進入篩選區域：${start} 至 ${end}。",
+    leftFilteredRegion: "已離開篩選區域。",
     currentCellInput: "目前儲存格輸入",
     newSheet: "新表",
     sheetOptions: "圖紙選項",
     allSheets: "所有工作表",
-    selectAll: "選取所有儲存格",
     scrollLeft: "向左捲動標籤",
     scrollRight: "向右捲動標籤",
     Dropdown: "下拉式選單",
+    selectAllCells: "選擇所有儲存格",
+    columnOptions: "欄選項",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of
@@ -11106,7 +11108,6 @@ export default {
     },
     zoomIn: "放大",
     zoomOut: "縮小",
-    toggleSheetFocusShortcut: "切換工作表焦點鎖定: Shift, Control, F。",
     selectRangeShortcut: "選擇範圍: Shift, 方向鍵。",
     autoFillDownShortcut: "從第一個儲存格向下自動填充: Control 或 Meta 鍵, D。",
     autoFillRightShortcut:

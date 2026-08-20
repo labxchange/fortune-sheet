@@ -5,7 +5,6 @@ import React, {
   useEffect,
   useLayoutEffect,
   useMemo,
-  useState,
 } from "react";
 import "./index.css";
 import {
@@ -33,7 +32,9 @@ import {
   fixRowStyleOverflowInFreeze,
   fixColumnStyleOverflowInFreeze,
   handleKeydownForZoom,
+  formatRefForSr,
   api,
+  GRID_ROOT_CLASS,
 } from "@fortune-sheet/core";
 import _ from "lodash";
 import WorkbookContext, { SetContextOptions } from "../../context";
@@ -49,6 +50,7 @@ import ImgBoxs from "../ImgBoxs";
 import NotationBoxes from "../NotationBoxes";
 import RangeDialog from "../DataVerification/RangeDialog";
 import { useDialog } from "../../hooks/useDialog";
+import { useFilterAnnouncements } from "../../hooks/useFilterAnnouncements";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
@@ -60,8 +62,6 @@ const SheetOverlay: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomAddRowInputRef = useRef<HTMLInputElement>(null);
   const dataVerificationHintBoxRef = useRef<HTMLDivElement>(null);
-  const [lastRangeText, setLastRangeText] = useState("");
-  const [lastCellValue, setLastCellValue] = useState("");
   const { showAlert } = useAlert();
   // const isMobile = browser.mobilecheck();
   const cellAreaMouseDown = useCallback(
@@ -441,12 +441,13 @@ const SheetOverlay: React.FC = () => {
       context.currentSheetId,
       lastSelection
     );
-    // Return with formatting for better screen reading
-    // Format single-cell selections (e.g., "AA12" → "AA. 12")
-    // Format range selections (e.g., "A1:BB100" → "A. 1: BB. 100")
-    return rawRangeTxt.replace(/([A-Z]+)(\d+)/g, "$1. $2");
+    // Spaced for screen reading: "AA12" -> "AA. 12", "A1:BB100" -> "A. 1: BB. 100".
+    return formatRefForSr(rawRangeTxt);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context.currentSheetId, context.luckysheet_select_save]);
+
+  const { cellAnnouncement: filterCellAnnouncement, regionAnnouncement } =
+    useFilterAnnouncements(context, info);
 
   const cellValue = () => {
     if ((context.luckysheet_select_save?.length ?? 0) > 0) {
@@ -469,16 +470,9 @@ const SheetOverlay: React.FC = () => {
 
   const computedCellValue = cellValue();
 
-  useEffect(() => {
-    if (context.sheetFocused) {
-      setLastRangeText(String(rangeText));
-      setLastCellValue(String(cellValue()));
-    }
-  }, [context.sheetFocused]); // Runs only when sheet focus toggles
-
   return (
     <main
-      className="fortune-sheet-overlay"
+      className={GRID_ROOT_CLASS}
       ref={containerRef}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
@@ -493,10 +487,16 @@ const SheetOverlay: React.FC = () => {
         <div
           className="fortune-left-top"
           onClick={onLeftTopClick}
+          // A focusable control has to be operable by keyboard (WCAG 2.1.1).
+          // Via the shared helper rather than a hand-rolled handler: it
+          // forwards to onClick above instead of duplicating onLeftTopClick,
+          // and carries the target/currentTarget guard the inline copies
+          // lacked. The legacy "Spacebar" key name master handled here is now
+          // covered in isActivationKey, so every call site gets it.
           onKeyDown={activateOnEnterOrSpace}
           tabIndex={0}
           role="button"
-          aria-label={info.selectAll}
+          aria-label={info.selectAllCells}
           style={{
             width: context.rowHeaderWidth - 1.5,
             height: context.columnHeaderHeight - 1.5,
@@ -912,15 +912,16 @@ const SheetOverlay: React.FC = () => {
       </div>
       <div id="sr-selection" className="sr-only" role="alert">
         {!rangeText.includes("NaN")
-          ? `${rangeText} ${computedCellValue}`
+          ? `${rangeText} ${computedCellValue}${filterCellAnnouncement}`
           : `A1. ${info.sheetSrIntro}`}
       </div>
-      <div id="sr-sheetFocus" className="sr-only" role="alert">
-        {context.sheetFocused
-          ? `${lastRangeText} ${lastCellValue ? `${lastCellValue}.` : ""} ${
-              info.sheetIsFocused
-            }`
-          : `Toolbar. ${info.sheetNotFocused}`}
+      {/*
+        Polite, not assertive: the crossing lands a commit after `#sr-selection`
+        has the cell reference and value, so an assertive region would interrupt
+        the cell announcement the user navigated to hear, typically mid-word.
+      */}
+      <div id="sr-filterRegion" className="sr-only" role="status">
+        {regionAnnouncement}
       </div>
     </main>
   );

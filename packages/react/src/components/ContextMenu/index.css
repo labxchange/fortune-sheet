@@ -242,6 +242,10 @@
   border: 1px solid #a1a1a1;
 }
 
+.filtermenu-input-container input.luckysheet-mousedown-cancel::placeholder {
+  color: var(--color_text_placeholder, #455c6c);
+}
+
 /* No `outline: none` here — it would beat the :focus-visible ring above on a
    specificity tie by virtue of coming later in the file. The border shift stays
    as a supporting cue alongside the ring. */
@@ -288,7 +292,7 @@
 
 #luckysheet-filter-byvalue-select .count,
 #luckysheet-pivotTableFilter-byvalue-select .count {
-  color: gray;
+  color: var(--color_text_extra_light, #587080);
   margin-left: 5px;
 }
 

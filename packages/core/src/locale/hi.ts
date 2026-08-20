@@ -11072,18 +11072,21 @@ export default {
     tipColumnWidthLimit: "कॉलम की चौड़ाई 0 ~ 2038 के बीच होनी चाहिए",
     pageInfoFull: "कुल ${total}，${totalPage} पृष्ठ，सभी डेटा प्रदर्शित",
 
-    sheetIsFocused: "शीट फोकस लॉक सक्षम।",
-    sheetNotFocused: "शीट फ़ोकस लॉक अक्षम किया गया.",
-    sheetSrIntro:
-      "टूलबार और अन्य गैर-शीट नेविगेशन में सहायता के लिए शीट फ़ोकस को टॉगल करने के लिए, Shift, Control, F का उपयोग करें।",
+    sheetSrIntro: "कक्षों के बीच जाने के लिए तीर कुंजियों का उपयोग करें।",
+    cellHasFilterDropdown: "फ़िल्टर ड्रॉपडाउन है।",
+    cellFilterActive: "फ़िल्टर सक्रिय है।",
+    enteredFilteredRegion:
+      "फ़िल्टर किए गए क्षेत्र में प्रवेश किया: ${start} से ${end} तक।",
+    leftFilteredRegion: "फ़िल्टर किए गए क्षेत्र से बाहर निकले।",
     currentCellInput: "वर्तमान सेल इनपुट",
     newSheet: "नई शीट",
     sheetOptions: "शीट विकल्प",
     allSheets: "सभी शीट",
-    selectAll: "सभी सेल चुनें",
     scrollLeft: "टैब बाईं ओर स्क्रॉल करें",
     scrollRight: "टैब दाईं ओर स्क्रॉल करें",
     Dropdown: "ड्रॉप डाउन",
+    selectAllCells: "सभी कक्ष चुनें",
+    columnOptions: "कॉलम विकल्प",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of
@@ -11159,8 +11162,6 @@ export default {
     },
     zoomIn: "ज़ूम इन",
     zoomOut: "ज़ूम आउट",
-    toggleSheetFocusShortcut:
-      "Alternar bloqueo de enfoque de hoja: Shift, Control, F.",
     selectRangeShortcut: "Seleccionar rango: Shift, teclas de flecha.",
     autoFillDownShortcut:
       "Autocompletar selección hacia abajo desde la primera celda: Control o Meta, D.",

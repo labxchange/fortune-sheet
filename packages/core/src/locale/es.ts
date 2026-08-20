@@ -11043,18 +11043,21 @@ export default {
     pageInfoFull:
       "Total ${total}，página ${totalPage}，Se muestran todos los datos",
 
-    sheetIsFocused: "Bloqueo de enfoque de hoja habilitado.",
-    sheetNotFocused: "Bloqueo de enfoque de hoja desactivado.",
-    sheetSrIntro:
-      "Para alternar el foco de la hoja para ayudar con la barra de herramientas y otra navegación que no sea de hoja, use Mayús, Control, F.",
+    sheetSrIntro: "Use las teclas de flecha para moverse entre celdas.",
+    cellHasFilterDropdown: "Tiene menú de filtro.",
+    cellFilterActive: "Filtro activo.",
+    enteredFilteredRegion:
+      "Se entró en la región filtrada: ${start} hasta ${end}.",
+    leftFilteredRegion: "Se salió de la región filtrada.",
     currentCellInput: "Entrada de celda actual",
     newSheet: "Nueva hoja",
     sheetOptions: "Opciones de hoja",
     allSheets: "Todas las hojas",
-    selectAll: "Seleccionar todas las celdas",
     scrollLeft: "Desplazar pestañas a la izquierda",
     scrollRight: "Desplazar pestañas a la derecha",
     Dropdown: "Menú desplegable",
+    selectAllCells: "Seleccionar todas las celdas",
+    columnOptions: "Opciones de columna",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of
@@ -11130,8 +11133,6 @@ export default {
     },
     zoomIn: "Dar un golpe de zoom",
     zoomOut: "alejar",
-    toggleSheetFocusShortcut:
-      "Alternar bloqueo de enfoque de hoja: Shift, Control, F.",
     selectRangeShortcut: "Seleccionar rango: Shift, teclas de flecha.",
     autoFillDownShortcut:
       "Autocompletar selección hacia abajo desde la primera celda: Control o Meta, D.",

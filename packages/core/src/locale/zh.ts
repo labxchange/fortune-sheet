@@ -11053,18 +11053,20 @@ export default {
     tipColumnWidthLimit: "列宽必须在0 ~ 2038之间",
     pageInfoFull: "共${total}条，${totalPage}页，已显示全部数据",
 
-    sheetIsFocused: "已启用工作表焦点锁定。",
-    sheetNotFocused: "工作表焦点锁定已禁用。",
-    sheetSrIntro:
-      "要切换工作表焦点以辅助工具栏和其他非工作表导航，请使用 Shift、Control、F。",
+    sheetSrIntro: "使用方向键在单元格之间移动。",
+    cellHasFilterDropdown: "有筛选下拉菜单。",
+    cellFilterActive: "筛选器已启用。",
+    enteredFilteredRegion: "已进入筛选区域：${start} 至 ${end}。",
+    leftFilteredRegion: "已离开筛选区域。",
     currentCellInput: "当前单元格输入",
     newSheet: "新表",
     sheetOptions: "图纸选项",
     allSheets: "所有工作表",
-    selectAll: "选择所有单元格",
     scrollLeft: "向左滚动标签",
     scrollRight: "向右滚动标签",
     Dropdown: "下拉菜单",
+    selectAllCells: "选择所有单元格",
+    columnOptions: "列选项",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of
@@ -11140,7 +11142,6 @@ export default {
     },
     zoomIn: "放大",
     zoomOut: "缩小",
-    toggleSheetFocusShortcut: "切换表格焦点锁定: Shift, Control, F。",
     selectRangeShortcut: "选择范围: Shift, 方向键。",
     autoFillDownShortcut: "从首个单元格向下自动填充: Control 或 Meta 键, D。",
     autoFillRightShortcut: "从首个单元格向右自动填充: Control 或 Meta 键, R。",
