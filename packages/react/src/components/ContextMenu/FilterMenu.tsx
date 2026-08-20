@@ -239,7 +239,11 @@ const FilterMenu: React.FC = () => {
   // region is what makes a repeated action audible: the message text may be
   // identical, but "" -> text in the receiving region is always a real
   // insertion, and removals are not announced.
-  const [announcement, setAnnouncement] = useState({ text: "", slot: 0 });
+  const [announcement, setAnnouncement] = useState<{
+    text: string;
+    slot: number;
+    col: number | null;
+  }>({ text: "", slot: 0, col: null });
   const { showAlert } = useAlert();
   const mouseHoverSubMenu = useRef<boolean>(false);
   contextRef.current = context;
@@ -322,10 +326,12 @@ const FilterMenu: React.FC = () => {
       setAnnouncement((prev) => ({
         text: bulkActionMessage(action, selected, total),
         slot: prev.slot === 0 ? 1 : 0,
+        col,
       }));
     },
     [
       bulkActionMessage,
+      col,
       data.dateRowMap,
       data.valueRowMap,
       data.visibleRows,
@@ -532,19 +538,6 @@ const FilterMenu: React.FC = () => {
     );
   }, [col, endRow, startRow]);
 
-  // Closing the popup only makes this component return null; Workbook mounts it
-  // unconditionally, so the announcement state survives and would be re-inserted
-  // — already populated — the next time the popup opens, against a column nobody
-  // has acted on. Clearing on the close transition never re-announces, since the
-  // regions are already gone by the time this runs.
-  useEffect(() => {
-    if (filterContextMenu == null) {
-      setAnnouncement((prev) =>
-        prev.text === "" ? prev : { text: "", slot: prev.slot }
-      );
-    }
-  }, [filterContextMenu]);
-
   if (filterContextMenu == null) return null;
 
   return (
@@ -562,7 +555,9 @@ const FilterMenu: React.FC = () => {
           accessibility tree. */}
       {[0, 1].map((slot) => (
         <div key={slot} className="sr-only" role="status">
-          {announcement.slot === slot ? announcement.text : ""}
+          {announcement.slot === slot && announcement.col === col
+            ? announcement.text
+            : ""}
         </div>
       ))}
       <div
