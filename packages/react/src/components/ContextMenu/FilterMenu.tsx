@@ -30,6 +30,7 @@ import { useAlert } from "../../hooks/useAlert";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
+import { markAsRepeat } from "../../utils/liveRegion";
 
 type BulkActionName = "selectAll" | "clearAll" | "inverse";
 
@@ -237,15 +238,13 @@ const FilterMenu: React.FC = () => {
     fcColors: FilterColor[];
   }>({ bgColors: [], fcColors: [] });
   const [showSubMenu, setShowSubMenu] = useState(false);
-  // Announcement text plus the region it currently occupies. Alternating the
-  // region is what makes a repeated action audible: the message text may be
-  // identical, but "" -> text in the receiving region is always a real
-  // insertion, and removals are not announced.
+  // Announcement text, plus the column it describes so that switching columns
+  // without closing the popup does not leave the previous column's message
+  // behind.
   const [announcement, setAnnouncement] = useState<{
     text: string;
-    slot: number;
     col: number | null;
-  }>({ text: "", slot: 0, col: null });
+  }>({ text: "", col: null });
   const { showAlert } = useAlert();
   const mouseHoverSubMenu = useRef<boolean>(false);
   contextRef.current = context;
@@ -335,11 +334,19 @@ const FilterMenu: React.FC = () => {
       const unchecked = nextDatesUncheck.length + nextValuesUncheck.length;
       const selected = Math.min(Math.max(total - unchecked, 0), total);
 
-      setAnnouncement((prev) => ({
-        text: bulkActionMessage(action, selected, total),
-        slot: prev.slot === 0 ? 1 : 0,
-        col,
-      }));
+      setAnnouncement((prev) => {
+        const message = bulkActionMessage(action, selected, total);
+        // A region that already says exactly this would not change, and an
+        // unchanged region is not spoken — so mark the write as a repeat.
+        // Checked against what the region currently holds rather than counting
+        // presses, so the common case keeps the message as authored.
+        const repeatsWhatTheRegionSays =
+          prev.col === col && prev.text === message;
+        return {
+          text: repeatsWhatTheRegionSays ? markAsRepeat(message) : message,
+          col,
+        };
+      });
     },
     [
       bulkActionMessage,
@@ -550,28 +557,40 @@ const FilterMenu: React.FC = () => {
     );
   }, [col, endRow, startRow]);
 
+  const isOpen = filterContextMenu != null;
+  useEffect(() => {
+    // Closing only makes this component render null; it stays mounted, so the
+    // text has to be dropped explicitly or it comes back with the next visit to
+    // the same column and the first action there would be a no-op change.
+    // Keyed on `col` too: clicking another column's filter arrow swaps
+    // filterContextMenu straight from one column to another without ever
+    // closing, so `isOpen` alone never sees that transition and the render
+    // guard would put the old text back on returning to the first column.
+    // Neither dependency changes while a bulk action runs, so this cannot wipe
+    // a fresh announcement.
+    setAnnouncement({ text: "", col: null });
+  }, [isOpen, col]);
+
   if (filterContextMenu == null) return null;
 
   return (
     <>
-      {/* Two alternating live regions rather than one. A repeated bulk action
-          can produce identical text (inverting an even split, or re-applying
-          Check all after a manual change), and identical text in a single
-          region is not a DOM change, so it is never announced. Alternating
-          makes the receiving region go "" -> text, a real insertion; the other
-          goes text -> "", which is not announced.
+      {/* One live region for every bulk action; repeats stay audible because
+          the message text itself always changes (see flipTrailingPeriod).
+          aria-atomic keeps the whole message together rather than announcing
+          only the words that differ.
 
+          Assertive, because activating one of these buttons puts VoiceOver in
+          the middle of its "You are currently on a button..." hint, and a
+          polite update is dropped rather than queued while other speech is in
+          progress. The hint is boilerplate; the result of the press is not.
 
           Kept outside the collapsible "filter by values" container, which is
-          display:none when collapsed and would remove them from the
+          display:none when collapsed and would remove the region from the
           accessibility tree. */}
-      {[0, 1].map((slot) => (
-        <div key={slot} className="sr-only" role="status">
-          {announcement.slot === slot && announcement.col === col
-            ? announcement.text
-            : ""}
-        </div>
-      ))}
+      <div className="sr-only" role="alert" aria-atomic="true">
+        {announcement.col === col ? announcement.text : ""}
+      </div>
       <div
         className="fortune-context-menu luckysheet-cols-menu fortune-filter-menu"
         id="luckysheet-\${menuid}-menu"

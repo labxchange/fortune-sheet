@@ -12,9 +12,9 @@ import {
   replaceHtml,
 } from "@fortune-sheet/core";
 
-type LocaleInfo = ReturnType<typeof locale>["info"];
+import { markAsRepeat } from "../utils/liveRegion";
 
-const ZERO_WIDTH_SPACE = "\u200B";
+type LocaleInfo = ReturnType<typeof locale>["info"];
 
 /**
  * Screen-reader announcements for filter state, as a state machine over
@@ -95,13 +95,12 @@ export function useFilterAnnouncements(context: Context, info: LocaleInfo) {
   // would be silent. Crossings do not reliably alternate: the sheet-switch
   // branches below announce nothing, so a user can leave a filtered column and
   // come back to it — or move between two sheets carrying the same filter range
-  // — with no different phrase in between. A trailing zero-width space is
-  // ignored by screen readers but makes the text node differ, so the repeat is
-  // spoken.
+  // — with no different phrase in between. markAsRepeat makes the text node
+  // differ without changing what is spoken.
   const announceRegion = useCallback((phrase: string) => {
     announceCount.current += 1;
     setRegionAnnouncement(
-      announceCount.current % 2 === 0 ? `${phrase}${ZERO_WIDTH_SPACE}` : phrase
+      announceCount.current % 2 === 0 ? markAsRepeat(phrase) : phrase
     );
   }, []);
 
