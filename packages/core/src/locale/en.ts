@@ -11089,6 +11089,11 @@ export default {
     Dropdown: "Dropdown",
     selectAllCells: "Select all cells",
     columnOptions: "Column options",
+    // Names the filter funnel each column of a filter range carries. The
+    // header cell's own text is the name a user knows the column by, so it is
+    // preferred; the column letter is the fallback for a header that is blank.
+    filterDropdown: "Filter ${column}",
+    filterDropdownUnnamed: "Filter column ${column}",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of

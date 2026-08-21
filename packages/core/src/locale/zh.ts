@@ -11067,6 +11067,8 @@ export default {
     Dropdown: "下拉菜单",
     selectAllCells: "选择所有单元格",
     columnOptions: "列选项",
+    filterDropdown: "筛选${column}",
+    filterDropdownUnnamed: "筛选 ${column} 列",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of
