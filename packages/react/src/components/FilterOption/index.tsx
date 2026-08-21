@@ -12,32 +12,11 @@ import {
 import _ from "lodash";
 import React, { useCallback, useContext, useEffect } from "react";
 import WorkbookContext from "../../context";
-import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
+import { mouseDownToggleHandlers } from "../../utils/keyboardActivation";
+import { FILTER_FUNNEL_COL_ATTR, FILTER_MENU_ID } from "../../utils/filterDom";
 import SVGIcon from "../SVGIcon";
 
-/**
- * Marks each funnel button with the *absolute* column index it filters, so a
- * caller that knows only a column (the filter popup, which is handed
- * `filterContextMenu.col`) can find the button again after a criterion change
- * has rebuilt this list. Counting `.luckysheet-filter-options` nodes instead
- * would mean re-deriving the relative offset, which the frozen-pane branches
- * below make no promises about.
- */
-export const FILTER_FUNNEL_COL_ATTR = "data-filter-col";
-
-export function findFilterFunnel(
-  container: HTMLElement | null | undefined,
-  col: number | null | undefined
-): HTMLElement | null {
-  if (container == null || col == null) return null;
-  return container.querySelector<HTMLElement>(
-    `[${FILTER_FUNNEL_COL_ATTR}="${col}"]`
-  );
-}
-
-const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
-  getContainer,
-}) => {
+const FilterOptions: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
   const {
     filterOptions,
@@ -91,7 +70,7 @@ const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
     filter_select,
   ]);
 
-  const showFilterContextMenu = useCallback(
+  const toggleFilterContextMenu = useCallback(
     (
       v: {
         col: number;
@@ -102,8 +81,15 @@ const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
     ) => {
       if (filterOptions == null) return;
       setContext((draftCtx) => {
-        if (draftCtx.filterContextMenu?.col === filterOptions.startCol + i)
+        // A second press on the same funnel closes the popup it opened, rather
+        // than being swallowed as it used to be. That is what lets this button
+        // carry aria-expanded honestly: a trigger that reports "expanded" has
+        // to be able to collapse, or it promises a state change it never
+        // performs (3af3000).
+        if (draftCtx.filterContextMenu?.col === filterOptions.startCol + i) {
+          draftCtx.filterContextMenu = undefined;
           return;
+        }
         draftCtx.filterContextMenu = {
           x:
             v.left +
@@ -128,7 +114,7 @@ const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
         };
       });
     },
-    [filterOptions, getContainer, refs.scrollbarX, refs.scrollbarY, setContext]
+    [filterOptions, refs.scrollbarX, refs.scrollbarY, setContext]
   );
 
   const freezeType = frozen?.type;
@@ -205,24 +191,26 @@ const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
 
         const v_adjusted = { ...v, left, top };
 
+        const isOpen = context.filterContextMenu?.col === v.col;
+
         return (
           <div
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              showFilterContextMenu(v_adjusted, i);
-            }}
+            // Toggles on mousedown, the way every other popup trigger in the
+            // workbook does: the popup closes itself on any mousedown outside
+            // it, so running the toggle on click instead meant the outside-click
+            // close and the click-to-open raced (3af3000). Also makes the
+            // control operable by keyboard (WCAG 2.1.1) — Enter and Space run
+            // the same toggle, which is what this funnel had no handler for.
+            {...mouseDownToggleHandlers(() =>
+              toggleFilterContextMenu(v_adjusted, i)
+            )}
             onDoubleClick={(e) => e.stopPropagation()}
-            // A focusable control has to be operable by keyboard (WCAG 2.1.1),
-            // and this one is reachable by Tab: the grid's own key handling is
-            // scoped away from focusable controls inside it, so Enter and Space
-            // never reached anything here. Forwarding to the click above rather
-            // than re-deriving the popup position, which showFilterContextMenu
-            // computes from the funnel's own coordinates and not from the
-            // pointer's.
-            onKeyDown={activateOnEnterOrSpace}
             role="button"
             aria-label={funnelLabel(v.col)}
+            aria-expanded={isOpen}
+            // Gated on `isOpen`: the popup is only rendered while open, so the
+            // reference would otherwise dangle.
+            aria-controls={isOpen ? FILTER_MENU_ID : undefined}
             tabIndex={0}
             key={i}
             {...{ [FILTER_FUNNEL_COL_ATTR]: v.col }}

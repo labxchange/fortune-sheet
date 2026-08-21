@@ -50,13 +50,16 @@ const funnels = (container: HTMLElement) =>
   container.querySelectorAll(".luckysheet-filter-options");
 
 describe("focus after creating a filter from the toolbar", () => {
-  /** Opens the Sort and filter dropdown by keyboard and activates one option. */
-  const activateOption = (container: HTMLElement, text: string) => {
-    const arrow = Array.from(
+  const sortAndFilterArrow = (container: HTMLElement) =>
+    Array.from(
       container.querySelectorAll<HTMLElement>(".fortune-toolbar-combo-arrow")
     ).find((c) =>
       (c.getAttribute("aria-label") || "").startsWith("Sort and filter")
     )!;
+
+  /** Opens the Sort and filter dropdown by keyboard and activates one option. */
+  const activateOption = (container: HTMLElement, text: string) => {
+    const arrow = sortAndFilterArrow(container);
     act(() => {
       arrow.focus();
       fireEvent.keyDown(arrow, { key: "Enter" });
@@ -83,6 +86,27 @@ describe("focus after creating a filter from the toolbar", () => {
 
     expect(funnels(container).length).toBeGreaterThan(0);
     expect(document.activeElement).toBe(cellInput(container));
+  });
+
+  it("leaves focus alone when create filter declines to act", async () => {
+    // createFilter bails on a multi-range selection (also on a pivot table and a
+    // read-only sheet). The menu closes either way, but a command that changed
+    // nothing should not also relocate the user: focus stays where the popup's
+    // own restore put it, on the control that opened the menu.
+    const { container, ref } = renderSheet();
+    act(() => {
+      ref.current?.setSelection([
+        { row: [0, 0], column: [0, 0] },
+        { row: [2, 2], column: [0, 0] },
+      ]);
+    });
+
+    const arrow = sortAndFilterArrow(container);
+    activateOption(container, "create filter");
+    await flushFocus();
+
+    expect(funnels(container)).toHaveLength(0);
+    expect(document.activeElement).toBe(arrow);
   });
 
   it("puts focus on the active cell after clearing the filter", async () => {

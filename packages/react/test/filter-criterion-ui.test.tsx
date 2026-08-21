@@ -52,11 +52,15 @@ describe("filter criteria applied through the dropdown", () => {
       f.className.includes("luckysheet-filter-options-active")
     );
 
+  /** The funnel toggles on mousedown, as the workbook's other popup triggers do. */
+  const pressFunnel = (columnOffset: number) =>
+    act(() => {
+      fireEvent.mouseDown(funnels()[columnOffset]);
+    });
+
   /** Open a column's dropdown, toggle a value, and confirm. */
   const toggleValue = (columnOffset: number, value: string) => {
-    act(() => {
-      fireEvent.click(funnels()[columnOffset]);
-    });
+    pressFunnel(columnOffset);
     act(() => {
       fireEvent.click(screen.getByLabelText(value));
     });
@@ -67,9 +71,7 @@ describe("filter criteria applied through the dropdown", () => {
 
   /** Values the open dropdown offers to filter on. */
   const offeredValues = (columnOffset: number) => {
-    act(() => {
-      fireEvent.click(funnels()[columnOffset]);
-    });
+    pressFunnel(columnOffset);
     return Array.from(container.querySelectorAll("input.filter-checkbox")).map(
       (i) => i.getAttribute("aria-label")
     );
@@ -191,6 +193,44 @@ describe("filter criteria applied through the dropdown", () => {
       });
     });
 
+    it("closes the popup it opened when pressed again", () => {
+      // aria-expanded below is only honest if the trigger can collapse. It used
+      // to swallow the second press: showFilterContextMenu bailed when that
+      // column's popup was already open, so the button reported "expanded" and
+      // could do nothing about it.
+      pressFunnel(0);
+      expect(popup()).not.toBeNull();
+      pressFunnel(0);
+      expect(popup()).toBeNull();
+    });
+
+    it("moves the popup to the other column rather than closing it", () => {
+      pressFunnel(0);
+      pressFunnel(1);
+      expect(popup()).not.toBeNull();
+      expect(funnels().map((f) => f.getAttribute("aria-expanded"))).toEqual([
+        "false",
+        "true",
+      ]);
+    });
+
+    it("reports its expanded state and points at the popup only while open", () => {
+      expect(funnels().map((f) => f.getAttribute("aria-expanded"))).toEqual([
+        "false",
+        "false",
+      ]);
+      expect(funnels()[0].getAttribute("aria-controls")).toBeNull();
+
+      pressFunnel(0);
+      expect(funnels()[0].getAttribute("aria-expanded")).toBe("true");
+      // The popup is rendered only while open, so a permanent reference would
+      // dangle; and it has to resolve, which the id it used to carry — the
+      // literal string "luckysheet-\\${menuid}-menu" — did not.
+      const controls = funnels()[0].getAttribute("aria-controls");
+      expect(controls).toBe("fortune-filter-menu");
+      expect(document.getElementById(controls!)).toBe(popup());
+    });
+
     it("reopens from the funnel focus is returned to after a criterion is applied", async () => {
       // The pair the ticket cares about: confirming a criterion puts focus back
       // on the funnel, and from there the keyboard has to be able to get into
@@ -229,11 +269,6 @@ describe("filter criteria applied through the dropdown", () => {
       });
     };
 
-    const openFunnel = (columnOffset: number) =>
-      act(() => {
-        fireEvent.click(funnels()[columnOffset]);
-      });
-
     const clickButton = (text: string) =>
       act(() => {
         fireEvent.click(screen.getByText(text));
@@ -241,7 +276,7 @@ describe("filter criteria applied through the dropdown", () => {
 
     it("returns focus to the funnel it was opened from when a criterion is confirmed", async () => {
       focus(0, 2);
-      openFunnel(0);
+      pressFunnel(0);
       act(() => {
         fireEvent.click(screen.getByLabelText("Banana"));
       });
@@ -253,7 +288,7 @@ describe("filter criteria applied through the dropdown", () => {
 
     it("returns focus to the funnel of the column that was filtered, not the first one", async () => {
       focus(0, 3);
-      openFunnel(1);
+      pressFunnel(1);
       act(() => {
         fireEvent.click(screen.getByLabelText("Yellow"));
       });
@@ -267,7 +302,7 @@ describe("filter criteria applied through the dropdown", () => {
 
     it("returns focus to the funnel when the popup is cancelled", async () => {
       focus(0, 2);
-      openFunnel(0);
+      pressFunnel(0);
       clickButton("Cancel");
       await flushFocus();
       expect(document.activeElement).toBe(funnels()[0]);
@@ -279,7 +314,7 @@ describe("filter criteria applied through the dropdown", () => {
       // stranding keyboard and screen-reader users outside the spreadsheet.
       focus(0, 2);
       toggleValue(0, "Banana");
-      openFunnel(0);
+      pressFunnel(0);
       clickButton("Clear filter");
       await flushFocus();
       expect(funnels()).toHaveLength(0);

@@ -31,7 +31,7 @@ import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
 import { focusAfterCommit } from "../../utils/keyboardActivation";
-import { findFilterFunnel } from "../FilterOption";
+import { FILTER_MENU_ID, findFilterFunnel } from "../../utils/filterDom";
 
 type BulkActionName = "selectAll" | "clearAll" | "inverse";
 
@@ -597,7 +597,7 @@ const FilterMenu: React.FC = () => {
       ))}
       <div
         className="fortune-context-menu luckysheet-cols-menu fortune-filter-menu"
-        id="luckysheet-\${menuid}-menu"
+        id={FILTER_MENU_ID}
         ref={containerRef}
         style={{ left: filterContextMenu.x, top: filterContextMenu.y }}
       >

@@ -36,6 +36,10 @@ const ContextMenu: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
   const { contextMenu } = context;
+  // Points at the committed context, for the deferred focus decision below:
+  // the render's `context` is a commit behind by the time that callback runs.
+  const contextRef = useRef(context);
+  contextRef.current = context;
   const { showAlert } = useAlert();
   const { rightclick, drag, generalDialog, info } = locale(context);
 
@@ -621,6 +625,7 @@ const ContextMenu: React.FC = () => {
             key={name}
             role="button"
             onClick={() => {
+              const filterBefore = contextRef.current.luckysheet_filter_save;
               setContext((draftCtx) => {
                 createFilter(draftCtx);
                 draftCtx.contextMenu = {};
@@ -628,8 +633,14 @@ const ContextMenu: React.FC = () => {
               // Same target as the toolbar's create-filter: the cell the filter
               // was built around. Closing this menu would otherwise restore
               // focus to whatever held it when the menu opened, which is the
-              // cell input only when the menu was opened from the grid.
-              focusAfterCommit(() => refs.cellInput.current);
+              // cell input only when the menu was opened from the grid. Skipped
+              // when createFilter declined to act, so a command that changed
+              // nothing does not move focus either.
+              focusAfterCommit(() =>
+                contextRef.current.luckysheet_filter_save === filterBefore
+                  ? null
+                  : refs.cellInput.current
+              );
             }}
           >
             {rightclick.filterSelection}
