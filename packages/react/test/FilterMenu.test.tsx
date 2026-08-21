@@ -167,17 +167,13 @@ function renderFilterMenu({
   const view = render(tree(openMenu(col)));
 
   const regions = () =>
-    Array.from(view.container.querySelectorAll('[role="status"]'));
+    Array.from(view.container.querySelectorAll('[role="alert"]'));
 
   return {
     ...view,
     regions,
-    /** Which region currently holds text, and what it says. */
-    announcement: () => {
-      const all = regions();
-      const slot = all.findIndex((r) => r.textContent !== "");
-      return { slot, text: slot === -1 ? "" : all[slot].textContent };
-    },
+    /** Exactly what the live region says right now, punctuation included. */
+    announcement: () => regions()[0]?.textContent ?? "",
     checkboxes: () =>
       Array.from(
         view.container.querySelectorAll<HTMLInputElement>(".filter-checkbox")
@@ -199,6 +195,13 @@ function renderFilterMenu({
   };
 }
 
+/**
+ * What a screen reader actually reads out: a sentence-final period is a pause,
+ * so it carries no words. Two announcements with the same `spoken` value sound
+ * identical to the user even though their DOM text differs.
+ */
+const spoken = (text: string) => text.replace(/\.$/, "");
+
 describe("FilterMenu bulk action announcements", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -207,8 +210,8 @@ describe("FilterMenu bulk action announcements", () => {
   it("announces nothing until a bulk action is used", () => {
     const { regions, announcement } = renderFilterMenu();
 
-    expect(regions()).toHaveLength(2);
-    expect(announcement().slot).toBe(-1);
+    expect(regions()).toHaveLength(1);
+    expect(announcement()).toBe("");
   });
 
   it("announces and applies Check all", () => {
@@ -218,7 +221,7 @@ describe("FilterMenu bulk action announcements", () => {
 
     press(CHECK_ALL);
 
-    expect(announcement().text).toBe(filter.filterValueByAllAnnouncement);
+    expect(announcement()).toBe(filter.filterValueByAllAnnouncement);
     expect(checkboxes().every((cb) => cb.checked)).toBe(true);
   });
 
@@ -227,7 +230,7 @@ describe("FilterMenu bulk action announcements", () => {
 
     press(CLEAR);
 
-    expect(announcement().text).toBe(filter.filterValueByClearAnnouncement);
+    expect(announcement()).toBe(filter.filterValueByClearAnnouncement);
     expect(checkboxes().every((cb) => !cb.checked)).toBe(true);
   });
 
@@ -239,7 +242,7 @@ describe("FilterMenu bulk action announcements", () => {
 
     press(INVERSE);
 
-    expect(announcement().text).toBe(
+    expect(announcement()).toBe(
       "Filter selections inverted. 4 of 6 options now selected."
     );
     expect(checkedKeys()).toEqual(["v0", "v1", "v2", "v3"]);
@@ -253,7 +256,7 @@ describe("FilterMenu bulk action announcements", () => {
 
     press(INVERSE);
 
-    expect(announcement().text).toBe(
+    expect(announcement()).toBe(
       "Filter selections inverted. 1 of 6 options now selected."
     );
   });
@@ -263,7 +266,7 @@ describe("FilterMenu bulk action announcements", () => {
 
     press(INVERSE);
 
-    expect(announcement().text).toBe(filter.filterValueByInverseAnnouncement);
+    expect(announcement()).toBe(filter.filterValueByInverseAnnouncement);
   });
 
   it("never announces an unsubstituted placeholder", () => {
@@ -271,7 +274,7 @@ describe("FilterMenu bulk action announcements", () => {
 
     press(INVERSE);
 
-    expect(announcement().text).not.toContain("${");
+    expect(announcement()).not.toContain("${");
   });
 
   it("counts dates and values together", () => {
@@ -283,7 +286,7 @@ describe("FilterMenu bulk action announcements", () => {
     press(INVERSE);
 
     // 2 values + 3 dates, all checked -> inverting selects none of the 5.
-    expect(announcement().text).toBe(
+    expect(announcement()).toBe(
       "Filter selections inverted. 0 of 5 options now selected."
     );
   });
@@ -308,7 +311,7 @@ describe("FilterMenu bulk action announcements", () => {
 
     // Only the three days are selectable options; year and month are group
     // rows whose state is derived from the days beneath them.
-    expect(announcement().text).toBe(
+    expect(announcement()).toBe(
       "Filter selections inverted. 0 of 3 options now selected."
     );
   });
@@ -323,18 +326,67 @@ describe("FilterMenu bulk action announcements", () => {
 
     view.press(INVERSE);
 
-    expect(view.announcement().text).toBe(
+    expect(view.announcement()).toBe(
       "Filter selections inverted. 0 of 6 options now selected."
     );
   });
 
-  it("keeps exactly one region occupied at a time", () => {
-    const { press, regions } = renderFilterMenu();
+  it("announces from a single assertive region", () => {
+    const { press, regions, container } = renderFilterMenu();
 
     press(CHECK_ALL);
 
-    expect(regions().filter((r) => r.textContent !== "")).toHaveLength(1);
-    expect(regions().filter((r) => r.textContent === "")).toHaveLength(1);
+    // One region only. Two alternating regions each repeat themselves every
+    // other action, and VoiceOver does not re-announce a region that already
+    // said those words.
+    expect(regions()).toHaveLength(1);
+    expect(regions()[0].getAttribute("aria-atomic")).toBe("true");
+    // Polite is dropped, not queued, while the focus hint is still speaking.
+    expect(container.querySelectorAll('[role="status"]')).toHaveLength(0);
+    expect(regions()[0].getAttribute("aria-live")).toBeNull();
+  });
+
+  it("changes the region text on an immediate repeat of the same action", () => {
+    const { press, announcement } = renderFilterMenu();
+
+    press(CLEAR);
+    const first = announcement();
+    press(CLEAR);
+    const second = announcement();
+
+    // The words are the same action, so they must not be byte-identical, or the
+    // region would not change and nothing would be announced.
+    expect(second).not.toBe(first);
+    expect(spoken(second)).toBe(spoken(first));
+  });
+
+  it("changes the region text on every repeat, not just the first", () => {
+    const { press, announcement } = renderFilterMenu();
+
+    const texts = [CLEAR, CLEAR, CLEAR, CLEAR].map((action) => {
+      press(action);
+      return announcement();
+    });
+
+    // Every consecutive pair differs, so every press is a real region change.
+    texts.slice(1).forEach((text, i) => expect(text).not.toBe(texts[i]));
+    texts.forEach((text) => expect(spoken(text)).toBe(spoken(texts[0])));
+  });
+
+  it("re-announces the sequence Sami reported: Check all, Clear, Check all", () => {
+    const { press, announcement } = renderFilterMenu();
+
+    press(CHECK_ALL);
+    const firstCheckAll = announcement();
+    press(CLEAR);
+    const cleared = announcement();
+    press(CHECK_ALL);
+    const secondCheckAll = announcement();
+
+    // Each step must differ from what the region said immediately before it.
+    expect(cleared).not.toBe(firstCheckAll);
+    expect(secondCheckAll).not.toBe(cleared);
+    expect(spoken(secondCheckAll)).toBe(spoken(firstCheckAll));
   });
 
   it("re-announces an evenly split Inverse, whose message repeats verbatim", () => {
@@ -350,10 +402,9 @@ describe("FilterMenu bulk action announcements", () => {
     press(INVERSE);
     const second = announcement();
 
-    // Same words both times — an even split inverts to the same counts.
-    expect(second.text).toBe(first.text);
-    // ...but a different region holds them, which is the actual announcement.
-    expect(second.slot).not.toBe(first.slot);
+    // An even split inverts to the same counts, so the words repeat.
+    expect(spoken(second)).toBe(spoken(first));
+    expect(second).not.toBe(first);
     // ...and the selection really did change.
     expect(checkedKeys()).not.toEqual(firstChecked);
   });
@@ -368,24 +419,21 @@ describe("FilterMenu bulk action announcements", () => {
     press(CHECK_ALL);
     const second = announcement();
 
-    expect(second.text).toBe(first.text);
-    expect(second.slot).not.toBe(first.slot);
+    expect(spoken(second)).toBe(spoken(first));
+    expect(second).not.toBe(first);
     expect(checkboxes().every((cb) => cb.checked)).toBe(true);
   });
 
-  it("re-announces an immediate repeat of Check all and of Clear", () => {
+  it("keeps the message as authored when the action actually changes", () => {
     const { press, announcement } = renderFilterMenu();
 
+    press(CHECK_ALL);
+    expect(announcement()).toBe(filter.filterValueByAllAnnouncement);
     press(CLEAR);
-    const first = announcement();
-    press(CLEAR);
-    const second = announcement();
-
-    expect(second.text).toBe(first.text);
-    expect(second.slot).not.toBe(first.slot);
+    expect(announcement()).toBe(filter.filterValueByClearAnnouncement);
   });
 
-  it("keeps the status regions outside the collapsible section", () => {
+  it("keeps the status region outside the collapsible section", () => {
     const { press, regions, container } = renderFilterMenu();
 
     press(CHECK_ALL);
@@ -397,7 +445,7 @@ describe("FilterMenu bulk action announcements", () => {
       ".luckysheet-filter-byvalue"
     );
     expect(collapsible?.style.display).toBe("none");
-    expect(regions()).toHaveLength(2);
+    expect(regions()).toHaveLength(1);
     regions().forEach((r) => expect(collapsible?.contains(r)).toBe(false));
   });
 
@@ -405,7 +453,7 @@ describe("FilterMenu bulk action announcements", () => {
     const { press, announcement, regions, close, reopen } = renderFilterMenu();
 
     press(CLEAR);
-    expect(announcement().text).toBe(filter.filterValueByClearAnnouncement);
+    expect(announcement()).toBe(filter.filterValueByClearAnnouncement);
 
     // Closing only makes the component return null; it stays mounted, so
     // without the close-transition reset the old text would come back with it.
@@ -413,8 +461,18 @@ describe("FilterMenu bulk action announcements", () => {
     expect(regions()).toHaveLength(0);
 
     reopen(3);
-    expect(regions()).toHaveLength(2);
-    expect(announcement().slot).toBe(-1);
+    expect(regions()).toHaveLength(1);
+    expect(announcement()).toBe("");
+  });
+
+  it("starts silent when the same column is reopened", () => {
+    const { press, announcement, close, reopen } = renderFilterMenu();
+
+    press(CLEAR);
+    close();
+    reopen();
+
+    expect(announcement()).toBe("");
   });
 
   it("still announces normally after a close and reopen", () => {
@@ -425,7 +483,7 @@ describe("FilterMenu bulk action announcements", () => {
     reopen();
     press(CLEAR);
 
-    expect(announcement().text).toBe(filter.filterValueByClearAnnouncement);
+    expect(announcement()).toBe(filter.filterValueByClearAnnouncement);
   });
 
   it("applies each transform to dates, values and hidden rows alike", () => {
