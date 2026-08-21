@@ -1544,6 +1544,8 @@ export function handlePaste(ctx: Context, e: ClipboardEvent) {
     ctx.luckysheetCellUpdate = [];
     // $("#luckysheet-rich-text-editor").blur();
     selectionCache.isPasteAction = false;
+    const valuesOnly = selectionCache.pasteValuesOnly;
+    selectionCache.pasteValuesOnly = false;
 
     let { clipboardData } = e;
     if (!clipboardData) {
@@ -1554,8 +1556,14 @@ export function handlePaste(ctx: Context, e: ClipboardEvent) {
 
     if (!clipboardData) return;
 
-    let txtdata =
-      clipboardData.getData("text/html") || clipboardData.getData("text/plain");
+    // Ctrl+Shift+V pastes values only. Reading the plain-text flavour is what
+    // makes that true: it drops the HTML the styled, merged and bordered paste
+    // routes below key off, leaving the tab-separated displayed values, which
+    // the final branch writes as plain cell content.
+    let txtdata = valuesOnly
+      ? clipboardData.getData("text/plain")
+      : clipboardData.getData("text/html") ||
+        clipboardData.getData("text/plain");
 
     // 如果标示是qksheet复制的内容，判断剪贴板内容是否是当前页面复制的内容
     let isEqual = true;
@@ -2010,7 +2018,9 @@ export function handlePaste(ctx: Context, e: ClipboardEvent) {
         //   imageCtrl.insertImg(clipboardData.files[0]);
       } else {
         txtdata = clipboardData.getData("text/plain");
-        const isExcelFormula = txtdata.startsWith("=");
+        // Values only means values: a leading "=" stays literal text rather
+        // than being revived as a formula.
+        const isExcelFormula = !valuesOnly && txtdata.startsWith("=");
 
         if (isExcelFormula) {
           handleFormulaStringPaste(ctx, txtdata);

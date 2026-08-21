@@ -15,6 +15,7 @@ import {
   SingleRange,
   createFilterOptions,
   getSheetIndex,
+  GRID_ROOT_CLASS,
   Sheet,
   CellMatrix,
   CellWithRowAndCol,
@@ -34,13 +35,69 @@ export function generateAPIs(
   settings: Required<Settings>,
   cellInput: HTMLDivElement | null,
   scrollbarX: HTMLDivElement | null,
-  scrollbarY: HTMLDivElement | null
+  scrollbarY: HTMLDivElement | null,
+  workbookContainer: HTMLDivElement | null
 ) {
   type ApiCall = {
     name: string;
     args: any[];
   };
+
+  /**
+   * Focus a region's single keyboard entry point. The toolbar and the sheet
+   * tabs are roving-tabindex composites, so the element to land on is whichever
+   * item currently holds tabIndex 0 — falling back to the container itself, so
+   * the shortcut still moves focus even before a region has been visited.
+   */
+  const focusRegion = (containerSelector: string) => {
+    const region =
+      workbookContainer?.querySelector<HTMLElement>(containerSelector);
+    if (!region) return false;
+    const target =
+      region.querySelector<HTMLElement>(
+        '[tabindex="0"]:not([aria-disabled="true"])'
+      ) ?? region;
+    target.focus();
+    return true;
+  };
+
   return {
+    /**
+     * Move keyboard focus to the cell grid, ready to navigate.
+     *
+     * Deliberately not `focusRegion`: the grid root contains focusable controls
+     * of its own (the select-all corner, the filter funnels), and landing on
+     * one of those makes `handleGlobalKeyDown`'s grid guard classify focus as
+     * *outside* the grid, so the arrow keys would move nothing. The root itself
+     * carries tabIndex -1 for exactly this purpose.
+     */
+    focusSpreadsheet: () => {
+      const grid = workbookContainer?.querySelector<HTMLElement>(
+        `.${GRID_ROOT_CLASS}`
+      );
+      if (!grid) return false;
+      grid.focus();
+      return true;
+    },
+
+    /** Move keyboard focus to the toolbar. */
+    focusToolbar: () => focusRegion(".fortune-toolbar"),
+
+    /** Move keyboard focus to the sheet tab bar. */
+    focusSheetTabs: () => focusRegion(".fortune-sheettab-container-c"),
+
+    openShortcutsDialog: () => {
+      setContext((draftCtx) => {
+        draftCtx.showShortcutsDialog = true;
+      });
+    },
+
+    closeShortcutsDialog: () => {
+      setContext((draftCtx) => {
+        draftCtx.showShortcutsDialog = false;
+      });
+    },
+
     applyOp: (ops: Op[]) => {
       setContext(
         (ctx_) => {

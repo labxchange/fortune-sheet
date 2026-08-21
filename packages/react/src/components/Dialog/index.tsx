@@ -11,6 +11,27 @@ type Props = {
   onCancel?: () => void;
   containerStyle?: React.CSSProperties;
   contentStyle?: React.CSSProperties;
+  /** Id of the element naming this dialog, usually its heading. */
+  labelledBy?: string;
+  /**
+   * Escape handler, when it should differ from the close button's. Lets a
+   * dialog spend the first Escape undoing something inside itself — clearing a
+   * search box, say — instead of discarding the whole dialog. Defaults to
+   * `onCancel`, so dialogs that don't care are unaffected.
+   *
+   * This has to live here rather than in a keydown handler on the inner
+   * control: since React 17 synthetic events are delegated from the app root,
+   * so the native listener below (on an ancestor of that control) always runs
+   * first, and a stopPropagation from the child is too late to prevent it.
+   */
+  onEscape?: () => void;
+  /**
+   * Where to put focus on open, when the first focusable element is not the
+   * right landing place. Defaults to that first element, which is the close
+   * button — fine for a confirm dialog, wrong for one whose first real control
+   * is something the user came to use.
+   */
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
   children?: React.ReactNode;
 };
 
@@ -21,11 +42,24 @@ const Dialog: React.FC<Props> = ({
   children,
   containerStyle,
   contentStyle,
+  labelledBy,
+  onEscape,
+  initialFocusRef,
 }) => {
   const { context } = useContext(WorkbookContext);
   const { button } = locale(context);
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
+
+  // The setup below must run once per open, not once per handler identity.
+  // Callers reasonably pass inline arrows, and when those were in the effect's
+  // deps every re-render tore the listener down, re-ran the body and so pulled
+  // focus back to the first focusable element — typing in a dialog that
+  // filtered its own content bounced the caret to the close button on every
+  // keystroke. Reading the handlers from a ref keeps them current without
+  // making the effect depend on them.
+  const handlers = useRef({ onCancel, onEscape });
+  handlers.current = { onCancel, onEscape };
 
   useEffect(() => {
     previousActiveElement.current =
@@ -35,7 +69,8 @@ const Dialog: React.FC<Props> = ({
     const trapFocus = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        onCancel?.();
+        const { onEscape: esc, onCancel: cancel } = handlers.current;
+        (esc ?? cancel)?.();
         return;
       }
       if (e.key !== "Tab") return;
@@ -63,7 +98,9 @@ const Dialog: React.FC<Props> = ({
     const focusable = dialog.querySelectorAll<HTMLElement>(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
-    if (focusable.length > 0) {
+    if (initialFocusRef?.current) {
+      initialFocusRef.current.focus();
+    } else if (focusable.length > 0) {
       focusable[0].focus();
     } else {
       dialog.focus();
@@ -75,7 +112,7 @@ const Dialog: React.FC<Props> = ({
         previousActiveElement.current.focus();
       }
     };
-  }, [onCancel]);
+  }, [initialFocusRef]);
 
   return (
     <div
@@ -84,17 +121,21 @@ const Dialog: React.FC<Props> = ({
       ref={dialogRef}
       role="dialog"
       aria-modal="true"
-      // No aria-labelledby: it pointed at #fortune-sort-title, which only
-      // exists inside CustomSort, so every other dialog carried a reference to
-      // a missing element. It was paired with a hardcoded, untranslated
-      // aria-label="Dialog" that added nothing over the role. role="dialog"
-      // plus aria-modal already has AT announce the role and read the
-      // contents, and the sort dialog's title is the first thing inside it.
-      // A `labelledBy` prop would be better still, but wants threading through
-      // showDialog. Tracked, not just deferred:
+      // Callers that own a heading pass its id — the `labelledBy` prop the
+      // comment here used to defer to, now that a caller (ShortcutsDialog)
+      // needs it:
       // https://app.asana.com/1/1201629421181554/project/1210962482862973/task/1217671504196361
-      // Note while it is open: a role="dialog" with no name at all trips axe's
-      // aria-dialog-name rule, which the useless "Dialog" name used to satisfy.
+      //
+      // Callers that pass nothing still name themselves by content:
+      // role="dialog" plus aria-modal already has AT announce the role and read
+      // what is inside, and the hardcoded, untranslated aria-label="Dialog"
+      // that used to be here added nothing over the role. (It was paired with
+      // an aria-labelledby pointing at #fortune-sort-title, which exists only
+      // inside CustomSort, so every other dialog referenced a missing element.)
+      // Those callers do still trip axe's aria-dialog-name rule, which the
+      // useless "Dialog" name used to satisfy — the task above stays open until
+      // showDialog threads a name through for them too.
+      aria-labelledby={labelledBy}
       tabIndex={-1}
     >
       <div className="fortune-modal-dialog-header">

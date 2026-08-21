@@ -49,6 +49,7 @@ export type Context = {
   presences?: Presence[];
   showSearch?: boolean;
   showReplace?: boolean;
+  showShortcutsDialog?: boolean;
   linkCard?: LinkCardProps;
   rangeDialog?: RangeDialogProps; // 坐标选区鼠标选择
   // 提醒弹窗
@@ -124,6 +125,15 @@ export type Context = {
   sheetScrollRecord: Record<string, any>;
 
   luckysheet_select_status: boolean;
+  // Shift+F8 "add to selection" mode: while on, keyboard navigation commits a
+  // new range instead of moving the existing one, the keyboard counterpart of
+  // ctrl-clicking. Cleared by Escape, by a plain click and on sheet change.
+  selectionModeActive: boolean;
+  // Column index whose filter dropdown a keyboard shortcut asked to open.
+  // Positioning the popup needs scroll offsets and element geometry that only
+  // the React layer has, so core records the request and `FilterOption`
+  // fulfils it and clears this back to null.
+  openFilterMenuForColumn: number | null;
   luckysheet_select_save: Sheet["luckysheet_select_save"];
   luckysheet_selection_range: Sheet["luckysheet_selection_range"];
   formulaRangeHighlight: ({
@@ -429,6 +439,8 @@ export function defaultContext(refs: RefValues): Context {
     sheetScrollRecord: {},
 
     luckysheet_select_status: false,
+    selectionModeActive: false,
+    openFilterMenuForColumn: null,
     luckysheet_select_save: undefined,
     luckysheet_selection_range: [],
     formulaRangeHighlight: [],
