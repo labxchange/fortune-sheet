@@ -572,9 +572,14 @@ const FilterMenu: React.FC = () => {
     // Closing only makes this component render null; it stays mounted, so the
     // text has to be dropped explicitly or it comes back with the next visit to
     // the same column and the first action there would be a no-op change.
-    if (isOpen) return;
+    // Keyed on `col` too: clicking another column's filter arrow swaps
+    // filterContextMenu straight from one column to another without ever
+    // closing, so `isOpen` alone never sees that transition and the render
+    // guard would put the old text back on returning to the first column.
+    // Neither dependency changes while a bulk action runs, so this cannot wipe
+    // a fresh announcement.
     setAnnouncement({ text: "", col: null });
-  }, [isOpen]);
+  }, [isOpen, col]);
 
   if (filterContextMenu == null) return null;
 

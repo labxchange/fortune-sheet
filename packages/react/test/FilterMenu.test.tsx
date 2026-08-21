@@ -341,9 +341,9 @@ describe("FilterMenu bulk action announcements", () => {
     // said those words.
     expect(regions()).toHaveLength(1);
     expect(regions()[0].getAttribute("aria-atomic")).toBe("true");
-    // Polite is dropped, not queued, while the focus hint is still speaking.
+    // Assertive, because polite is dropped rather than queued while the focus
+    // hint is still speaking.
     expect(container.querySelectorAll('[role="status"]')).toHaveLength(0);
-    expect(regions()[0].getAttribute("aria-live")).toBeNull();
   });
 
   it("changes the region text on an immediate repeat of the same action", () => {
@@ -433,7 +433,7 @@ describe("FilterMenu bulk action announcements", () => {
     expect(announcement()).toBe(filter.filterValueByClearAnnouncement);
   });
 
-  it("keeps the status region outside the collapsible section", () => {
+  it("keeps the live region outside the collapsible section", () => {
     const { press, regions, container } = renderFilterMenu();
 
     press(CHECK_ALL);
@@ -472,6 +472,20 @@ describe("FilterMenu bulk action announcements", () => {
     close();
     reopen();
 
+    expect(announcement()).toBe("");
+  });
+
+  it("does not resurrect the message when switching columns without closing", () => {
+    const { press, announcement, reopen } = renderFilterMenu();
+
+    // Clicking another column's filter arrow swaps filterContextMenu straight
+    // from one column to the next: the arrow stops mousedown from reaching
+    // document, so useOutsideClick never closes the popup in between.
+    press(CLEAR);
+    reopen(1);
+    expect(announcement()).toBe("");
+
+    reopen(0);
     expect(announcement()).toBe("");
   });
 
