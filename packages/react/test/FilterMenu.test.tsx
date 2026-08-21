@@ -145,6 +145,10 @@ function renderFilterMenu({
   };
   const refs: any = {
     workbookContainer: { current: null },
+    // The footer buttons resolve a focus target through both of these; the
+    // bulk-action cases below never press them, but a stub missing one would
+    // fail as a TypeError rather than as a readable assertion.
+    cellInput: { current: null },
   };
 
   const tree = (filterContextMenu: any) => (
