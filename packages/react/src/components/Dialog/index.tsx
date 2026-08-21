@@ -13,6 +13,18 @@ type Props = {
   contentStyle?: React.CSSProperties;
   /** Id of the element naming this dialog, usually its heading. */
   labelledBy?: string;
+  /**
+   * Escape handler, when it should differ from the close button's. Lets a
+   * dialog spend the first Escape undoing something inside itself — clearing a
+   * search box, say — instead of discarding the whole dialog. Defaults to
+   * `onCancel`, so dialogs that don't care are unaffected.
+   *
+   * This has to live here rather than in a keydown handler on the inner
+   * control: since React 17 synthetic events are delegated from the app root,
+   * so the native listener below (on an ancestor of that control) always runs
+   * first, and a stopPropagation from the child is too late to prevent it.
+   */
+  onEscape?: () => void;
   children?: React.ReactNode;
 };
 
@@ -24,6 +36,7 @@ const Dialog: React.FC<Props> = ({
   containerStyle,
   contentStyle,
   labelledBy,
+  onEscape,
 }) => {
   const { context } = useContext(WorkbookContext);
   const { button } = locale(context);
@@ -38,7 +51,7 @@ const Dialog: React.FC<Props> = ({
     const trapFocus = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        onCancel?.();
+        (onEscape ?? onCancel)?.();
         return;
       }
       if (e.key !== "Tab") return;
@@ -78,7 +91,7 @@ const Dialog: React.FC<Props> = ({
         previousActiveElement.current.focus();
       }
     };
-  }, [onCancel]);
+  }, [onCancel, onEscape]);
 
   return (
     <div

@@ -61,6 +61,132 @@ describe("Keyboard shortcuts dialog", () => {
     await waitFor(() => expect(getByRole("dialog")).toBeTruthy());
   });
 
+  it("overlays the workbook instead of displacing it", async () => {
+    // It first shipped in a wrapper with no CSS behind it, which made the
+    // dialog a flex item of `.fortune-container` — a column — so it rendered
+    // above the sheet and pushed it down the page instead of floating over it.
+    const { container, getByRole } = render(
+      <Workbook data={[{ name: "Sheet1" }]} />
+    );
+
+    openWithShortcut(container);
+    const dialog = await waitFor(() => getByRole("dialog"));
+
+    // `.fortune-popover-backdrop` is position:absolute, which is what lifts
+    // the dialog out of that column; `.fortune-container` is position:relative,
+    // so the backdrop covers the workbook and nothing wider.
+    const backdrop = dialog.closest(".fortune-popover-backdrop");
+    expect(backdrop).toBeTruthy();
+    expect(backdrop!.classList.contains("fortune-modal-container")).toBe(true);
+    expect(backdrop!.closest(".fortune-container")).toBeTruthy();
+  });
+
+  describe("search", () => {
+    const searchBox = (getByRole: any) =>
+      getByRole("searchbox", { name: "Search shortcuts" });
+
+    it("filters by action text", async () => {
+      const { container, getByRole, queryByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      openWithShortcut(container);
+      await waitFor(() => getByRole("dialog"));
+
+      expect(queryByText("Copy")).toBeTruthy();
+      fireEvent.change(searchBox(getByRole), {
+        target: { value: "entire column" },
+      });
+
+      expect(queryByText("Select entire column")).toBeTruthy();
+      expect(queryByText("Copy")).toBeNull();
+    });
+
+    it("matches on key notation too", async () => {
+      const { container, getByRole, queryByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      openWithShortcut(container);
+      await waitFor(() => getByRole("dialog"));
+
+      fireEvent.change(searchBox(getByRole), { target: { value: "F8" } });
+
+      expect(queryByText("Add another range to the selection")).toBeTruthy();
+      expect(queryByText("Copy")).toBeNull();
+    });
+
+    it("drops sections that have no matches rather than leaving bare headings", async () => {
+      const { container, getByRole, queryByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      openWithShortcut(container);
+      await waitFor(() => getByRole("dialog"));
+
+      fireEvent.change(searchBox(getByRole), {
+        target: { value: "entire column" },
+      });
+
+      expect(queryByText("Selection")).toBeTruthy();
+      expect(queryByText("Navigation")).toBeNull();
+    });
+
+    it("explains an empty result and reports the count to a screen reader", async () => {
+      const { container, getByRole, queryByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      openWithShortcut(container);
+      await waitFor(() => getByRole("dialog"));
+
+      fireEvent.change(searchBox(getByRole), { target: { value: "zzzz" } });
+
+      expect(queryByText(/No shortcuts match/)).toBeTruthy();
+      // The sheet overlay has live regions of its own, so scope to the dialog.
+      const status = within(getByRole("dialog")).getByRole("status");
+      expect(status.textContent).toContain("0 shortcuts found");
+    });
+
+    it("Escape clears a non-empty box before it closes the dialog", async () => {
+      const { container, getByRole, queryByRole, queryByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      openWithShortcut(container);
+      await waitFor(() => getByRole("dialog"));
+      const box = searchBox(getByRole);
+
+      fireEvent.change(box, { target: { value: "copy" } });
+      fireEvent.keyDown(box, { key: "Escape" });
+
+      expect(box.value).toBe("");
+      expect(getByRole("dialog")).toBeTruthy();
+
+      // A second Escape, now that the box is empty, closes as usual.
+      fireEvent.keyDown(box, { key: "Escape" });
+      await waitFor(() => expect(queryByRole("dialog")).toBeNull());
+      expect(queryByText("Keyboard Shortcuts")).toBeNull();
+    });
+
+    it("starts from the full list when reopened", async () => {
+      const { container, getByRole, queryByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      openWithShortcut(container);
+      await waitFor(() => getByRole("dialog"));
+      fireEvent.change(searchBox(getByRole), { target: { value: "zzzz" } });
+      expect(queryByText(/No shortcuts match/)).toBeTruthy();
+
+      // First Escape clears the filter, second closes — see the test above.
+      fireEvent.keyDown(getByRole("dialog"), { key: "Escape" });
+      fireEvent.keyDown(getByRole("dialog"), { key: "Escape" });
+      await waitFor(() =>
+        expect(container.querySelector('[role="dialog"]')).toBeNull()
+      );
+
+      openWithShortcut(container);
+      await waitFor(() => getByRole("dialog"));
+      expect(searchBox(getByRole).value).toBe("");
+      expect(queryByText("Copy")).toBeTruthy();
+    });
+  });
+
   it("closes on Escape", async () => {
     const { container, getByRole, queryByRole } = render(
       <Workbook data={[{ name: "Sheet1" }]} />
