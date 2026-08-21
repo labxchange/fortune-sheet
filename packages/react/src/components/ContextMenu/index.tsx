@@ -25,6 +25,7 @@ import { useAlert } from "../../hooks/useAlert";
 import { useDialog } from "../../hooks/useDialog";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
+import { focusAfterCommit } from "../../utils/keyboardActivation";
 import Divider from "./Divider";
 import "./index.css";
 import Menu from "./Menu";
@@ -624,6 +625,11 @@ const ContextMenu: React.FC = () => {
                 createFilter(draftCtx);
                 draftCtx.contextMenu = {};
               });
+              // Same target as the toolbar's create-filter: the cell the filter
+              // was built around. Closing this menu would otherwise restore
+              // focus to whatever held it when the menu opened, which is the
+              // cell input only when the menu was opened from the grid.
+              focusAfterCommit(() => refs.cellInput.current);
             }}
           >
             {rightclick.filterSelection}
@@ -677,6 +683,7 @@ const ContextMenu: React.FC = () => {
       showDialog,
       drag,
       generalDialog,
+      refs.cellInput,
     ]
   );
 

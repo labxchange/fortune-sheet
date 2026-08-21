@@ -2,12 +2,38 @@ import {
   createFilterOptions,
   fixColumnStyleOverflowInFreeze,
   fixRowStyleOverflowInFreeze,
+  getCellValue,
+  getFlowdata,
   getSheetIndex,
+  indexToColumnChar,
+  locale,
+  replaceHtml,
 } from "@fortune-sheet/core";
 import _ from "lodash";
 import React, { useCallback, useContext, useEffect } from "react";
 import WorkbookContext from "../../context";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 import SVGIcon from "../SVGIcon";
+
+/**
+ * Marks each funnel button with the *absolute* column index it filters, so a
+ * caller that knows only a column (the filter popup, which is handed
+ * `filterContextMenu.col`) can find the button again after a criterion change
+ * has rebuilt this list. Counting `.luckysheet-filter-options` nodes instead
+ * would mean re-deriving the relative offset, which the frozen-pane branches
+ * below make no promises about.
+ */
+export const FILTER_FUNNEL_COL_ATTR = "data-filter-col";
+
+export function findFilterFunnel(
+  container: HTMLElement | null | undefined,
+  col: number | null | undefined
+): HTMLElement | null {
+  if (container == null || col == null) return null;
+  return container.querySelector<HTMLElement>(
+    `[${FILTER_FUNNEL_COL_ATTR}="${col}"]`
+  );
+}
 
 const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
   getContainer,
@@ -22,6 +48,31 @@ const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
   } = context;
   const sheetIndex = getSheetIndex(context, context.currentSheetId);
   const { filter_select, frozen } = context.luckysheetfile[sheetIndex!];
+  const { info } = locale(context);
+
+  /**
+   * Accessible name for one column's funnel (WCAG 4.1.2). A row of identically
+   * named buttons is unusable by ear, so each is named after the header cell
+   * that owns it — the name the user knows the column by — falling back to the
+   * column letter when that header is blank.
+   *
+   * A plain function rather than a useCallback: the name is derived from the
+   * sheet's own data, so any dependency list honest enough to include it would
+   * change on every render that could alter the name anyway.
+   */
+  const flowdata = getFlowdata(context);
+  const funnelLabel = (col: number) => {
+    const header =
+      filterOptions == null || flowdata == null
+        ? null
+        : getCellValue(filterOptions.startRow, col, flowdata, "m");
+    const headerText = _.isNil(header) ? "" : String(header).trim();
+    return headerText
+      ? replaceHtml(info.filterDropdown, { column: headerText })
+      : replaceHtml(info.filterDropdownUnnamed, {
+          column: indexToColumnChar(col),
+        });
+  };
 
   useEffect(() => {
     setContext((draftCtx) => {
@@ -162,8 +213,19 @@ const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
               showFilterContextMenu(v_adjusted, i);
             }}
             onDoubleClick={(e) => e.stopPropagation()}
+            // A focusable control has to be operable by keyboard (WCAG 2.1.1),
+            // and this one is reachable by Tab: the grid's own key handling is
+            // scoped away from focusable controls inside it, so Enter and Space
+            // never reached anything here. Forwarding to the click above rather
+            // than re-deriving the popup position, which showFilterContextMenu
+            // computes from the funnel's own coordinates and not from the
+            // pointer's.
+            onKeyDown={activateOnEnterOrSpace}
+            role="button"
+            aria-label={funnelLabel(v.col)}
             tabIndex={0}
             key={i}
+            {...{ [FILTER_FUNNEL_COL_ATTR]: v.col }}
             style={_.assign(rowOverflowFreezeStyle, columnOverflowFreezeStyle, {
               left,
               top,

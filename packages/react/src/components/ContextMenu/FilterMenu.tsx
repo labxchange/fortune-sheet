@@ -31,6 +31,8 @@ import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
 import { markAsRepeat } from "../../utils/liveRegion";
+import { focusAfterCommit } from "../../utils/keyboardActivation";
+import { findFilterFunnel } from "../FilterOption";
 
 type BulkActionName = "selectAll" | "clearAll" | "inverse";
 
@@ -255,6 +257,27 @@ const FilterMenu: React.FC = () => {
       ctx.filterContextMenu = undefined;
     });
   }, [setContext]);
+
+  /**
+   * Where focus goes when one of the footer buttons closes this popup. The
+   * funnel this popup belongs to is the control the user activated, so it is
+   * the place to come back to — but a criterion change rebuilds the funnels and
+   * `clearFilter` removes them outright, and useEscapeToClose skips its restore
+   * for exactly that case (a detached element), dropping focus to <body>.
+   * Resolved after the commit, so the funnel is the one that now exists.
+   */
+  const restoreFocusToFunnel = useCallback(() => {
+    focusAfterCommit(
+      () =>
+        findFilterFunnel(refs.workbookContainer.current, col) ??
+        refs.cellInput.current
+    );
+  }, [refs.workbookContainer, refs.cellInput, col]);
+
+  /** For actions that leave no funnel behind: back to the active cell. */
+  const restoreFocusToGrid = useCallback(() => {
+    focusAfterCommit(() => refs.cellInput.current);
+  }, [refs.cellInput]);
 
   useOutsideClick(containerRef, close, [close]);
   useEscapeToClose({
@@ -872,6 +895,7 @@ const FilterMenu: React.FC = () => {
                 hiddenRows.current = [];
                 draftCtx.filterContextMenu = undefined;
               });
+              restoreFocusToFunnel();
             }}
           >
             {filter.filterConform}
@@ -883,6 +907,7 @@ const FilterMenu: React.FC = () => {
               setContext((draftCtx) => {
                 draftCtx.filterContextMenu = undefined;
               });
+              restoreFocusToFunnel();
             }}
           >
             {filter.filterCancel}
@@ -894,6 +919,7 @@ const FilterMenu: React.FC = () => {
               setContext((draftCtx) => {
                 clearFilter(draftCtx);
               });
+              restoreFocusToGrid();
             }}
           >
             {filter.clearFilter}
@@ -967,6 +993,7 @@ const FilterMenu: React.FC = () => {
                     hiddenRows.current = [];
                     draftCtx.filterContextMenu = undefined;
                   });
+                  restoreFocusToFunnel();
                 }}
               >
                 {filter.filterConform}

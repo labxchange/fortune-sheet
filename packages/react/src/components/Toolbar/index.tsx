@@ -50,6 +50,7 @@ import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
 import {
   activateOnEnterOrSpace,
+  focusAfterCommit,
   onActivate,
 } from "../../utils/keyboardActivation";
 import { FormulaSearch } from "../FormulaSearch";
@@ -1381,19 +1382,27 @@ const Toolbar: React.FC<{
             iconId: "filter1",
             value: "filter",
             text: filter.filter,
-            onClick: () =>
+            onClick: () => {
               setContext((draftCtx) => {
                 createFilter(draftCtx);
-              }),
+              });
+              // Focus belongs on the cell the filter was just built around, not
+              // left on the toolbar control that opened this menu (WCAG 2.4.3):
+              // the new dropdowns are in the grid, and the grid's keyboard
+              // handling only runs while the cell input holds focus.
+              focusAfterCommit(() => refs.cellInput.current);
+            },
           },
           {
             iconId: "eraser",
             value: "eraser",
             text: filter.clearFilter,
-            onClick: () =>
+            onClick: () => {
               setContext((draftCtx) => {
                 clearFilter(draftCtx);
-              }),
+              });
+              focusAfterCommit(() => refs.cellInput.current);
+            },
           },
         ];
         return (
