@@ -48,6 +48,7 @@ const ShortcutsDialog: React.FC<{
   const searchId = `${instanceId}-shortcuts-search`;
   const open = !!context.showShortcutsDialog;
   const claimed = useRef(false);
+  const searchRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
 
   const close = React.useCallback(() => {
@@ -55,6 +56,20 @@ const ShortcutsDialog: React.FC<{
       draftCtx.showShortcutsDialog = false;
     });
   }, [setContext]);
+
+  // Read through a ref rather than closing over `query`, so this keeps one
+  // identity for the life of the dialog. Dialog no longer re-runs its setup
+  // when a handler changes, but a handler that changed on every keystroke would
+  // still be a trap laid for the next person to add a dependency there.
+  const queryRef = useRef(query);
+  queryRef.current = query;
+  const handleEscape = React.useCallback(() => {
+    if (queryRef.current) {
+      setQuery("");
+      return;
+    }
+    close();
+  }, [close]);
 
   useEffect(() => {
     if (!open) {
@@ -124,7 +139,11 @@ const ShortcutsDialog: React.FC<{
         // Spend the first Escape on clearing an active filter, so it undoes the
         // search rather than discarding a dialog the user is still reading. The
         // close button stays an unconditional close.
-        onEscape={query ? () => setQuery("") : close}
+        onEscape={handleEscape}
+        // Land on the search box, not the close button: with 30-odd rows,
+        // filtering is the first thing most people want, and it doubles as the
+        // start of the reading order.
+        initialFocusRef={searchRef}
         labelledBy={headingId}
         containerStyle={{ maxWidth: 640, width: "90%" }}
         contentStyle={{ maxHeight: "70vh", overflowY: "auto" }}
@@ -137,6 +156,7 @@ const ShortcutsDialog: React.FC<{
           <label htmlFor={searchId}>{info.shortcutSearchLabel}</label>
           <input
             id={searchId}
+            ref={searchRef}
             type="search"
             value={query}
             placeholder={info.shortcutSearchPlaceholder}

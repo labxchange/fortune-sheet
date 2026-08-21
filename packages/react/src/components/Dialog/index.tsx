@@ -25,6 +25,13 @@ type Props = {
    * first, and a stopPropagation from the child is too late to prevent it.
    */
   onEscape?: () => void;
+  /**
+   * Where to put focus on open, when the first focusable element is not the
+   * right landing place. Defaults to that first element, which is the close
+   * button — fine for a confirm dialog, wrong for one whose first real control
+   * is something the user came to use.
+   */
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
   children?: React.ReactNode;
 };
 
@@ -37,11 +44,22 @@ const Dialog: React.FC<Props> = ({
   contentStyle,
   labelledBy,
   onEscape,
+  initialFocusRef,
 }) => {
   const { context } = useContext(WorkbookContext);
   const { button } = locale(context);
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
+
+  // The setup below must run once per open, not once per handler identity.
+  // Callers reasonably pass inline arrows, and when those were in the effect's
+  // deps every re-render tore the listener down, re-ran the body and so pulled
+  // focus back to the first focusable element — typing in a dialog that
+  // filtered its own content bounced the caret to the close button on every
+  // keystroke. Reading the handlers from a ref keeps them current without
+  // making the effect depend on them.
+  const handlers = useRef({ onCancel, onEscape });
+  handlers.current = { onCancel, onEscape };
 
   useEffect(() => {
     previousActiveElement.current =
@@ -51,7 +69,8 @@ const Dialog: React.FC<Props> = ({
     const trapFocus = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        (onEscape ?? onCancel)?.();
+        const { onEscape: esc, onCancel: cancel } = handlers.current;
+        (esc ?? cancel)?.();
         return;
       }
       if (e.key !== "Tab") return;
@@ -79,7 +98,9 @@ const Dialog: React.FC<Props> = ({
     const focusable = dialog.querySelectorAll<HTMLElement>(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
-    if (focusable.length > 0) {
+    if (initialFocusRef?.current) {
+      initialFocusRef.current.focus();
+    } else if (focusable.length > 0) {
       focusable[0].focus();
     } else {
       dialog.focus();
@@ -91,7 +112,7 @@ const Dialog: React.FC<Props> = ({
         previousActiveElement.current.focus();
       }
     };
-  }, [onCancel, onEscape]);
+  }, [initialFocusRef]);
 
   return (
     <div

@@ -85,6 +85,34 @@ describe("Keyboard shortcuts dialog", () => {
     const searchBox = (getByRole: any) =>
       getByRole("searchbox", { name: "Search shortcuts" });
 
+    it("lands focus on the search box, not the close button", async () => {
+      const { container, getByRole } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      openWithShortcut(container);
+      await waitFor(() => getByRole("dialog"));
+
+      expect(document.activeElement).toBe(searchBox(getByRole));
+    });
+
+    it("keeps focus in the box while typing", async () => {
+      // Dialog re-ran its open-time setup whenever a handler identity changed,
+      // and this dialog passes an Escape handler that depends on the query — so
+      // every keystroke re-focused the first focusable element and the caret
+      // jumped to the close button.
+      const { container, getByRole } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      openWithShortcut(container);
+      await waitFor(() => getByRole("dialog"));
+      const box = searchBox(getByRole);
+
+      ["c", "co", "cop", "copy"].forEach((value) => {
+        fireEvent.change(box, { target: { value } });
+        expect(document.activeElement).toBe(box);
+      });
+    });
+
     it("filters by action text", async () => {
       const { container, getByRole, queryByText } = render(
         <Workbook data={[{ name: "Sheet1" }]} />
