@@ -1,7 +1,19 @@
+/* Host pages style bare heading elements — LabXchange's sim stylesheet sets
+   h2/h3 to 30-42px display type with its own family and letter-spacing — and
+   those selectors reach in here. Every inherited typographic property is
+   therefore restated rather than only size and weight, or the headings pick up
+   whichever of them the embedder happens to set. This is also why the section
+   heading stays an h3: the fix belongs in CSS, and dropping to h4 to dodge one
+   global rule would skip a level under the h2 above (axe `heading-order`) while
+   still inheriting the host's h4. */
 .fortune-shortcuts-title {
   margin: 0 0 4px;
+  font-family: inherit;
   font-size: 18px;
   font-weight: 600;
+  font-style: normal;
+  line-height: 1.3;
+  letter-spacing: normal;
   color: #1a1a1a;
 }
 
@@ -37,7 +49,7 @@
 }
 
 .fortune-shortcuts-empty {
-  margin: 18px 0 0;
+  margin: 18px 0 18px;
   font-size: 13px;
   color: #595959;
 }
@@ -48,8 +60,12 @@
 
 .fortune-shortcuts-section-title {
   margin: 0 0 6px;
+  font-family: inherit;
   font-size: 14px;
   font-weight: 600;
+  font-style: normal;
+  line-height: 1.3;
+  letter-spacing: normal;
   color: #1a1a1a;
 }
 
