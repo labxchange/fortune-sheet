@@ -9,6 +9,7 @@ import {
 
 import FilterMenu from "../src/components/ContextMenu/FilterMenu";
 import WorkbookContext from "../src/context";
+import { markAsRepeat } from "../src/utils/liveRegion";
 
 jest.mock("@fortune-sheet/core", () => ({
   ...jest.requireActual("@fortune-sheet/core"),
@@ -196,11 +197,11 @@ function renderFilterMenu({
 }
 
 /**
- * What a screen reader actually reads out: a sentence-final period is a pause,
- * so it carries no words. Two announcements with the same `spoken` value sound
+ * What a screen reader actually reads out: the zero-width space that marks a
+ * repeat is ignored. Two announcements with the same `spoken` value sound
  * identical to the user even though their DOM text differs.
  */
-const spoken = (text: string) => text.replace(/\.$/, "");
+const spoken = (text: string) => text.replace(/\u200B/g, "");
 
 describe("FilterMenu bulk action announcements", () => {
   beforeEach(() => {
@@ -371,6 +372,10 @@ describe("FilterMenu bulk action announcements", () => {
     // Every consecutive pair differs, so every press is a real region change.
     texts.slice(1).forEach((text, i) => expect(text).not.toBe(texts[i]));
     texts.forEach((text) => expect(spoken(text)).toBe(spoken(texts[0])));
+    // Marked and unmarked, alternating — the marker never accumulates, because
+    // `prev.text === message` is only true when prev carries no marker.
+    const bare = filter.filterValueByClearAnnouncement;
+    expect(texts).toEqual([bare, markAsRepeat(bare), bare, markAsRepeat(bare)]);
   });
 
   it("re-announces the sequence Sami reported: Check all, Clear, Check all", () => {

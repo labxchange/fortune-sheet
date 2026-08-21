@@ -30,6 +30,7 @@ import { useAlert } from "../../hooks/useAlert";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
+import { markAsRepeat } from "../../utils/liveRegion";
 
 type BulkActionName = "selectAll" | "clearAll" | "inverse";
 
@@ -44,17 +45,6 @@ const BULK_ACTION_TRANSFORMS: Record<
   clearAll: (_current, universe) => universe,
   inverse: (current, universe) => _.xor(current, universe),
 };
-
-// Screen readers announce a live region when its text changes, so a bulk action
-// that produces the message already sitting in the region is silent — inverting
-// an even split, or re-applying Check all after a manual change. VoiceOver
-// compares against what that region itself last said, so spreading the messages
-// over two alternating regions does not help: each region still repeats itself
-// every other action. Flipping the trailing period instead keeps one region and
-// makes every announcement a real text change, and a sentence-final period is
-// read as a pause, so both variants sound the same.
-const flipTrailingPeriod = (message: string) =>
-  message.endsWith(".") ? message.slice(0, -1) : `${message}.`;
 
 const SelectItem: React.FC<{
   item: FilterValue;
@@ -346,14 +336,14 @@ const FilterMenu: React.FC = () => {
 
       setAnnouncement((prev) => {
         const message = bulkActionMessage(action, selected, total);
-        // Only perturb the text when the region already says exactly this, so
-        // the common case keeps the message as authored.
+        // A region that already says exactly this would not change, and an
+        // unchanged region is not spoken — so mark the write as a repeat.
+        // Checked against what the region currently holds rather than counting
+        // presses, so the common case keeps the message as authored.
         const repeatsWhatTheRegionSays =
           prev.col === col && prev.text === message;
         return {
-          text: repeatsWhatTheRegionSays
-            ? flipTrailingPeriod(message)
-            : message,
+          text: repeatsWhatTheRegionSays ? markAsRepeat(message) : message,
           col,
         };
       });
