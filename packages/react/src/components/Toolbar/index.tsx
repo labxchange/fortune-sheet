@@ -170,6 +170,24 @@ const Toolbar: React.FC<{
   const firstSelection = context.luckysheet_select_save?.[0];
   const flowdata = getFlowdata(context);
   contextRef.current = context;
+
+  /**
+   * Whether the commit just made actually changed the sheet's filter.
+   * `createFilter` and `clearFilter` both decline silently — a multi-range
+   * selection, a pivot table, a read-only sheet, or a clear with nothing to
+   * clear — and pulling focus off the toolbar for a command that did nothing is
+   * a surprise rather than a fix. Identity is enough: neither function leaves
+   * `luckysheet_filter_save` re-assigned when it bails, and immer preserves the
+   * reference for an untouched subtree.
+   *
+   * Read through `contextRef`, not the render's `context`, because the caller is
+   * `focusAfterCommit`'s deferred callback — by then the commit has landed and
+   * the ref points at it.
+   */
+  const filterChanged = useCallback(
+    (before: unknown) => contextRef.current.luckysheet_filter_save !== before,
+    []
+  );
   const row = firstSelection?.row_focus;
 
   const col = firstSelection?.column_focus;
@@ -1383,6 +1401,7 @@ const Toolbar: React.FC<{
             value: "filter",
             text: filter.filter,
             onClick: () => {
+              const filterBefore = contextRef.current.luckysheet_filter_save;
               setContext((draftCtx) => {
                 createFilter(draftCtx);
               });
@@ -1390,7 +1409,9 @@ const Toolbar: React.FC<{
               // left on the toolbar control that opened this menu (WCAG 2.4.3):
               // the new dropdowns are in the grid, and the grid's keyboard
               // handling only runs while the cell input holds focus.
-              focusAfterCommit(() => refs.cellInput.current);
+              focusAfterCommit(() =>
+                filterChanged(filterBefore) ? refs.cellInput.current : null
+              );
             },
           },
           {
@@ -1398,10 +1419,13 @@ const Toolbar: React.FC<{
             value: "eraser",
             text: filter.clearFilter,
             onClick: () => {
+              const filterBefore = contextRef.current.luckysheet_filter_save;
               setContext((draftCtx) => {
                 clearFilter(draftCtx);
               });
-              focusAfterCommit(() => refs.cellInput.current);
+              focusAfterCommit(() =>
+                filterChanged(filterBefore) ? refs.cellInput.current : null
+              );
             },
           },
         ];
@@ -1473,6 +1497,7 @@ const Toolbar: React.FC<{
       textWrap,
       rotation,
       filter,
+      filterChanged,
       splitText,
       findAndReplace,
       context.luckysheet_select_save,
