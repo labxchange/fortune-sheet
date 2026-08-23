@@ -334,7 +334,12 @@ export function handleWithCtrlOrMetaKey(
     const last =
       ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
     if (last) {
-      selectColumn(ctx, last.column[0], last.column[1]);
+      selectColumn(
+        ctx,
+        last.column[0],
+        last.column[1],
+        ctx.selectionModeActive
+      );
     }
   } else if (
     e.code === "KeyR" &&
@@ -909,7 +914,7 @@ export function handleGlobalKeyDown(
       const last =
         ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
       if (last) {
-        selectRow(ctx, last.row[0], last.row[1]);
+        selectRow(ctx, last.row[0], last.row[1], ctx.selectionModeActive);
       }
       e.preventDefault();
     } else if (

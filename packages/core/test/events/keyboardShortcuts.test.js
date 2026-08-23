@@ -142,6 +142,55 @@ describe("keyboard shortcuts", () => {
       expect(ctx.luckysheet_select_save[1].row).toEqual([2, 2]);
     });
 
+    test("a whole-column pick keeps the ranges committed before it", () => {
+      // The reported bug: Ctrl+Space always replaced the whole selection, so
+      // the column anchored before Shift+F8 vanished the moment a second
+      // column was picked.
+      const { cellInput } = buildDom();
+      const ctx = getContext();
+
+      press(ctx, cellInput, { key: " ", code: "Space", ctrlKey: true });
+      expect(ctx.luckysheet_select_save[0].column).toEqual([2, 2]);
+
+      press(ctx, cellInput, { key: "F8", code: "F8", shiftKey: true });
+      press(ctx, cellInput, { key: "ArrowRight", code: "ArrowRight" });
+      press(ctx, cellInput, { key: " ", code: "Space", ctrlKey: true });
+
+      // Two whole columns, not one: the first survives, the second replaces
+      // the range Shift+F8 anchored rather than adding a third.
+      expect(ctx.luckysheet_select_save).toHaveLength(2);
+      expect(ctx.luckysheet_select_save[0].column).toEqual([2, 2]);
+      expect(ctx.luckysheet_select_save[0].column_select).toBe(true);
+      expect(ctx.luckysheet_select_save[1].column).toEqual([3, 3]);
+      expect(ctx.luckysheet_select_save[1].column_select).toBe(true);
+    });
+
+    test("the same holds for whole rows", () => {
+      const { cellInput } = buildDom();
+      const ctx = getContext();
+
+      press(ctx, cellInput, { key: " ", code: "Space", shiftKey: true });
+      press(ctx, cellInput, { key: "F8", code: "F8", shiftKey: true });
+      press(ctx, cellInput, { key: "ArrowDown", code: "ArrowDown" });
+      press(ctx, cellInput, { key: " ", code: "Space", shiftKey: true });
+
+      expect(ctx.luckysheet_select_save).toHaveLength(2);
+      expect(ctx.luckysheet_select_save[0].row).toEqual([1, 1]);
+      expect(ctx.luckysheet_select_save[1].row).toEqual([2, 2]);
+    });
+
+    test("outside selection mode a whole-column pick still replaces", () => {
+      const { cellInput } = buildDom();
+      const ctx = getContext();
+
+      press(ctx, cellInput, { key: " ", code: "Space", ctrlKey: true });
+      press(ctx, cellInput, { key: "ArrowRight", code: "ArrowRight" });
+      press(ctx, cellInput, { key: " ", code: "Space", ctrlKey: true });
+
+      expect(ctx.luckysheet_select_save).toHaveLength(1);
+      expect(ctx.luckysheet_select_save[0].column).toEqual([3, 3]);
+    });
+
     test("escape collapses back to the range in focus", () => {
       const { cellInput } = buildDom();
       const ctx = getContext();

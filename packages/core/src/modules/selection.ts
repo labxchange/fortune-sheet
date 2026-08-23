@@ -2191,7 +2191,7 @@ function selectWholeLine(
   orientation: "row" | "column",
   start: number,
   end: number,
-  append: boolean
+  intoActiveRange: boolean
 ) {
   const flowdata = getFlowdata(ctx);
   if (!flowdata) return;
@@ -2226,8 +2226,13 @@ function selectWholeLine(
 
   ctx.luckysheet_select_status = false;
 
-  if (append && ctx.luckysheet_select_save?.length) {
-    ctx.luckysheet_select_save.push(selection);
+  const save = ctx.luckysheet_select_save;
+  if (intoActiveRange && save?.length) {
+    // Reshape the range Shift+F8 anchored rather than replacing the selection
+    // or adding a third entry. Everything after Shift+F8 — arrows, Shift+arrow,
+    // and now a whole row or column — shapes that one range until the next
+    // Shift+F8 anchors another, so the ranges committed before it survive.
+    save[save.length - 1] = selection;
   } else {
     ctx.luckysheet_select_save = [selection];
   }
@@ -2235,13 +2240,22 @@ function selectWholeLine(
   normalizeSelection(ctx, ctx.luckysheet_select_save);
 }
 
+/**
+ * Select whole rows or whole columns, the keyboard equivalent of clicking a row
+ * or column header.
+ *
+ * `intoActiveRange` reshapes the range Shift+F8 anchored instead of replacing
+ * the whole selection, so whole-row and whole-column picks can build up a
+ * non-contiguous selection the same way arrow movement does. Callers pass
+ * `ctx.selectionModeActive`.
+ */
 export function selectRow(
   ctx: Context,
   start: number,
   end: number = start,
-  append = false
+  intoActiveRange = false
 ) {
-  selectWholeLine(ctx, "row", start, end, append);
+  selectWholeLine(ctx, "row", start, end, intoActiveRange);
 }
 
 /**
@@ -2276,9 +2290,9 @@ export function selectColumn(
   ctx: Context,
   start: number,
   end: number = start,
-  append = false
+  intoActiveRange = false
 ) {
-  selectWholeLine(ctx, "column", start, end, append);
+  selectWholeLine(ctx, "column", start, end, intoActiveRange);
 }
 
 export function fixRowStyleOverflowInFreeze(
