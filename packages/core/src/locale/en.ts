@@ -11172,7 +11172,6 @@ export default {
     // `modules/shortcuts.ts` — so a translation can never drift from the
     // binding the code listens for. Only the prose is translated.
     shortcuts: "Keyboard Shortcuts",
-    shortcutsClose: "Close",
     shortcutKeysColumn: "Shortcut",
     shortcutActionColumn: "Action",
     shortcutSearchLabel: "Search shortcuts",
@@ -11216,6 +11215,13 @@ export default {
       rowContextMenu: "Open row header context menu",
       columnContextMenu: "Open column header context menu",
       openShortcuts: "Open keyboard shortcuts",
+      jumpToEdge: "Jump to the edge of the data region",
+      extendToEdge: "Extend the selection to the edge",
+      insertDateTime: "Insert the current date and time",
+      zoomIn: "Zoom in",
+      zoomOut: "Zoom out",
+      zoomReset: "Reset zoom",
+      cancelOrExitMode: "Cancel a cell edit, or leave selection mode",
     },
   },
   currencyDetail: [

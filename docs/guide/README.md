@@ -155,8 +155,7 @@ Please refer to [Overall configuration](./config.md) for detailed information.
 |  CTRL + F | Find |
 |  CTRL + H | Replace |
 |  CTRL + I | Italic |
-|  ~~CTRL + UP/DOWN/LEFT/RIGHT~~ | Quickly adjust cell marquee |
-|  ~~SHIFT + UP/DOWN/LEFT/RIGHT~~ | Adjust selection area |
+|  SHIFT + UP/DOWN/LEFT/RIGHT | Adjust selection area |
 |  CTRL + Left mouse click | Multiple selection cell |
 |  ~~SHIFT + Left mouse click~~ | Adjust selection area |
 |  UP/DOWN/LEFT/RIGHT | Move cell selection box |
@@ -174,6 +173,12 @@ Please refer to [Overall configuration](./config.md) for detailed information.
 |  CTRL + SHIFT + L | Open column header context menu |
 |  CTRL/CMD + ALT + T / S / B | Move focus to the toolbar / grid / sheet tab bar |
 |  CTRL/CMD + / | Open the keyboard shortcuts dialog |
+|  CTRL/CMD + UP/DOWN/LEFT/RIGHT | Jump to the edge of the data region |
+|  CTRL/CMD + SHIFT + UP/DOWN/LEFT/RIGHT | Extend the selection to the edge |
+|  CTRL/CMD + SHIFT + ; | Insert the current date and time |
+|  CTRL + + / CTRL + - / CTRL + 0 | Zoom in / out / reset |
+|  ESCAPE | Cancel a cell edit, or leave Shift+F8 selection mode |
+|  BACKSPACE | Clear cell content (as DELETE) |
 
 The shortcuts dialog is the in-app reference for the list above. It is opened by
 `CTRL/CMD + /` or from the `keyboard-shortcuts` toolbar item, and an embedding

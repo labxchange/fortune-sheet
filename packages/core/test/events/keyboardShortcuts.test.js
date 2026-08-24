@@ -2,6 +2,7 @@ import { contextFactory, selectionFactory } from "../factories/context";
 import { handleGlobalKeyDown } from "../../src/events/keyboard";
 import { selectionCache } from "../../src/modules/selection";
 import { GRID_ROOT_CLASS } from "../../src/constants";
+import { getDefaultShortcutSections } from "../../src/modules/shortcuts";
 
 // Every shortcut added for the spreadsheet-simulation keyboard work. These go
 // through handleGlobalKeyDown rather than the individual handlers, because for
@@ -340,6 +341,80 @@ describe("keyboard shortcuts", () => {
 
       expect(selectionCache.isPasteAction).toBe(true);
       expect(selectionCache.pasteValuesOnly).toBe(false);
+    });
+  });
+
+  // The shortcuts dialog is a second, hand-written description of the binding
+  // table — it drifted six rows behind before anyone noticed. This ties the two
+  // together: every row the dialog advertises must have a case here, and every
+  // case must correspond to a row, so either kind of drift fails the build
+  // rather than shipping a dialog that promises a key nothing performs.
+  //
+  // COVERED lists the ids exercised somewhere in the suite, including the
+  // bindings owned by other layers (the react Workbook's region jumps and
+  // dialog opener, zoom in modules/zoom) and the upstream behaviours this
+  // branch did not introduce but the dialog now documents.
+  describe("dialog and bindings stay in step", () => {
+    const COVERED = [
+      // this file
+      "selectColumn",
+      "selectRow",
+      "addSelectionRange",
+      "nextSheet",
+      "previousSheet",
+      "openFilterMenu",
+      "pasteValuesOnly",
+      "paste",
+      "cancelOrExitMode",
+      // packages/core/test/events/keyboard.test.js
+      "moveBetweenCells",
+      "moveRight",
+      "moveLeft",
+      "selectRange",
+      "selectAll",
+      "editCell",
+      "confirmCellEdit",
+      "deleteCellContent",
+      "copy",
+      "cut",
+      "undo",
+      "redo",
+      "autoFillDown",
+      "autoFillRight",
+      "boldText",
+      "find",
+      "replace",
+      "jumpToEdge",
+      "extendToEdge",
+      "insertDateTime",
+      // packages/react/test — regionFocus, shortcutsDialog, keyboardZoom
+      "goToToolbar",
+      "goToSpreadsheet",
+      "goToSheetTabs",
+      "openShortcuts",
+      "zoomIn",
+      "zoomOut",
+      "zoomReset",
+      // packages/react/test/index.test.tsx (context menus)
+      "contextMenu",
+      "rowContextMenu",
+      "columnContextMenu",
+    ];
+
+    test("every documented row is exercised, and vice versa", () => {
+      const documented = getDefaultShortcutSections(getContext())
+        .flatMap((section) => section.items.map((item) => item.id))
+        .sort();
+
+      expect(documented).toEqual([...COVERED].sort());
+    });
+
+    test("no row is documented twice", () => {
+      const documented = getDefaultShortcutSections(getContext()).flatMap(
+        (section) => section.items.map((item) => item.id)
+      );
+
+      expect(documented).toHaveLength(new Set(documented).size);
     });
   });
 });

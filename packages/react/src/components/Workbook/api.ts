@@ -20,6 +20,7 @@ import {
   CellMatrix,
   CellWithRowAndCol,
 } from "@fortune-sheet/core";
+import type { RefObject } from "react";
 import { applyPatches } from "immer";
 import _ from "lodash";
 import { SetContextOptions } from "../../context";
@@ -36,7 +37,7 @@ export function generateAPIs(
   cellInput: HTMLDivElement | null,
   scrollbarX: HTMLDivElement | null,
   scrollbarY: HTMLDivElement | null,
-  workbookContainer: HTMLDivElement | null
+  workbookContainer: RefObject<HTMLDivElement | null>
 ) {
   type ApiCall = {
     name: string;
@@ -50,15 +51,22 @@ export function generateAPIs(
    * the shortcut still moves focus even before a region has been visited.
    */
   const focusRegion = (containerSelector: string) => {
+    // `.current` is read here, at call time, not captured when this memo runs:
+    // on the first render the ref is not attached yet, so a host calling this
+    // from its own mount effect would otherwise get a silent false.
     const region =
-      workbookContainer?.querySelector<HTMLElement>(containerSelector);
+      workbookContainer.current?.querySelector<HTMLElement>(containerSelector);
     if (!region) return false;
     const target =
       region.querySelector<HTMLElement>(
         '[tabindex="0"]:not([aria-disabled="true"])'
       ) ?? region;
     target.focus();
-    return true;
+    // Report whether focus landed, not merely that a target was found. The
+    // browser refuses to focus anything inside a display:none / inert subtree
+    // and leaves activeElement alone; an embedder that trusts a bare true
+    // swallows the keystroke and denies this workbook its own chance at it.
+    return document.activeElement === target;
   };
 
   return {
@@ -72,12 +80,12 @@ export function generateAPIs(
      * carries tabIndex -1 for exactly this purpose.
      */
     focusSpreadsheet: () => {
-      const grid = workbookContainer?.querySelector<HTMLElement>(
+      const grid = workbookContainer.current?.querySelector<HTMLElement>(
         `.${GRID_ROOT_CLASS}`
       );
       if (!grid) return false;
       grid.focus();
-      return true;
+      return document.activeElement === grid;
     },
 
     /** Move keyboard focus to the toolbar. */

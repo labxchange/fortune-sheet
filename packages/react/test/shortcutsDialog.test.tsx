@@ -61,6 +61,28 @@ describe("Keyboard shortcuts dialog", () => {
     await waitFor(() => expect(getByRole("dialog")).toBeTruthy());
   });
 
+  it("opens even where / is a shifted key", async () => {
+    // `e.key` is the composed character, so `/` arrives with shiftKey true on
+    // German and Nordic layouts (Shift+7) and on AZERTY (Shift+:). Rejecting
+    // Shift made the dialog — this feature's whole discoverability route —
+    // unreachable there, and bought nothing on US layouts, where Shift+/ is "?"
+    // and never matches in the first place.
+    const { container, getByRole } = render(
+      <Workbook data={[{ name: "Sheet1" }]} />
+    );
+    const workbook =
+      container.querySelector<HTMLElement>(".fortune-container")!;
+
+    fireEvent.keyDown(workbook, {
+      key: "/",
+      code: "Digit7",
+      ctrlKey: true,
+      shiftKey: true,
+    });
+
+    await waitFor(() => expect(getByRole("dialog")).toBeTruthy());
+  });
+
   it("overlays the workbook instead of displacing it", async () => {
     // It first shipped in a wrapper with no CSS behind it, which made the
     // dialog a flex item of `.fortune-container` — a column — so it rendered

@@ -133,7 +133,17 @@ const ShortcutsDialog: React.FC<{
     // The same wrapper ModalProvider puts around a dialog. Without it this
     // renders as a flex item of `.fortune-container`, which is a column — so
     // the "dialog" appeared above the sheet and pushed it down the page.
-    <div className="fortune-popover-backdrop fortune-modal-container">
+    <div
+      className="fortune-popover-backdrop fortune-modal-container"
+      // SheetOverlay binds mousemove/mouseup on `document`, so without these a
+      // text drag inside the dialog — selecting a shortcut's keys to copy them
+      // — feeds the grid's drag machinery. ModalProvider carries the same four
+      // guards around every other dialog.
+      onMouseDown={(e) => e.stopPropagation()}
+      onMouseMove={(e) => e.stopPropagation()}
+      onMouseUp={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.stopPropagation()}
+    >
       <Dialog
         onCancel={close}
         // Spend the first Escape on clearing an active filter, so it undoes the
@@ -180,12 +190,21 @@ const ShortcutsDialog: React.FC<{
             {info.shortcutSearchNoResults.replace("${query}", query.trim())}
           </p>
         ) : (
-          filtered.map((section) => (
+          filtered.map((section, sectionIndex) => (
             <section className="fortune-shortcuts-section" key={section.title}>
-              <h3 className="fortune-shortcuts-section-title">
+              {/* The table takes its name from this heading: four two-column
+                  tables with identical headers are indistinguishable to anyone
+                  navigating the dialog table by table. */}
+              <h3
+                className="fortune-shortcuts-section-title"
+                id={`${instanceId}-section-${sectionIndex}`}
+              >
                 {section.title}
               </h3>
-              <table className="fortune-shortcuts-table">
+              <table
+                className="fortune-shortcuts-table"
+                aria-labelledby={`${instanceId}-section-${sectionIndex}`}
+              >
                 <thead>
                   <tr>
                     <th scope="col">{info.shortcutActionColumn}</th>

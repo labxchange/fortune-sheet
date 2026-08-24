@@ -95,8 +95,15 @@ const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
   useEffect(() => {
     if (requestedColumn == null) return;
     const funnel = funnelRefs.current[requestedColumn];
-    funnel?.click();
-    funnel?.focus();
+    // Only columns inside the applied filter range render a funnel, and one
+    // scrolled under a frozen pane is styled `display: none` — clicking that
+    // still opens the menu while focusing it is refused, so guard both.
+    // getComputedStyle is the hidden-check jsdom reports faithfully, which
+    // keeps a regression test honest.
+    if (funnel && window.getComputedStyle(funnel).display !== "none") {
+      funnel.click();
+      funnel.focus();
+    }
     setContext((draftCtx) => {
       draftCtx.openFilterMenuForColumn = null;
     });

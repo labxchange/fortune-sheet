@@ -11170,7 +11170,6 @@ export default {
     addedSelectionRange:
       "चयन में एक श्रेणी जोड़ी गई। इसे स्थानांतरित करने के लिए तीर कुंजियों का उपयोग करें।",
     shortcuts: "कुंजीपटल अल्प मार्ग",
-    shortcutsClose: "बंद करें",
     shortcutKeysColumn: "शॉर्टकट",
     shortcutActionColumn: "क्रिया",
     shortcutSearchLabel: "शॉर्टकट खोजें",
@@ -11214,6 +11213,13 @@ export default {
       rowContextMenu: "पंक्ति शीर्षक संदर्भ मेन्यू खोलें",
       columnContextMenu: "स्तंभ शीर्षक संदर्भ मेन्यू खोलें",
       openShortcuts: "कुंजीपटल शॉर्टकट खोलें",
+      jumpToEdge: "डेटा क्षेत्र के किनारे पर जाएँ",
+      extendToEdge: "चयन को किनारे तक बढ़ाएँ",
+      insertDateTime: "वर्तमान दिनांक और समय डालें",
+      zoomIn: "ज़ूम इन",
+      zoomOut: "ज़ूम आउट",
+      zoomReset: "ज़ूम रीसेट करें",
+      cancelOrExitMode: "कक्ष संपादन रद्द करें या चयन मोड से बाहर निकलें",
     },
   },
   currencyDetail: [

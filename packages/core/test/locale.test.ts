@@ -35,12 +35,20 @@ describe("screen-reader locale coverage", () => {
       });
     });
 
-    it(`keeps both extent placeholders in ${lang}`, () => {
-      // replaceHtml substitutes these by name; a translation that drops one
-      // would announce a region boundary without saying where it runs. No
-      // fallback covers this — the key is present, just malformed.
-      expect(infoFor(lang).enteredFilteredRegion).toContain("${start}");
-      expect(infoFor(lang).enteredFilteredRegion).toContain("${end}");
+    it(`keeps every English placeholder in ${lang}`, () => {
+      // Substituted by name, so a translation that drops one renders a static
+      // sentence instead — a count region that reports the same number for
+      // every search, or a boundary announcement that omits where it runs. No
+      // fallback covers this: the key is present, just malformed. Derived from
+      // English rather than hand-listed, so the next such string is covered
+      // without anyone remembering to add it.
+      const info = infoFor(lang) as unknown as Record<string, string>;
+      Object.entries(en.info).forEach(([key, value]) => {
+        if (typeof value !== "string") return;
+        (value.match(/\$\{\w+\}/g) ?? []).forEach((placeholder) => {
+          expect(info[key]).toContain(placeholder);
+        });
+      });
     });
   });
 

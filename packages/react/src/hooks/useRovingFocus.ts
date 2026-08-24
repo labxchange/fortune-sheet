@@ -63,6 +63,12 @@ export function useRovingFocus({
       const items = getItems();
       if (items.length === 0) return;
       const current = items.indexOf(document.activeElement as HTMLElement);
+      // Focus sitting on something that is not an item — inside a popup the
+      // selector excludes, say — must do nothing. `step()` maps a negative
+      // current to 0, so without this an arrow key would teleport to the first
+      // item. The container itself is exempt: `focusRegion` lands there when a
+      // region has not been visited yet, and the first arrow should enter it.
+      if (current < 0 && document.activeElement !== container) return;
       let next: number | null = null;
 
       if (orientation === "grid") {

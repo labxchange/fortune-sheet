@@ -3,6 +3,7 @@ import React, { useContext, useEffect, useRef } from "react";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
+import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import "./index.css";
 
 type Props = {
@@ -20,9 +21,8 @@ type Props = {
    * `onCancel`, so dialogs that don't care are unaffected.
    *
    * This has to live here rather than in a keydown handler on the inner
-   * control: since React 17 synthetic events are delegated from the app root,
-   * so the native listener below (on an ancestor of that control) always runs
-   * first, and a stopPropagation from the child is too late to prevent it.
+   * control: Escape is claimed by `useEscapeToClose` on `document` in the
+   * capture phase, so a handler on a descendant never sees it.
    */
   onEscape?: () => void;
   /**
@@ -61,18 +61,30 @@ const Dialog: React.FC<Props> = ({
   const handlers = useRef({ onCancel, onEscape });
   handlers.current = { onCancel, onEscape };
 
+  // Escape via the shared stack rather than a listener of our own. The stack is
+  // how layers agree who is innermost: useEscapeToClose listens on `document` in
+  // the capture phase, so a still-open toolbar dropdown used to claim the key
+  // and stopPropagation before this dialog's element-level listener ever ran —
+  // the press appeared to do nothing. autoFocus/restoreFocus are off because
+  // the effect below already does both, via initialFocusRef.
+  useEscapeToClose({
+    onClose: () => {
+      const { onEscape: esc, onCancel: cancel } = handlers.current;
+      (esc ?? cancel)?.();
+    },
+    containerRef: dialogRef,
+    autoFocus: false,
+    restoreFocus: false,
+  });
+
   useEffect(() => {
     previousActiveElement.current =
       document.activeElement as HTMLElement | null;
     const dialog = dialogRef.current;
     if (!dialog) return undefined;
     const trapFocus = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        const { onEscape: esc, onCancel: cancel } = handlers.current;
-        (esc ?? cancel)?.();
-        return;
-      }
+      // Escape is not handled here: it goes through useEscapeToClose below, so
+      // this dialog joins the same open-instance stack every popup uses.
       if (e.key !== "Tab") return;
       const focusable = Array.from(
         dialog.querySelectorAll<HTMLElement>(

@@ -34,7 +34,11 @@
   width: 100%;
   box-sizing: border-box;
   padding: 6px 8px;
-  border: 1px solid #c4c4c4;
+
+  /* 4.54:1 on white. The border is this input's only visual boundary — its
+     background matches the dialog — so 1.4.11 applies to it at 3:1, and the
+     repo's usual #c4c4c4 manages 1.74:1. */
+  border: 1px solid #767676;
   border-radius: 4px;
   font-family: inherit;
   font-size: 13px;

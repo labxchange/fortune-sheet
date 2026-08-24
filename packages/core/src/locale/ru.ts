@@ -13044,7 +13044,6 @@ export default {
     addedSelectionRange:
       "Диапазон добавлен к выделению. Используйте клавиши со стрелками, чтобы переместить его.",
     shortcuts: "Горячие клавиши",
-    shortcutsClose: "Закрыть",
     shortcutKeysColumn: "Сочетание",
     shortcutActionColumn: "Действие",
     shortcutSearchLabel: "Поиск сочетаний",
@@ -13088,6 +13087,14 @@ export default {
       rowContextMenu: "Открыть контекстное меню заголовка строки",
       columnContextMenu: "Открыть контекстное меню заголовка столбца",
       openShortcuts: "Открыть горячие клавиши",
+      jumpToEdge: "Перейти к краю области данных",
+      extendToEdge: "Расширить выделение до края",
+      insertDateTime: "Вставить текущие дату и время",
+      zoomIn: "Увеличить",
+      zoomOut: "Уменьшить",
+      zoomReset: "Сбросить масштаб",
+      cancelOrExitMode:
+        "Отменить редактирование ячейки или выйти из режима выделения",
     },
   },
   currencyDetail: [

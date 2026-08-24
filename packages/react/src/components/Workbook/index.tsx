@@ -625,7 +625,20 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
         // because it can stop propagation before this handler runs, the two do
         // not double-fire.
         const withPrimary = e.ctrlKey || e.metaKey;
-        if (withPrimary && !e.shiftKey && e.key === "/") {
+
+        // AltGr is delivered as Ctrl+Alt on Windows and Linux, so on any layout
+        // that composes characters with it — Polish ą/ń/ś, and German, Spanish,
+        // Czech, Turkish and more — those keystrokes are indistinguishable from
+        // the region chords below by ctrlKey/altKey/code alone, and would be
+        // swallowed mid-cell. A genuine Ctrl+Alt reports AltGraph as false.
+        if (e.getModifierState("AltGraph")) return;
+
+        // No `!e.shiftKey` here: `e.key` is the composed character, and `/` is
+        // Shift+7 on German and Nordic layouts and Shift+: on AZERTY, so
+        // requiring Shift to be up made the dialog unreachable on all of them.
+        // It costs nothing on a US layout, where Shift+/ produces "?" and this
+        // comparison is already false.
+        if (withPrimary && e.key === "/") {
           e.preventDefault();
           setContextWithProduce((draftCtx) => {
             draftCtx.showShortcutsDialog = true;
@@ -894,7 +907,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           cellInput.current,
           scrollbarX.current,
           scrollbarY.current,
-          workbookContainer.current
+          workbookContainer
         ),
       [context, setContextWithProduce, handleUndo, handleRedo, mergedSettings]
     );

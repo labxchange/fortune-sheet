@@ -1,8 +1,4 @@
-import {
-  Sheet,
-  cancelNormalSelected,
-  cancelActiveImgItem,
-} from "@fortune-sheet/core";
+import { Sheet, switchToSheet } from "@fortune-sheet/core";
 import React, { useContext, useEffect, useRef } from "react";
 import WorkbookContext from "../../context";
 import "./index.css";
@@ -44,19 +40,11 @@ const SheetListItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
       ref={containerRef}
       onClick={() => {
         if (isDropPlaceholder) return;
-        setContext((draftCtx) => {
-          draftCtx.sheetScrollRecord[draftCtx.currentSheetId] = {
-            scrollLeft: draftCtx.scrollLeft,
-            scrollTop: draftCtx.scrollTop,
-            luckysheet_select_status: draftCtx.luckysheet_select_status,
-            luckysheet_select_save: draftCtx.luckysheet_select_save,
-            luckysheet_selection_range: draftCtx.luckysheet_selection_range,
-          };
-          draftCtx.currentSheetId = sheet.id!;
-          draftCtx.zoomRatio = sheet.zoomRatio || 1;
-          cancelActiveImgItem(draftCtx, refs.globalCache);
-          cancelNormalSelected(draftCtx);
-        });
+        // Core owns the transition; this copy used to omit the
+        // dataVerificationDropDownList reset the tab route performs.
+        setContext((draftCtx) =>
+          switchToSheet(draftCtx, refs.globalCache, sheet.id!)
+        );
       }}
       onKeyDown={activateOnEnterOrSpace}
       tabIndex={0}

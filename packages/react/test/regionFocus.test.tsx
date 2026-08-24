@@ -1,4 +1,4 @@
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, createEvent } from "@testing-library/react";
 import React from "react";
 import { GRID_ROOT_CLASS } from "@fortune-sheet/core";
 import Workbook, { WorkbookInstance } from "../src/components/Workbook";
@@ -68,6 +68,8 @@ describe("Region focus", () => {
         code,
         ctrlKey: true,
         altKey: true,
+        // No getModifierState override: the prototype answers false for
+        // AltGraph, which is what a genuine Ctrl+Alt reports.
       });
     };
 
@@ -87,6 +89,35 @@ describe("Region focus", () => {
           .querySelector(".fortune-toolbar")
           ?.contains(document.activeElement)
       ).toBe(true);
+    });
+
+    // AltGr is delivered as Ctrl+Alt on Windows and Linux, so an AltGr-composed
+    // letter is indistinguishable from a region chord by flags and code alone.
+    // A synthetic event cannot *be* AltGr, but it can carry the modifier state
+    // the platform sets, which is exactly what the guard reads.
+    it("ignores AltGr, which reports the same ctrlKey and altKey", () => {
+      const { container } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+      const workbook =
+        container.querySelector<HTMLElement>(".fortune-container")!;
+      const grid = container.querySelector(`.${GRID_ROOT_CLASS}`);
+
+      // `getModifierState` has to be defined on the event object: fireEvent's
+      // init bag silently drops it, leaving the prototype method — which
+      // answers false — in place, so the test would pass either way.
+      const event = createEvent.keyDown(workbook, {
+        key: "ś",
+        code: "KeyS",
+        ctrlKey: true,
+        altKey: true,
+      });
+      Object.defineProperty(event, "getModifierState", {
+        value: (m: string) => m === "AltGraph",
+      });
+      fireEvent(workbook, event);
+
+      // The identical event without AltGraph focuses the grid root — that is
+      // the test above — so this asserts the branch did not run at all.
+      expect(document.activeElement).not.toBe(grid);
     });
 
     it("Ctrl+Alt+B enters the sheet tab bar", () => {

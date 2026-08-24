@@ -344,7 +344,11 @@ export function handleWithCtrlOrMetaKey(
   } else if (
     e.code === "KeyR" &&
     e.ctrlKey &&
-    (e.metaKey || e.altKey) // Mac: Ctrl+Cmd+R, Windows: Ctrl+Alt+R
+    (e.metaKey || e.altKey) && // Mac: Ctrl+Cmd+R, Windows: Ctrl+Alt+R
+    // AltGr arrives as Ctrl+Alt on Windows and Linux, and this branch sits
+    // directly on the cell-typing path, so without this a layout that composes
+    // a character with AltGr+R loses it. A genuine Ctrl+Alt reports false.
+    !e.getModifierState("AltGraph")
   ) {
     // Open the filter dropdown for the focused column. Checked before the
     // Ctrl+R auto-fill branch below, which would otherwise swallow it.
@@ -400,6 +404,11 @@ export function handleWithCtrlOrMetaKey(
     }
 
     selectionCache.isPasteAction = true;
+    // Self-correcting rather than relying on handlePaste's reset, which sits
+    // below its allowEdit guard: on a read-only sheet a preceding Ctrl+Shift+V
+    // would otherwise leave this set for the life of the page, and the next
+    // ordinary paste would silently drop styles, borders and merges.
+    selectionCache.pasteValuesOnly = false;
     // luckysheetactiveCell();
     e.stopPropagation();
     return;

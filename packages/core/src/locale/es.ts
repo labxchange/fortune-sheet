@@ -11139,7 +11139,6 @@ export default {
     addedSelectionRange:
       "Se añadió un rango a la selección. Use las teclas de flecha para moverlo.",
     shortcuts: "Atajos de teclado",
-    shortcutsClose: "Cerrar",
     shortcutKeysColumn: "Atajo",
     shortcutActionColumn: "Acción",
     shortcutSearchLabel: "Buscar atajos",
@@ -11185,6 +11184,14 @@ export default {
       rowContextMenu: "Abrir menú contextual de fila",
       columnContextMenu: "Abrir menú contextual de columna",
       openShortcuts: "Abrir atajos de teclado",
+      jumpToEdge: "Ir al borde de la región de datos",
+      extendToEdge: "Extender la selección hasta el borde",
+      insertDateTime: "Insertar la fecha y hora actuales",
+      zoomIn: "Acercar",
+      zoomOut: "Alejar",
+      zoomReset: "Restablecer el zoom",
+      cancelOrExitMode:
+        "Cancelar la edición de celda o salir del modo de selección",
     },
   },
   currencyDetail: {
