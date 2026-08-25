@@ -25,6 +25,9 @@ import { CFSplitRange } from "./ConditionFormat";
 
 export const selectionCache = {
   isPasteAction: false,
+  // Set alongside `isPasteAction` by Ctrl+Shift+V. The paste handlers read it to
+  // write values without carrying styles, borders or merges across.
+  pasteValuesOnly: false,
 };
 
 export function scrollToHighlightCell(ctx: Context, r: number, c: number) {
@@ -2172,6 +2175,124 @@ export function selectAll(ctx: Context) {
   ];
 
   normalizeSelection(ctx, ctx.luckysheet_select_save);
+}
+
+/**
+ * Select whole rows or whole columns, the keyboard equivalent of clicking a row
+ * or column header. `append` mirrors ctrl-clicking a header: the range is added
+ * to the current selection instead of replacing it.
+ *
+ * The geometry the mouse handlers compute by hand is left to
+ * `normalizeSelection`, which derives every pixel field from the row/column
+ * indices and the focus cell.
+ */
+function selectWholeLine(
+  ctx: Context,
+  orientation: "row" | "column",
+  start: number,
+  end: number,
+  intoActiveRange: boolean
+) {
+  const flowdata = getFlowdata(ctx);
+  if (!flowdata) return;
+
+  const lastRow = flowdata.length - 1;
+  const lastColumn = (flowdata[0]?.length ?? 0) - 1;
+  if (lastRow < 0 || lastColumn < 0) return;
+
+  const from = Math.max(0, Math.min(start, end));
+  const to = Math.min(
+    orientation === "row" ? lastRow : lastColumn,
+    Math.max(start, end)
+  );
+  if (from > to) return;
+
+  const selection =
+    orientation === "row"
+      ? {
+          row: [from, to],
+          column: [0, lastColumn],
+          row_focus: from,
+          column_focus: 0,
+          row_select: true,
+        }
+      : {
+          row: [0, lastRow],
+          column: [from, to],
+          row_focus: 0,
+          column_focus: from,
+          column_select: true,
+        };
+
+  ctx.luckysheet_select_status = false;
+
+  const save = ctx.luckysheet_select_save;
+  if (intoActiveRange && save?.length) {
+    // Reshape the range Shift+F8 anchored rather than replacing the selection
+    // or adding a third entry. Everything after Shift+F8 — arrows, Shift+arrow,
+    // and now a whole row or column — shapes that one range until the next
+    // Shift+F8 anchors another, so the ranges committed before it survive.
+    save[save.length - 1] = selection;
+  } else {
+    ctx.luckysheet_select_save = [selection];
+  }
+
+  normalizeSelection(ctx, ctx.luckysheet_select_save);
+}
+
+/**
+ * Select whole rows or whole columns, the keyboard equivalent of clicking a row
+ * or column header.
+ *
+ * `intoActiveRange` reshapes the range Shift+F8 anchored instead of replacing
+ * the whole selection, so whole-row and whole-column picks can build up a
+ * non-contiguous selection the same way arrow movement does. Callers pass
+ * `ctx.selectionModeActive`.
+ */
+export function selectRow(
+  ctx: Context,
+  start: number,
+  end: number = start,
+  intoActiveRange = false
+) {
+  selectWholeLine(ctx, "row", start, end, intoActiveRange);
+}
+
+/**
+ * Shift+F8. Anchors a new range on top of the current selection, so the
+ * previous ranges stay put while the arrow keys move the new one away — the
+ * keyboard route to the non-contiguous selection that ctrl-click gives the
+ * mouse. Pressing it again anchors another range.
+ *
+ * Deliberately does not move anything itself: the caller's next arrow press
+ * goes through `moveHighlightCell`, which always operates on the last range.
+ */
+export function addSelectionRange(ctx: Context) {
+  const last =
+    ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
+  if (!last) return false;
+
+  ctx.luckysheet_select_save!.push(_.cloneDeep(last));
+  ctx.selectionModeActive = true;
+  return true;
+}
+
+/** Escape: collapse a multi-range selection back to the range in focus. */
+export function exitSelectionMode(ctx: Context) {
+  ctx.selectionModeActive = false;
+  const save = ctx.luckysheet_select_save;
+  if (save && save.length > 1) {
+    ctx.luckysheet_select_save = [save[save.length - 1]];
+  }
+}
+
+export function selectColumn(
+  ctx: Context,
+  start: number,
+  end: number = start,
+  intoActiveRange = false
+) {
+  selectWholeLine(ctx, "column", start, end, intoActiveRange);
 }
 
 export function fixRowStyleOverflowInFreeze(

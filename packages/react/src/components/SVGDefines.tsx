@@ -849,6 +849,26 @@ const SVGDefines: React.FC<{ currency: string }> = ({ currency }) => (
           fill="#525C6F"
         />
       </symbol>
+      <symbol viewBox="0 0 24 24" fill="none" id="keyboard-shortcuts">
+        <rect
+          x="2.75"
+          y="5.75"
+          width="18.5"
+          height="12.5"
+          rx="1.75"
+          stroke="#525C6F"
+          strokeWidth="1.5"
+        />
+        <rect x="5.5" y="8.5" width="2" height="2" fill="#525C6F" />
+        <rect x="9" y="8.5" width="2" height="2" fill="#525C6F" />
+        <rect x="12.5" y="8.5" width="2" height="2" fill="#525C6F" />
+        <rect x="16" y="8.5" width="2.5" height="2" fill="#525C6F" />
+        <rect x="5.5" y="11.75" width="2.5" height="2" fill="#525C6F" />
+        <rect x="9.5" y="11.75" width="2" height="2" fill="#525C6F" />
+        <rect x="13" y="11.75" width="2" height="2" fill="#525C6F" />
+        <rect x="16.5" y="11.75" width="2" height="2" fill="#525C6F" />
+        <rect x="7.5" y="15" width="9" height="2" rx="0.5" fill="#525C6F" />
+      </symbol>
       <symbol viewBox="0 0 24 24" fill="none" id="redo">
         <path
           fillRule="evenodd"
