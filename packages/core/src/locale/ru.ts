@@ -12966,6 +12966,15 @@ export default {
     selectAllCells: "Выделить все ячейки",
     columnOptions: "Параметры столбца",
     filterDropdown: "Фильтровать ${column}.",
+    nameBox: "Поле имени",
+    nameBoxInvalidReference: "Ссылка не распознана.",
+    allCellsSelected: "Выделены все ячейки.",
+    horizontalScrollbar: "Электронная таблица",
+    verticalScrollbar: "Электронная таблица",
+    nameBoxReferenceClamped:
+      "Ссылка за пределами листа. Выполнен переход к ближайшей ячейке.",
+    scrollbarRowPosition: "Строка ${index}",
+    scrollbarColumnPosition: "Столбец ${index}",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of

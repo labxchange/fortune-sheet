@@ -11061,6 +11061,15 @@ export default {
     selectAllCells: "Seleccionar todas las celdas",
     columnOptions: "Opciones de columna",
     filterDropdown: "Filtrar ${column}.",
+    nameBox: "Cuadro de nombre",
+    nameBoxInvalidReference: "Referencia no reconocida.",
+    allCellsSelected: "Todas las celdas seleccionadas.",
+    horizontalScrollbar: "Hoja de cálculo",
+    verticalScrollbar: "Hoja de cálculo",
+    nameBoxReferenceClamped:
+      "La referencia está fuera de la hoja. Se movió a la celda más cercana.",
+    scrollbarRowPosition: "Fila ${index}",
+    scrollbarColumnPosition: "Columna ${index}",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of

@@ -1,4 +1,4 @@
-import { render, act } from "@testing-library/react";
+import { render, act, fireEvent } from "@testing-library/react";
 import React from "react";
 import Workbook, { WorkbookInstance } from "../src/components/Workbook";
 
@@ -274,5 +274,122 @@ describe("filter announcements across sheets", () => {
     // adds no spoken word.
     expect(back).not.toBe(entered);
     expect(back.replace(/\u200B/g, "")).toBe(entered.replace(/\u200B/g, ""));
+  });
+});
+
+describe("select-all announcement", () => {
+  let ref: React.RefObject<WorkbookInstance>;
+  let container: HTMLElement;
+
+  const corner = () =>
+    container.querySelector<HTMLElement>(".fortune-left-top")!;
+
+  const announcement = () =>
+    container.querySelector("#sr-selectAll")?.textContent ?? "";
+
+  beforeEach(() => {
+    ref = React.createRef<WorkbookInstance>();
+    const view = render(<Workbook ref={ref} lang="en" data={[sheet as any]} />);
+    container = view.container;
+  });
+
+  it("says nothing on first paint", () => {
+    // A workbook that loads with everything selected must not announce it on
+    // paint — the region baselines silently on its first observation.
+    expect(announcement()).toBe("");
+  });
+
+  it("announces the outcome when the corner is clicked", () => {
+    fireEvent.click(corner());
+    expect(announcement()).toContain("All cells selected.");
+  });
+
+  it("announces the same way when activated from the keyboard", () => {
+    act(() => {
+      corner().focus();
+    });
+    fireEvent.keyDown(corner(), { key: "Enter" });
+    expect(announcement()).toContain("All cells selected.");
+  });
+
+  it("leaves focus on the control", () => {
+    act(() => {
+      corner().focus();
+    });
+    fireEvent.keyDown(corner(), { key: "Enter" });
+    // The announcement is feedback, not a destination: a user who activated it
+    // has to be able to tab onward from where they were.
+    expect(document.activeElement).toBe(corner());
+  });
+
+  it("is polite rather than assertive", () => {
+    // `#sr-selection` is an alert and lands the cell description a commit
+    // later; an assertive message here would cut it off mid-word.
+    expect(container.querySelector("#sr-selectAll")?.getAttribute("role")).toBe(
+      "status"
+    );
+  });
+
+  it("takes the message from the active locale", () => {
+    const view = render(<Workbook lang="es" data={[sheet as any]} />);
+    fireEvent.click(
+      view.container.querySelector<HTMLElement>(".fortune-left-top")!
+    );
+    expect(
+      view.container.querySelector("#sr-selectAll")?.textContent ?? ""
+    ).toContain("Todas las celdas seleccionadas.");
+  });
+
+  it("speaks a second activation too", () => {
+    fireEvent.click(corner());
+    const first = announcement();
+    fireEvent.click(corner());
+    const second = announcement();
+    // Selecting all twice running writes an identical selection, so nothing
+    // about the state changes — but a live region only speaks on a change, so
+    // the text node has to differ.
+    expect(second).not.toBe(first);
+    expect(second.replace(/\u200B/g, "")).toBe(first.replace(/\u200B/g, ""));
+  });
+
+  it("speaks again after the selection has moved away and back", () => {
+    fireEvent.click(corner());
+    const first = announcement();
+    act(() => {
+      ref.current?.setSelection([{ row: [1, 1], column: [1, 1] }]);
+    });
+    // The region is not blanked on the way past. It does not need to be: a live
+    // region speaks on a *change*, and the zero-width-space alternation already
+    // guarantees consecutive announcements differ. Blanking would mean watching
+    // the selection again, which is exactly what caused the spurious repeats.
+    fireEvent.click(corner());
+    expect(announcement()).toContain("All cells selected.");
+    expect(announcement()).not.toBe(first);
+  });
+
+  it("stays silent through an unrelated update", () => {
+    // `normalizeSelection` reassigns the range arrays on every call, so an
+    // edit, a resize or a zoom hands back a new `luckysheet_select_save` for a
+    // selection nobody touched. Keyed on that identity, this region announced
+    // "All cells selected." again with nothing having happened — a spurious
+    // announcement is its own 4.1.3 defect, not a harmless duplicate.
+    fireEvent.click(corner());
+    const afterSelectAll = announcement();
+    expect(afterSelectAll).toContain("All cells selected.");
+    act(() => {
+      ref.current?.setCellValue(3, 3, "changed");
+    });
+    expect(announcement()).toBe(afterSelectAll);
+    act(() => {
+      ref.current?.setCellValue(4, 4, "changed again");
+    });
+    expect(announcement()).toBe(afterSelectAll);
+  });
+
+  it("says nothing for a whole-row selection that is not the whole sheet", () => {
+    act(() => {
+      ref.current?.setSelection([{ row: [1, 1], column: [0, 7] }]);
+    });
+    expect(announcement()).toBe("");
   });
 });

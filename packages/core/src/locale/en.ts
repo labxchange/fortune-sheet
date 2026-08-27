@@ -11095,6 +11095,22 @@ export default {
     // preferred; `filterColumn` below is the fallback for a header that is
     // blank, and the funnel appends `cellFilterActive` when a criterion is on.
     filterDropdown: "Filter ${column}.",
+    nameBox: "Name box",
+    nameBoxInvalidReference: "Reference not recognised.",
+    allCellsSelected: "All cells selected.",
+    // Names for the two scroll controls. Deliberately *not* "Horizontal
+    // scrollbar" / "Vertical scrollbar": assistive technology appends the role
+    // and the orientation itself, so a name containing them is read twice —
+    // VoiceOver said "Horizontal scroll bar, horizontal scroll bar". The name
+    // should say what is scrolled; the role says what the control is. Both keys
+    // carry the same word for that reason; they stay separate so a translation
+    // can differ by grammatical gender or number if it needs to.
+    horizontalScrollbar: "Spreadsheet",
+    verticalScrollbar: "Spreadsheet",
+    nameBoxReferenceClamped:
+      "Reference is outside the sheet. Moved to the nearest cell.",
+    scrollbarRowPosition: "Row ${index}",
+    scrollbarColumnPosition: "Column ${index}",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of
