@@ -93,6 +93,15 @@
   margin-top: 10px;
   overflow-y: auto;
   position: relative;
+  /*
+   * The results box is its own scrolling context and stops there. Without
+   * this, a wheel gesture that reaches the end of the list chains to the
+   * nearest scrollable ancestor — the grid — so the sheet lurched behind the
+   * dialog instead of the list moving. Nothing in the workbook handles wheel
+   * events in JS, so the chaining was the whole of the bug and this is the
+   * whole of the fix.
+   */
+  overscroll-behavior: contain;
 }
 
 #fortune-search-replace #searchAllbox .searchResultsTable {

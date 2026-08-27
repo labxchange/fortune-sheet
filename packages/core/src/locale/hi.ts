@@ -11775,6 +11775,8 @@ export default {
     space: "स्थान",
   },
   findAndReplace: {
+    resultRowLabel:
+      "${sheet}, ${cell}, ${value}। सेल ${cell} पर जाने के लिए सक्रिय करें",
     resultsTableName: "खोज परिणाम",
     matchesFoundTip: "${xlength} मिलान मिले",
     replacedTip: "${xlength} घटनाएं बदली गईं",

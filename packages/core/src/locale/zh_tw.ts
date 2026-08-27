@@ -11758,6 +11758,7 @@ export default {
     space: "空格",
   },
   findAndReplace: {
+    resultRowLabel: "${sheet}，${cell}，${value}。啟動以跳至儲存格 ${cell}",
     resultsTableName: "搜尋結果",
     matchesFoundTip: "找到 ${xlength} 處符合",
     replacedTip: "已取代 ${xlength} 處",

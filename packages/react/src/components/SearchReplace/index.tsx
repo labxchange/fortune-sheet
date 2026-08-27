@@ -16,7 +16,10 @@ import _ from "lodash";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
 import { useAlert } from "../../hooks/useAlert";
-import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
+import {
+  activateOnEnterOrSpace,
+  focusAfterCommit,
+} from "../../utils/keyboardActivation";
 import { useDialogFocus } from "../../hooks/useDialogFocus";
 import { markAsRepeat } from "../../utils/liveRegion";
 import "./index.css";
@@ -383,9 +386,21 @@ const SearchReplace: React.FC<{
                           scrollToHighlightCell(draftCtx, v.r, v.c);
                         });
                         setSelectedCell({ r: v.r, c: v.c });
+                        // Selecting the cell is not the same as going to it:
+                        // the grid's keyboard handling only runs while the
+                        // cell input holds focus, so without this the row
+                        // moved the selection and left the arrow keys dead in
+                        // a dialog the user then had to tab out of. Deferred,
+                        // because the commit above rebuilds the grid.
+                        focusAfterCommit(() => refs.cellInput.current);
                       }}
                       onKeyDown={activateOnEnterOrSpace}
                       tabIndex={0}
+                      aria-label={replaceHtml(findAndReplace.resultRowLabel, {
+                        sheet: v.sheetName,
+                        cell: v.cellPosition,
+                        value: v.value,
+                      })}
                     >
                       <td>{v.sheetName}</td>
                       <td>{v.cellPosition}</td>
