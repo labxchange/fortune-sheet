@@ -8,6 +8,7 @@ import {
   replace,
   replaceAll,
   scrollToHighlightCell,
+  replaceHtml,
 } from "@fortune-sheet/core";
 import produce from "immer";
 import React, { useContext, useState, useCallback, useRef } from "react";
@@ -17,6 +18,7 @@ import SVGIcon from "../SVGIcon";
 import { useAlert } from "../../hooks/useAlert";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 import { useDialogFocus } from "../../hooks/useDialogFocus";
+import { markAsRepeat } from "../../utils/liveRegion";
 import "./index.css";
 
 const SearchReplace: React.FC<{
@@ -37,6 +39,18 @@ const SearchReplace: React.FC<{
   });
   const dialogRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [announcement, setAnnouncement] = useState("");
+
+  // Searching for the same term twice, or replacing one occurrence after
+  // another, writes the same sentence into the region — and a live region is
+  // spoken when its text *changes*, so the second write would be silent.
+  // markAsRepeat alternates an invisible zero-width space so the text node
+  // differs without changing what is spoken.
+  const announce = useCallback((message: string) => {
+    setAnnouncement((previous) =>
+      previous === message ? markAsRepeat(message) : message
+    );
+  }, []);
 
   // The find box, not the first focusable element — which is the close button,
   // so a default-to-first landing makes every keyboard user tab past the
@@ -270,7 +284,19 @@ const SearchReplace: React.FC<{
                   if (!searchText) return;
                   const res = searchAll(draftCtx, searchText, checkMode);
                   setSearchResult(res);
-                  if (_.isEmpty(res)) showAlert(findAndReplace.noFindTip);
+                  if (_.isEmpty(res)) {
+                    showAlert(findAndReplace.noFindTip);
+                  } else {
+                    // `matchesFoundTip`, not the existing `successTip`:
+                    // that key means "items found" in English and "made N
+                    // replacements" in zh_tw, so it cannot be trusted to
+                    // report a search.
+                    announce(
+                      `${replaceHtml(findAndReplace.matchesFoundTip, {
+                        xlength: res.length,
+                      })}. ${findAndReplace.resultsShownTip}`
+                    );
+                  }
                 })
               }
               onKeyDown={activateOnEnterOrSpace}
@@ -305,6 +331,17 @@ const SearchReplace: React.FC<{
           role="button"
         >
           {button.close}
+        </div>
+        {/*
+          Polite, and deliberately narrow. Every other outcome in this dialog
+          already speaks for itself: Replace All, an empty Find All and each
+          failure path open a MessageBox that takes focus, and Find Next and a
+          result-row activation move the selection, which SheetOverlay's
+          assertive #sr-selection announces. Adding those here would make the
+          screen reader say each of them twice.
+        */}
+        <div className="sr-only" role="status">
+          {announcement}
         </div>
         {searchResult.length > 0 && (
           <div id="searchAllbox">

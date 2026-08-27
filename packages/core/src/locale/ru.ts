@@ -14340,6 +14340,9 @@ export default {
     space: "Пробел",
   },
   findAndReplace: {
+    matchesFoundTip: "Найдено совпадений: ${xlength}",
+    replacedTip: "Заменено вхождений: ${xlength}",
+    resultsShownTip: "Показана таблица результатов",
     dialogTitle: "Найти и заменить",
     find: "Найти",
     replace: "Заменить",

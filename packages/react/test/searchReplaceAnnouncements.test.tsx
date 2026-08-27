@@ -1,0 +1,179 @@
+import { render, fireEvent, waitFor, within } from "@testing-library/react";
+import React from "react";
+import Workbook from "../src/components/Workbook";
+
+// The dialog's live region is deliberately narrow: it covers only the two
+// outcomes nothing else speaks for. Replace All, an empty Find All and every
+// failure path open a MessageBox that takes focus; Find Next and activating a
+// result row move the selection, which SheetOverlay's assertive #sr-selection
+// announces. These cases pin both halves — that the two silent outcomes now
+// speak, and that the others are still left alone, since a second region is
+// how a dialog ends up saying everything twice.
+//
+// What jsdom cannot show: that VoiceOver or NVDA actually voices the region,
+// or the order it interleaves with #sr-selection. Listed in the PR for the
+// review-app pass.
+
+const DATA = [
+  {
+    name: "Sheet1",
+    celldata: [
+      {
+        r: 0,
+        c: 0,
+        v: { v: "alpha", m: "alpha", ct: { fa: "General", t: "s" } },
+      },
+      {
+        r: 1,
+        c: 0,
+        v: { v: "alpha", m: "alpha", ct: { fa: "General", t: "s" } },
+      },
+      {
+        r: 2,
+        c: 0,
+        v: { v: "beta", m: "beta", ct: { fa: "General", t: "s" } },
+      },
+    ],
+  },
+];
+
+const renderWorkbook = () =>
+  render(<Workbook data={DATA as any} toolbarItems={["search"]} />);
+
+const openDialog = async (getByRole: any) => {
+  fireEvent.click(getByRole("button", { name: /find and replace/i }));
+  return waitFor(() => getByRole("dialog"));
+};
+
+const regionIn = (dialog: HTMLElement) =>
+  dialog.querySelector<HTMLElement>('.sr-only[role="status"]')!;
+
+// Both the Replace *tab* and the Replace *button* are named exactly
+// "Replace", so they are addressed by id rather than by name.
+const byId = (dialog: HTMLElement, id: string) =>
+  dialog.querySelector<HTMLElement>(`#${id}`)!;
+
+const typeFind = (dialog: HTMLElement, text: string) =>
+  fireEvent.change(within(dialog).getByLabelText("Find Content"), {
+    target: { value: text },
+  });
+
+describe("Find and Replace announcements", () => {
+  it("starts silent", async () => {
+    const { getByRole } = renderWorkbook();
+    const dialog = await openDialog(getByRole);
+    expect(regionIn(dialog)).toBeTruthy();
+    expect(regionIn(dialog).textContent).toBe("");
+  });
+
+  it("is polite, so it cannot interrupt the cell announcement", async () => {
+    // #sr-selection is assertive; an assertive region here would cut across
+    // the cell the user navigated to hear.
+    const { getByRole } = renderWorkbook();
+    const dialog = await openDialog(getByRole);
+    expect(regionIn(dialog).getAttribute("role")).toBe("status");
+  });
+
+  it("reports how many matches Find All turned up, and that a table appeared", async () => {
+    const { getByRole } = renderWorkbook();
+    const dialog = await openDialog(getByRole);
+
+    typeFind(dialog, "alpha");
+    fireEvent.click(byId(dialog, "searchAllBtn"));
+
+    await waitFor(() =>
+      expect(regionIn(dialog).textContent).toContain("2 matches found")
+    );
+    expect(regionIn(dialog).textContent).toContain("Results table displayed");
+  });
+
+  it("re-announces an identical repeated search", async () => {
+    // A live region is spoken when its text changes, so running the same
+    // search twice would otherwise be silent the second time.
+    const { getByRole } = renderWorkbook();
+    const dialog = await openDialog(getByRole);
+    const findAll = byId(dialog, "searchAllBtn");
+
+    typeFind(dialog, "alpha");
+    fireEvent.click(findAll);
+    const first = await waitFor(() => {
+      const text = regionIn(dialog).textContent!;
+      expect(text).toContain("2 matches found");
+      return text;
+    });
+
+    fireEvent.click(findAll);
+    await waitFor(() => expect(regionIn(dialog).textContent).not.toBe(first));
+    // Same words, different text node — the marker is invisible and unspoken.
+    expect(regionIn(dialog).textContent).toContain("2 matches found");
+    expect(regionIn(dialog).textContent!.replace(/\u200B/g, "")).toBe(first);
+  });
+
+  it("stays silent when Find All finds nothing, because a dialog already says so", async () => {
+    const { getByRole } = renderWorkbook();
+    const dialog = await openDialog(getByRole);
+
+    typeFind(dialog, "nothing-matches-this");
+    fireEvent.click(byId(dialog, "searchAllBtn"));
+
+    await waitFor(() =>
+      expect(document.body.textContent).toContain("The content was not found")
+    );
+    expect(regionIn(dialog).textContent).toBe("");
+  });
+
+  it("reports a single replacement, which nothing visible reports", async () => {
+    const { getByRole } = renderWorkbook();
+    const dialog = await openDialog(getByRole);
+
+    fireEvent.click(byId(dialog, "replaceTab"));
+    typeFind(dialog, "alpha");
+    fireEvent.change(within(dialog).getByLabelText("Replace Content"), {
+      target: { value: "gamma" },
+    });
+    fireEvent.click(byId(dialog, "replaceBtn"));
+
+    await waitFor(() =>
+      expect(regionIn(dialog).textContent).toContain("1 occurrences replaced")
+    );
+  });
+
+  it("leaves Replace All to its own dialog rather than saying it twice", async () => {
+    const { getByRole } = renderWorkbook();
+    const dialog = await openDialog(getByRole);
+
+    fireEvent.click(byId(dialog, "replaceTab"));
+    typeFind(dialog, "alpha");
+    fireEvent.change(within(dialog).getByLabelText("Replace Content"), {
+      target: { value: "gamma" },
+    });
+    fireEvent.click(byId(dialog, "replaceAllBtn"));
+
+    await waitFor(() =>
+      expect(document.body.textContent).toContain("occurrences replaced")
+    );
+    expect(regionIn(dialog).textContent).toBe("");
+  });
+});
+
+describe("replaceAll's own message", () => {
+  it("reports a replacement rather than a find", async () => {
+    // It used to reuse `successTip` — "N items found" in English, and "made N
+    // replacements" in zh_tw. The key meant two different things, and English
+    // had the wrong one for an action that just rewrote the cells.
+    const { getByRole } = renderWorkbook();
+    const dialog = await openDialog(getByRole);
+
+    fireEvent.click(byId(dialog, "replaceTab"));
+    typeFind(dialog, "alpha");
+    fireEvent.change(within(dialog).getByLabelText("Replace Content"), {
+      target: { value: "gamma" },
+    });
+    fireEvent.click(byId(dialog, "replaceAllBtn"));
+
+    await waitFor(() =>
+      expect(document.body.textContent).toContain("2 occurrences replaced")
+    );
+    expect(document.body.textContent).not.toContain("2 items found");
+  });
+});

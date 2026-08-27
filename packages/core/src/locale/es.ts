@@ -11738,6 +11738,9 @@ export default {
     space: "espacio",
   },
   findAndReplace: {
+    matchesFoundTip: "${xlength} coincidencias encontradas",
+    replacedTip: "${xlength} apariciones reemplazadas",
+    resultsShownTip: "Tabla de resultados mostrada",
     dialogTitle: "Buscar y reemplazar",
     find: "Encontrar",
     replace: "Reemplazar",
