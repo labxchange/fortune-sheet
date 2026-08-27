@@ -117,8 +117,16 @@ const SearchReplace: React.FC<{
           <div className="row">
             <div className="inputBox">
               <div className="textboxs" id="searchInput">
-                {findAndReplace.findTextbox}：
+                {/* The colon stays outside the label so it is not part of the
+                    accessible name — screen readers at high punctuation
+                    verbosity read it aloud, and it is a hardcoded fullwidth
+                    colon that no locale overrides. */}
+                <label htmlFor="fortune-search-find-input">
+                  {findAndReplace.findTextbox}
+                </label>
+                ：
                 <input
+                  id="fortune-search-find-input"
                   className="formulaInputFocus"
                   // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
@@ -130,8 +138,12 @@ const SearchReplace: React.FC<{
               </div>
               {showReplace && (
                 <div className="textboxs" id="replaceInput">
-                  {findAndReplace.replaceTextbox}：
+                  <label htmlFor="fortune-search-replace-input">
+                    {findAndReplace.replaceTextbox}
+                  </label>
+                  ：
                   <input
+                    id="fortune-search-replace-input"
                     className="formulaInputFocus"
                     spellCheck="false"
                     onKeyDown={(e) => e.stopPropagation()}
@@ -144,24 +156,33 @@ const SearchReplace: React.FC<{
             <div className="checkboxs">
               <div id="regCheck">
                 <input
+                  id="fortune-search-regCheck"
                   type="checkbox"
                   onChange={(e) => setCheckMode("regCheck", e.target.checked)}
                 />
-                <span>{findAndReplace.regexTextbox}</span>
+                <label htmlFor="fortune-search-regCheck">
+                  {findAndReplace.regexTextbox}
+                </label>
               </div>
               <div id="wordCheck">
                 <input
+                  id="fortune-search-wordCheck"
                   type="checkbox"
                   onChange={(e) => setCheckMode("wordCheck", e.target.checked)}
                 />
-                <span>{findAndReplace.wholeTextbox}</span>
+                <label htmlFor="fortune-search-wordCheck">
+                  {findAndReplace.wholeTextbox}
+                </label>
               </div>
               <div id="caseCheck">
                 <input
+                  id="fortune-search-caseCheck"
                   type="checkbox"
                   onChange={(e) => setCheckMode("caseCheck", e.target.checked)}
                 />
-                <span>{findAndReplace.distinguishTextbox}</span>
+                <label htmlFor="fortune-search-caseCheck">
+                  {findAndReplace.distinguishTextbox}
+                </label>
               </div>
             </div>
           </div>
