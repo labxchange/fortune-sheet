@@ -1,6 +1,12 @@
-import { render, fireEvent, waitFor, within } from "@testing-library/react";
+import {
+  render,
+  fireEvent,
+  waitFor,
+  within,
+  act,
+} from "@testing-library/react";
 import React from "react";
-import Workbook from "../src/components/Workbook";
+import Workbook, { WorkbookInstance } from "../src/components/Workbook";
 
 // The Find All results were three columns of floated <span>s inside <div>s —
 // a table to look at and an unstructured list to a screen reader, which could
@@ -48,8 +54,21 @@ const findAll = async (getByRole: any, term: string) => {
   return dialog;
 };
 
-const renderWorkbook = () =>
-  render(<Workbook data={DATA as any} toolbarItems={["search"]} />);
+// A sheet that has never been clicked still carries the placeholder selection
+// SheetOverlay installs on mount, `{ row: [0], column: [0] }` — open-ended, and
+// `searchAll` walks `r1..r2` with `r2` undefined, so Find All reports no
+// matches however many there are. Selecting a cell is what a user does before
+// searching, and it is what puts the sheet in the state these cases are about.
+const renderWorkbook = () => {
+  const ref = React.createRef<WorkbookInstance>();
+  const view = render(
+    <Workbook ref={ref} data={DATA as any} toolbarItems={["search"]} />
+  );
+  act(() => {
+    ref.current!.setSelection([{ row: [0, 0], column: [0, 0] }]);
+  });
+  return view;
+};
 
 describe("Find All results table", () => {
   it("is exposed as a table", async () => {

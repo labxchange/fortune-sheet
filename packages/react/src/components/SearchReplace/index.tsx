@@ -59,7 +59,11 @@ const SearchReplace: React.FC<{
   // so a default-to-first landing makes every keyboard user tab past the
   // control they opened the dialog to use. This also replaces the input's own
   // `autoFocus`, which covered opening and did nothing for closing.
-  useDialogFocus(dialogRef, searchInputRef);
+  //
+  // The cell input is the fallback for a closed dialog whose opener has gone:
+  // it is where the grid's own keyboard handling runs from, so it is both a
+  // real focus target and the one a spreadsheet user expects to be left on.
+  useDialogFocus(dialogRef, searchInputRef, refs.cellInput);
 
   const closeDialog = useCallback(() => {
     _.set(refs.globalCache, "searchDialog.mouseEnter", false);
@@ -267,6 +271,19 @@ const SearchReplace: React.FC<{
                       );
                       if (alertMsg != null) {
                         showAlert(alertMsg);
+                      } else {
+                        // The one outcome in this dialog with nothing to hear:
+                        // Replace rewrites a single cell and moves the
+                        // selection onto it, and the selection move is
+                        // announced by #sr-selection as a cell — its address
+                        // and its new contents — never as "a replacement
+                        // happened". `replacedTip` is the same key replaceAll
+                        // reports with, so the two read alike.
+                        announce(
+                          replaceHtml(findAndReplace.replacedTip, {
+                            xlength: 1,
+                          })
+                        );
                       }
                     })
                   }
