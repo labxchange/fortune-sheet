@@ -1,6 +1,6 @@
-import { render, fireEvent, waitFor } from "@testing-library/react";
+import { render, fireEvent, waitFor, act } from "@testing-library/react";
 import React from "react";
-import Workbook from "../src/components/Workbook";
+import Workbook, { WorkbookInstance } from "../src/components/Workbook";
 
 // A sheet with a filter already applied to A1:B2, so the funnel buttons render.
 const dataWithFilter = [
@@ -85,5 +85,52 @@ describe("Filter funnel keyboard accessibility", () => {
     await waitFor(() =>
       expect(funnels()[0].getAttribute("aria-expanded")).toBe("true")
     );
+  });
+
+  // The React half of the Ctrl+Cmd+R shortcut. core's keyboardShortcuts suite
+  // asserts only that the keypress sets `openFilterMenuForColumn`; nothing
+  // covered the effect that consumes it and opens the funnel. That effect is
+  // also where this branch changed two things at once — the funnel is addressed
+  // through findFilterFunnel rather than a ref map, and the click it dispatches
+  // now runs a toggle — so a break here would be silent.
+  it("opens the requested column's dropdown when the shortcut asks for it", async () => {
+    const ref = React.createRef<WorkbookInstance>();
+    const { container } = render(
+      <Workbook ref={ref} lang="en" data={dataWithFilter} />
+    );
+    await waitFor(() => expect(funnels().length).toBeGreaterThan(0));
+
+    act(() => {
+      ref.current?.setSelection([{ row: [0, 0], column: [1, 1] }]);
+    });
+    const cellInput = container.querySelector<HTMLElement>(
+      "#luckysheet-rich-text-editor"
+    )!;
+    act(() => {
+      cellInput.focus();
+      fireEvent.keyDown(cellInput, {
+        key: "r",
+        code: "KeyR",
+        ctrlKey: true,
+        metaKey: true,
+      });
+    });
+
+    await waitFor(() =>
+      expect(document.querySelector(".fortune-filter-menu")).toBeTruthy()
+    );
+    // Column B's funnel, not column A's: the request carries a column and the
+    // lookup has to honour it.
+    const funnel = funnels().find(
+      (f) => f.getAttribute("data-filter-col") === "1"
+    )!;
+    expect(funnel.getAttribute("aria-expanded")).toBe("true");
+    expect(funnel.getAttribute("aria-controls")).toBe("fortune-filter-menu");
+    // The effect focuses the funnel, then the popup's own autoFocus takes over
+    // and moves into the menu — which is the useful end state for someone who
+    // just asked for the menu by keyboard, and the reason Escape can bring them
+    // back to the funnel.
+    const popup = document.querySelector(".fortune-filter-menu")!;
+    expect(popup.contains(document.activeElement)).toBe(true);
   });
 });
