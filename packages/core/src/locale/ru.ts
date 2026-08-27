@@ -14340,6 +14340,8 @@ export default {
     space: "Пробел",
   },
   findAndReplace: {
+    resultRowLabel:
+      "${sheet}, ${cell}, ${value}. Активируйте, чтобы перейти к ячейке ${cell}",
     resultsTableName: "Результаты поиска",
     matchesFoundTip: "Найдено совпадений: ${xlength}",
     replacedTip: "Заменено вхождений: ${xlength}",

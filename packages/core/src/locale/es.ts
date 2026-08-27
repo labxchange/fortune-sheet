@@ -11738,6 +11738,8 @@ export default {
     space: "espacio",
   },
   findAndReplace: {
+    resultRowLabel:
+      "${sheet}, ${cell}, ${value}. Active para ir a la celda ${cell}",
     resultsTableName: "Resultados de la búsqueda",
     matchesFoundTip: "${xlength} coincidencias encontradas",
     replacedTip: "${xlength} apariciones reemplazadas",
