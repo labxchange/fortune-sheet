@@ -10,12 +10,13 @@ import {
   scrollToHighlightCell,
 } from "@fortune-sheet/core";
 import produce from "immer";
-import React, { useContext, useState, useCallback } from "react";
+import React, { useContext, useState, useCallback, useRef } from "react";
 import _ from "lodash";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
 import { useAlert } from "../../hooks/useAlert";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
+import { useDialogFocus } from "../../hooks/useDialogFocus";
 import "./index.css";
 
 const SearchReplace: React.FC<{
@@ -34,6 +35,14 @@ const SearchReplace: React.FC<{
     wordCheck: false,
     caseCheck: false,
   });
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // The find box, not the first focusable element — which is the close button,
+  // so a default-to-first landing makes every keyboard user tab past the
+  // control they opened the dialog to use. This also replaces the input's own
+  // `autoFocus`, which covered opening and did nothing for closing.
+  useDialogFocus(dialogRef, searchInputRef);
 
   const closeDialog = useCallback(() => {
     _.set(refs.globalCache, "searchDialog.mouseEnter", false);
@@ -62,9 +71,21 @@ const SearchReplace: React.FC<{
   }, []);
 
   return (
+    // The mouse handlers drag the dialog around the grid. The rule fires now
+    // only because role="dialog" made this a *known* non-interactive element —
+    // the handlers predate it and are unchanged. Dragging is a pointer-only
+    // convenience with no keyboard equivalent to withhold: every control in
+    // the dialog is reachable and operable wherever it happens to sit, so
+    // there is no behaviour here for a keyboard user to be locked out of.
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <div
       id="fortune-search-replace"
       className="fortune-search-replace fortune-dialog"
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="fortune-search-replace-title"
+      tabIndex={-1}
       style={getInitialPosition(getContainer())}
       onMouseEnter={() => {
         _.set(refs.globalCache, "searchDialog.mouseEnter", true);
@@ -79,6 +100,12 @@ const SearchReplace: React.FC<{
       }}
     >
       <div className="container" onMouseDown={(e) => e.stopPropagation()}>
+        {/* The dialog has no visible title — the Find/Replace tabs stand in for
+            one — so the name AT reads comes from here. A heading rather than a
+            bare span so it also lands in a screen reader's heading list. */}
+        <h2 id="fortune-search-replace-title" className="sr-only">
+          {findAndReplace.dialogTitle}
+        </h2>
         <div
           className="icon-close fortune-modal-dialog-icon-close"
           onClick={closeDialog}
@@ -128,8 +155,7 @@ const SearchReplace: React.FC<{
                 <input
                   id="fortune-search-find-input"
                   className="formulaInputFocus"
-                  // eslint-disable-next-line jsx-a11y/no-autofocus
-                  autoFocus
+                  ref={searchInputRef}
                   spellCheck="false"
                   onKeyDown={(e) => e.stopPropagation()}
                   value={searchText}

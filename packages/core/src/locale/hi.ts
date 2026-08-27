@@ -11775,6 +11775,7 @@ export default {
     space: "स्थान",
   },
   findAndReplace: {
+    dialogTitle: "ढूंढें और बदलें",
     find: "खोजें",
     replace: "बदलें",
     goto: "जाएं",

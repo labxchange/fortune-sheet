@@ -11739,6 +11739,7 @@ export default {
     space: "espacio",
   },
   findAndReplace: {
+    dialogTitle: "Buscar y reemplazar",
     find: "Encontrar",
     replace: "Reemplazar",
     goto: "Ir a",
