@@ -12965,6 +12965,7 @@ export default {
     Dropdown: "Выпадающий список",
     selectAllCells: "Выделить все ячейки",
     columnOptions: "Параметры столбца",
+    filterDropdown: "Фильтровать ${column}.",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of

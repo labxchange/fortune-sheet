@@ -2,19 +2,27 @@ import {
   createFilterOptions,
   fixColumnStyleOverflowInFreeze,
   fixRowStyleOverflowInFreeze,
+  getCellValue,
+  getFlowdata,
   getSheetIndex,
+  getInlineStringNoStyle,
   indexToColumnChar,
+  isInlineStringCell,
   locale,
+  replaceHtml,
 } from "@fortune-sheet/core";
 import _ from "lodash";
-import React, { useCallback, useContext, useEffect, useRef } from "react";
+import React, { useCallback, useContext, useEffect } from "react";
 import WorkbookContext from "../../context";
-import SVGIcon from "../SVGIcon";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
+import {
+  FILTER_FUNNEL_COL_ATTR,
+  FILTER_MENU_ID,
+  findFilterFunnel,
+} from "../../utils/filterDom";
+import SVGIcon from "../SVGIcon";
 
-const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
-  getContainer,
-}) => {
+const FilterOptions: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
   const {
     filterOptions,
@@ -26,9 +34,38 @@ const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
   const sheetIndex = getSheetIndex(context, context.currentSheetId);
   const { filter_select, frozen } = context.luckysheetfile[sheetIndex!];
   const { info } = locale(context);
-  // Keyed by absolute column index so the keyboard shortcut can reach the same
-  // funnel a click would, without reproducing its positioning maths.
-  const funnelRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  /**
+   * Accessible name for one column's funnel (WCAG 4.1.2). A row of funnels named
+   * only by column letter is far less use by ear than one named by the header
+   * the user reads, so the header cell's own text is preferred and the letter is
+   * the fallback for a blank header. Either way it carries the criterion state,
+   * which is the other thing the icon alone conveys.
+   *
+   * A plain function rather than a useCallback: the name is derived from the
+   * sheet's own data, so any dependency list honest enough to include it would
+   * change on every render that could alter the name anyway.
+   */
+  const flowdata = getFlowdata(context);
+  const funnelLabel = (col: number, active: boolean) => {
+    let header: unknown = null;
+    if (filterOptions != null && flowdata != null) {
+      const { startRow } = filterOptions;
+      // A header with mixed inline formatting keeps its text in `ct.s` rather
+      // than in `m`, so `getCellValue(…, "m")` returns null for it and the name
+      // would fall back to the column letter on a header that is plainly not
+      // blank. Checked first, the order FxEditor and InputBox already read a
+      // cell in.
+      header = isInlineStringCell(flowdata[startRow]?.[col])
+        ? getInlineStringNoStyle(startRow, col, flowdata)
+        : getCellValue(startRow, col, flowdata, "m");
+    }
+    const headerText = _.isNil(header) ? "" : String(header).trim();
+    const name = headerText
+      ? replaceHtml(info.filterDropdown, { column: headerText })
+      : replaceHtml(info.filterColumn, { column: indexToColumnChar(col) });
+    return active ? `${name} ${info.cellFilterActive}` : name;
+  };
 
   useEffect(() => {
     setContext((draftCtx) => {
@@ -47,7 +84,7 @@ const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
     filter_select,
   ]);
 
-  const showFilterContextMenu = useCallback(
+  const toggleFilterContextMenu = useCallback(
     (
       v: {
         col: number;
@@ -58,8 +95,15 @@ const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
     ) => {
       if (filterOptions == null) return;
       setContext((draftCtx) => {
-        if (draftCtx.filterContextMenu?.col === filterOptions.startCol + i)
+        // A second press on the same funnel closes the popup it opened, rather
+        // than being swallowed as it used to be. That is what lets this button
+        // carry aria-expanded honestly: a trigger that reports "expanded" has
+        // to be able to collapse, or it promises a state change it never
+        // performs (3af3000).
+        if (draftCtx.filterContextMenu?.col === filterOptions.startCol + i) {
+          draftCtx.filterContextMenu = undefined;
           return;
+        }
         draftCtx.filterContextMenu = {
           x:
             v.left +
@@ -84,7 +128,7 @@ const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
         };
       });
     },
-    [filterOptions, getContainer, refs.scrollbarX, refs.scrollbarY, setContext]
+    [filterOptions, refs.scrollbarX, refs.scrollbarY, setContext]
   );
 
   // Ctrl+Cmd+R / Ctrl+Alt+R records the column it wants in core, because
@@ -94,20 +138,23 @@ const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
   const requestedColumn = context.openFilterMenuForColumn;
   useEffect(() => {
     if (requestedColumn == null) return;
-    const funnel = funnelRefs.current[requestedColumn];
-    // Only columns inside the applied filter range render a funnel, and one
-    // scrolled under a frozen pane is styled `display: none` — clicking that
-    // still opens the menu while focusing it is refused, so guard both.
-    // getComputedStyle is the hidden-check jsdom reports faithfully, which
-    // keeps a regression test honest.
-    if (funnel && window.getComputedStyle(funnel).display !== "none") {
+    // Addressed through the same data-filter-col lookup the popup uses to hand
+    // focus back, rather than a second ref map of the same funnels — and that
+    // lookup is where the "only columns in the range render a funnel, and one
+    // scrolled under a frozen pane is display:none and refuses focus" guard now
+    // lives, so both callers get it.
+    const funnel = findFilterFunnel(
+      refs.workbookContainer.current,
+      requestedColumn
+    );
+    if (funnel) {
       funnel.click();
       funnel.focus();
     }
     setContext((draftCtx) => {
       draftCtx.openFilterMenuForColumn = null;
     });
-  }, [requestedColumn, setContext]);
+  }, [requestedColumn, setContext, refs.workbookContainer]);
 
   const freezeType = frozen?.type;
   let frozenColumns = -1;
@@ -188,13 +235,18 @@ const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
 
         return (
           <div
-            ref={(el) => {
-              funnelRefs.current[columnIndex] = el;
-            }}
+            // Kept on mousedown: it stops the press reaching the popup's own
+            // document-level outside-click listener, which is what keeps the
+            // close-then-reopen race of 3af3000 away from a click-driven
+            // toggle — and what lets the shortcut below open the popup with a
+            // plain .click().
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
-              showFilterContextMenu(v_adjusted, i);
+              // Toggles rather than only opening: a second press closes the
+              // popup, so the aria-expanded below is a state the button can
+              // actually change.
+              toggleFilterContextMenu(v_adjusted, i);
             }}
             onDoubleClick={(e) => e.stopPropagation()}
             // A div with only onClick never fires on Enter, so the funnel was
@@ -203,12 +255,13 @@ const FilterOptions: React.FC<{ getContainer: () => HTMLDivElement }> = ({
             role="button"
             aria-haspopup="menu"
             aria-expanded={isOpen}
-            aria-label={`${info.filterColumn.replace(
-              "${column}",
-              indexToColumnChar(columnIndex)
-            )}${filterParam == null ? "" : ` ${info.cellFilterActive}`}`}
+            aria-label={funnelLabel(columnIndex, filterParam != null)}
+            // Gated on `isOpen`: the popup is only rendered while open, so the
+            // reference would otherwise dangle.
+            aria-controls={isOpen ? FILTER_MENU_ID : undefined}
             tabIndex={0}
             key={i}
+            {...{ [FILTER_FUNNEL_COL_ATTR]: v.col }}
             style={_.assign(rowOverflowFreezeStyle, columnOverflowFreezeStyle, {
               left,
               top,

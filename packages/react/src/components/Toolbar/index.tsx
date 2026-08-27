@@ -50,8 +50,10 @@ import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
 import {
   activateOnEnterOrSpace,
+  focusAfterCommit,
   onActivate,
 } from "../../utils/keyboardActivation";
+import { filterUnchanged } from "../../utils/filterDom";
 import { FormulaSearch } from "../FormulaSearch";
 import { SplitColumn } from "../SplitColumn";
 import { LocationCondition } from "../LocationCondition";
@@ -1413,19 +1415,40 @@ const Toolbar: React.FC<{
             iconId: "filter1",
             value: "filter",
             text: filter.filter,
-            onClick: () =>
+            onClick: () => {
+              const filterBefore = contextRef.current.luckysheet_filter_save;
               setContext((draftCtx) => {
                 createFilter(draftCtx);
-              }),
+              });
+              // Focus belongs on the cell the filter was just built around, not
+              // left on the toolbar control that opened this menu (WCAG 2.4.3):
+              // the new dropdowns are in the grid, and the grid's keyboard
+              // handling only runs while the cell input holds focus.
+              // Skipped when the command declined to act, so a filter that did
+              // not change does not relocate focus either. contextRef, not
+              // `context`: this callback runs after the commit has landed.
+              focusAfterCommit(() =>
+                filterUnchanged(contextRef.current, filterBefore)
+                  ? null
+                  : refs.cellInput.current
+              );
+            },
           },
           {
             iconId: "eraser",
             value: "eraser",
             text: filter.clearFilter,
-            onClick: () =>
+            onClick: () => {
+              const filterBefore = contextRef.current.luckysheet_filter_save;
               setContext((draftCtx) => {
                 clearFilter(draftCtx);
-              }),
+              });
+              focusAfterCommit(() =>
+                filterUnchanged(contextRef.current, filterBefore)
+                  ? null
+                  : refs.cellInput.current
+              );
+            },
           },
         ];
         return (

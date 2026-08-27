@@ -81,6 +81,34 @@ export function onActivationKeyDown<T extends HTMLElement = HTMLElement>(
 }
 
 /**
+ * Focus a target chosen by the caller, once the commit that the current
+ * interaction triggers has settled.
+ *
+ * For an action that both closes a popup and rearranges the grid, focus cannot
+ * be set inline. Two other things run after the handler and would win:
+ * useEscapeToClose's cleanup restores focus to whatever was focused before the
+ * popup opened, and effects such as FilterOption's schedule a further commit
+ * that can rebuild the very element being aimed at. Deferring by a task puts
+ * this last — the same tactic SheetOverlay's mousedown handler already uses to
+ * focus the cell input after its own setContext.
+ *
+ * `getTarget` is called inside the timeout, never before, so it resolves
+ * against the settled DOM; that is also where a caller puts its fallback
+ * (`funnel ?? cellInput`), since which elements still exist is only knowable
+ * then. A target that is gone is left alone rather than focused, because
+ * focusing a detached node silently moves focus to <body> — the failure this
+ * helper exists to prevent.
+ */
+export function focusAfterCommit(
+  getTarget: () => HTMLElement | null | undefined
+): void {
+  setTimeout(() => {
+    const target = getTarget();
+    if (target?.isConnected) target.focus();
+  });
+}
+
+/**
  * For a trigger that toggles a popup closed by useOutsideClick (which
  * listens on mousedown): runs the toggle on mousedown, with
  * stopPropagation, so a press on this same trigger never reaches

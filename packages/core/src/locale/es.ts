@@ -11060,6 +11060,7 @@ export default {
     Dropdown: "Menú desplegable",
     selectAllCells: "Seleccionar todas las celdas",
     columnOptions: "Opciones de columna",
+    filterDropdown: "Filtrar ${column}.",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of

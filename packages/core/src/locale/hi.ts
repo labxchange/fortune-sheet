@@ -11088,6 +11088,7 @@ export default {
     Dropdown: "ड्रॉप डाउन",
     selectAllCells: "सभी कक्ष चुनें",
     columnOptions: "कॉलम विकल्प",
+    filterDropdown: "${column} को फ़िल्टर करें।",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of
