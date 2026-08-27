@@ -11091,6 +11091,15 @@ export default {
     selectAllCells: "सभी कक्ष चुनें",
     columnOptions: "कॉलम विकल्प",
     filterDropdown: "${column} को फ़िल्टर करें।",
+    nameBox: "नाम बॉक्स",
+    nameBoxInvalidReference: "संदर्भ पहचाना नहीं गया।",
+    allCellsSelected: "सभी कक्ष चयनित।",
+    horizontalScrollbar: "स्प्रेडशीट",
+    verticalScrollbar: "स्प्रेडशीट",
+    nameBoxReferenceClamped:
+      "संदर्भ शीट के बाहर है। निकटतम कक्ष पर ले जाया गया।",
+    scrollbarRowPosition: "पंक्ति ${index}",
+    scrollbarColumnPosition: "स्तंभ ${index}",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of

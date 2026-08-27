@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useId,
 } from "react";
 import "./index.css";
 import {
@@ -52,6 +53,7 @@ import RangeDialog from "../DataVerification/RangeDialog";
 import { useDialog } from "../../hooks/useDialog";
 import { useFilterAnnouncements } from "../../hooks/useFilterAnnouncements";
 import { useSelectionModeAnnouncement } from "../../hooks/useSelectionModeAnnouncement";
+import { useSelectAllAnnouncement } from "../../hooks/useSelectAllAnnouncement";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
@@ -479,6 +481,8 @@ const SheetOverlay: React.FC = () => {
   }, [context.currentSheetId, context.luckysheet_select_save]);
 
   const selectionModeAnnouncement = useSelectionModeAnnouncement(context);
+  const selectAllAnnouncement = useSelectAllAnnouncement(context);
+  const cellAreaId = useId();
   const { cellAnnouncement: filterCellAnnouncement, regionAnnouncement } =
     useFilterAnnouncements(context, info);
 
@@ -542,10 +546,13 @@ const SheetOverlay: React.FC = () => {
       )}
       <div className="fortune-row-body">
         <RowHeader />
-        <ScrollBar axis="x" />
-        <ScrollBar axis="y" />
+        <ScrollBar axis="x" controls={cellAreaId} />
+        <ScrollBar axis="y" controls={cellAreaId} />
         <div
           ref={refs.cellArea}
+          // The scrollbars' `aria-controls` target. Generated rather than
+          // literal because a page can hold more than one workbook.
+          id={cellAreaId}
           className="fortune-cell-area"
           onMouseDown={cellAreaMouseDown}
           onDoubleClick={cellAreaDoubleClick}
@@ -964,6 +971,12 @@ const SheetOverlay: React.FC = () => {
           silent as well as invisible. Polite, for the same reason as above. */}
       <div id="sr-selectionMode" className="sr-only" role="status">
         {selectionModeAnnouncement}
+      </div>
+      {/* Select-all changes the whole sheet and says nothing: `#sr-selection`
+          is built from the focus cell, which stays at A1, so it repeats itself.
+          Polite, for the same reason as above. */}
+      <div id="sr-selectAll" className="sr-only" role="status">
+        {selectAllAnnouncement}
       </div>
     </main>
   );

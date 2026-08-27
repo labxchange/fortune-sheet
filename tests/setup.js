@@ -61,3 +61,10 @@ Object.defineProperty(window, "cancelAnimationFrame", {
 Math.random = () => 0.8404419276253765;
 
 global.URL.createObjectURL = () => {};
+
+// jsdom does not implement the global `CSS` object. Anything that resolves an
+// idref — `aria-controls`, `aria-labelledby` — reaches for `CSS.escape` to
+// build the selector and throws without it.
+global.CSS = global.CSS || {
+  escape: (value) => String(value).replace(/([^\w-])/g, "\\$1"),
+};

@@ -4,6 +4,17 @@
   z-index: 1003;
 }
 
+/* These were focus stops already — Chrome makes any scrollable container one —
+   but as unnamed "groups" nobody could operate, so no ring was ever needed.
+   They are declared scrollbars now, so a keyboard user has to be able to see
+   which one they are on. Drawn inside: the strip is only a few pixels
+   across, so an outward ring would be clipped by the grid edge it sits against. */
+.luckysheet-scrollbar-ltr:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+  outline-offset: -3px;
+}
+
 .luckysheet-scrollbar-ltr div {
   height: 1px;
   width: 1px;

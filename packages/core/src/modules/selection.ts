@@ -2160,6 +2160,11 @@ export function selectAll(ctx: Context) {
   const flowdata = getFlowdata(ctx);
   if (!flowdata) return;
 
+  // Past the guard, so a no-op on an empty sheet does not claim to have
+  // selected anything. Read by `useSelectAllAnnouncement`, which cannot
+  // otherwise distinguish a second activation from a re-render.
+  ctx.selectAllCount = (ctx.selectAllCount ?? 0) + 1;
+
   // $("#luckysheet-wa-functionbox-confirm").click();
   ctx.luckysheet_select_status = false;
 

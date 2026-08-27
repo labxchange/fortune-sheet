@@ -129,6 +129,12 @@ export type Context = {
   // new range instead of moving the existing one, the keyboard counterpart of
   // ctrl-clicking. Cleared by Escape, by a plain click and on sheet change.
   selectionModeActive: boolean;
+  /** Bumped every time `selectAll` actually selects the sheet. The selection it
+   *  writes is identical on a repeat, and `normalizeSelection` reassigns the
+   *  range arrays on unrelated updates, so neither the value nor the identity
+   *  of `luckysheet_select_save` can tell a fresh activation from a re-render.
+   *  This can. */
+  selectAllCount: number;
   // Column index whose filter dropdown a keyboard shortcut asked to open.
   // Positioning the popup needs scroll offsets and element geometry that only
   // the React layer has, so core records the request and `FilterOption`
@@ -440,6 +446,7 @@ export function defaultContext(refs: RefValues): Context {
 
     luckysheet_select_status: false,
     selectionModeActive: false,
+    selectAllCount: 0,
     openFilterMenuForColumn: null,
     luckysheet_select_save: undefined,
     luckysheet_selection_range: [],
