@@ -11758,6 +11758,7 @@ export default {
     space: "空格",
   },
   findAndReplace: {
+    resultsTableName: "搜尋結果",
     matchesFoundTip: "找到 ${xlength} 處符合",
     replacedTip: "已取代 ${xlength} 處",
     resultsShownTip: "已顯示結果表",

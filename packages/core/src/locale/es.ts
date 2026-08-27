@@ -11739,6 +11739,7 @@ export default {
     space: "espacio",
   },
   findAndReplace: {
+    resultsTableName: "Resultados de la búsqueda",
     matchesFoundTip: "${xlength} coincidencias encontradas",
     replacedTip: "${xlength} apariciones reemplazadas",
     resultsShownTip: "Tabla de resultados mostrada",

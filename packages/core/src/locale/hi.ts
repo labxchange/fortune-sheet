@@ -11775,6 +11775,7 @@ export default {
     space: "स्थान",
   },
   findAndReplace: {
+    resultsTableName: "खोज परिणाम",
     matchesFoundTip: "${xlength} मिलान मिले",
     replacedTip: "${xlength} घटनाएं बदली गईं",
     resultsShownTip: "परिणाम तालिका प्रदर्शित",
