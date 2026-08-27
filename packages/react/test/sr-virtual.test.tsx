@@ -79,8 +79,9 @@ describe("what a screen reader announces", () => {
   });
 
   it.each([
-    ["x", "orientated horizontally", "Column"],
-    ["y", "orientated vertically", "Row"],
+    // A lettered column and a numbered row — the sheet's own naming.
+    ["x", "orientated horizontally", "Column A"],
+    ["y", "orientated vertically", "Row 1"],
   ])(
     "announces the %s scroll control as a scrollbar, not a group",
     async (axis, orientation, position) => {

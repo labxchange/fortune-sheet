@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useLayoutEffect, useState } from "react";
-import { locale, replaceHtml } from "@fortune-sheet/core";
+import { indexToColumnChar, locale, replaceHtml } from "@fortune-sheet/core";
 import WorkbookContext from "../../../context";
 import "./index.css";
 
@@ -50,7 +50,7 @@ const stepTo = (
   return prev >= 0 ? edges[prev] : 0;
 };
 
-/** The 1-based row or column the given offset sits in, for `aria-valuetext`. */
+/** The zero-based row or column the given offset sits in, for `aria-valuetext`. */
 const indexAtOffset = (edges: number[] | undefined, offset: number) => {
   if (!edges?.length) return null;
   let lo = 0;
@@ -60,7 +60,7 @@ const indexAtOffset = (edges: number[] | undefined, offset: number) => {
     if (edges[mid] > offset) hi = mid;
     else lo = mid + 1;
   }
-  return Math.min(lo, edges.length - 1) + 1;
+  return Math.min(lo, edges.length - 1);
 };
 
 /**
@@ -142,12 +142,19 @@ const ScrollBar: React.FC<Props> = ({ axis, controls }) => {
     horizontal ? context.visibledatacolumn : context.visibledatarow,
     valueNowRaw
   );
+  // Columns are lettered and rows are numbered — a spreadsheet's own naming,
+  // and what the name box and every formula use. "Column 3" would be a
+  // coordinate the user never sees anywhere else in the sheet.
   const valueText =
     positionIndex == null
       ? undefined
       : replaceHtml(
           horizontal ? info.scrollbarColumnPosition : info.scrollbarRowPosition,
-          { index: positionIndex }
+          {
+            index: horizontal
+              ? indexToColumnChar(positionIndex)
+              : positionIndex + 1,
+          }
         );
   const valueNow = Math.min(valueMax, valueNowRaw);
 
