@@ -198,7 +198,9 @@ describe("scrollbar semantics", () => {
 
   it.each([
     ["y", "visibledatarow", "Row 6"],
-    ["x", "visibledatacolumn", "Column 2"],
+    // Columns are lettered and rows numbered, as everywhere else in a
+    // spreadsheet. 100px columns, so offset 105 sits in the second — B, not 2.
+    ["x", "visibledatacolumn", "Column B"],
   ])(
     "names the %s position rather than a pixel offset",
     (axis, key, expected) => {
