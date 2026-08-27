@@ -5,13 +5,18 @@ import { Context, getFlowdata } from "../context";
 import { updateCell, cancelNormalSelected } from "../modules/cell";
 import { handleFormulaInput } from "../modules/formula";
 import {
+  addSelectionRange,
   copy,
   deleteSelectedCellText,
+  exitSelectionMode,
   moveHighlightCell,
   moveHighlightRange,
   selectAll,
+  selectColumn,
   selectionCache,
+  selectRow,
 } from "../modules/selection";
+import { getAdjacentSheetId, switchToSheet } from "../modules/sheet";
 import { cancelPaintModel, handleBold } from "../modules/toolbar";
 import { hasPartMC } from "../modules/validation";
 import { CellMatrix, GlobalCache } from "../types";
@@ -306,11 +311,51 @@ export function handleWithCtrlOrMetaKey(
       // $("#luckysheet-rich-text-editor").html(value);
       // luckysheetRangeLast($("#luckysheet-rich-text-editor")[0]);
       handleFormulaInput(ctx, fxInput, cellInput, e.keyCode);
+    } else if (e.code === "KeyV") {
+      // Ctrl + Shift + V  Paste values only.
+      // Same contract as plain Ctrl+V below: flag the intent and return without
+      // preventing the default, so the browser still fires the `paste` event
+      // that carries the clipboard payload.
+      if ((ctx.luckysheet_select_save?.length ?? 0) > 1) {
+        return;
+      }
+      selectionCache.isPasteAction = true;
+      selectionCache.pasteValuesOnly = true;
+      e.stopPropagation();
+      return;
     } else if (e.code === "KeyZ") {
       // Ctrl + shift + z 重做
       handleRedo();
       e.stopPropagation();
       return;
+    }
+  } else if (e.code === "Space" && e.ctrlKey && !e.metaKey) {
+    // Ctrl + Space  选中整列
+    const last =
+      ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
+    if (last) {
+      selectColumn(
+        ctx,
+        last.column[0],
+        last.column[1],
+        ctx.selectionModeActive
+      );
+    }
+  } else if (
+    e.code === "KeyR" &&
+    e.ctrlKey &&
+    (e.metaKey || e.altKey) && // Mac: Ctrl+Cmd+R, Windows: Ctrl+Alt+R
+    // AltGr arrives as Ctrl+Alt on Windows and Linux, and this branch sits
+    // directly on the cell-typing path, so without this a layout that composes
+    // a character with AltGr+R loses it. A genuine Ctrl+Alt reports false.
+    !e.getModifierState("AltGraph")
+  ) {
+    // Open the filter dropdown for the focused column. Checked before the
+    // Ctrl+R auto-fill branch below, which would otherwise swallow it.
+    const last =
+      ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
+    if (!_.isNil(last?.column_focus)) {
+      ctx.openFilterMenuForColumn = last!.column_focus!;
     }
   } else if (
     ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)
@@ -359,6 +404,11 @@ export function handleWithCtrlOrMetaKey(
     }
 
     selectionCache.isPasteAction = true;
+    // Self-correcting rather than relying on handlePaste's reset, which sits
+    // below its allowEdit guard: on a read-only sheet a preceding Ctrl+Shift+V
+    // would otherwise leave this set for the life of the page, and the next
+    // ordinary paste would silently drop styles, borders and merges.
+    selectionCache.pasteValuesOnly = false;
     // luckysheetactiveCell();
     e.stopPropagation();
     return;
@@ -863,7 +913,35 @@ export function handleGlobalKeyDown(
       );
       return;
     }
-    if (
+    if (e.shiftKey && kstr === "F8") {
+      // Shift + F8  添加多重选区
+      addSelectionRange(ctx);
+      e.preventDefault();
+    } else if (e.shiftKey && (kstr === " " || e.code === "Space")) {
+      // Shift + Space  选中整行. Checked before the typing fallback below,
+      // which treats space as printable and would type it into the cell.
+      const last =
+        ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
+      if (last) {
+        selectRow(ctx, last.row[0], last.row[1], ctx.selectionModeActive);
+      }
+      e.preventDefault();
+    } else if (
+      e.altKey &&
+      (kstr === "ArrowUp" || kstr === "ArrowDown") &&
+      !e.shiftKey
+    ) {
+      // Alt/Option + Up/Down  上一个/下一个工作表. Checked before the plain
+      // arrow branch, which ignores altKey and would just move the cursor.
+      const targetId = getAdjacentSheetId(
+        ctx,
+        kstr === "ArrowDown" ? "next" : "previous"
+      );
+      if (targetId) {
+        switchToSheet(ctx, cache, targetId);
+      }
+      e.preventDefault();
+    } else if (
       e.shiftKey &&
       (kstr === "ArrowUp" ||
         kstr === "ArrowDown" ||
@@ -873,6 +951,7 @@ export function handleGlobalKeyDown(
       handleShiftWithArrowKey(ctx, e);
     } else if (kstr === "Escape") {
       ctx.contextMenu = {};
+      exitSelectionMode(ctx);
       // if (menuButton.luckysheetPaintModelOn) {
       //   menuButton.cancelPaintModel();
       // } else {

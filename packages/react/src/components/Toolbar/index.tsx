@@ -53,6 +53,7 @@ import {
   focusAfterCommit,
   onActivate,
 } from "../../utils/keyboardActivation";
+import { filterUnchanged } from "../../utils/filterDom";
 import { FormulaSearch } from "../FormulaSearch";
 import { SplitColumn } from "../SplitColumn";
 import { LocationCondition } from "../LocationCondition";
@@ -164,30 +165,30 @@ const Toolbar: React.FC<{
     useContext(WorkbookContext);
   const contextRef = useRef(context);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Arrow-key movement between toolbar buttons, the navigation half of the
+  // ARIA toolbar pattern. Purely additive: every button keeps its own tab
+  // stop, so Tab behaves exactly as before. Collapsing those into a single
+  // roving tab stop means giving eight heterogeneous item components a shared
+  // owner for tabIndex, which is left as a follow-up.
+  //
+  // The selector excludes combo popups. `Combo` renders its dropdown inside
+  // `.fortune-toobar-combo-container`, itself inside this container, so every
+  // open option is a `[role="button"]` descendant of the toolbar; without the
+  // exclusion ArrowRight from the last option walked focus onto the next
+  // toolbar button and left the dropdown open behind it. The other half of that
+  // fix is the non-item guard in `useRovingFocus`.
+  useRovingFocus({
+    containerRef,
+    orientation: "horizontal",
+    itemSelector:
+      '[role="button"]:not([aria-disabled="true"]):not(.fortune-toolbar-combo-popup *)',
+  });
   const [toolbarWrapIndex, setToolbarWrapIndex] = useState(-1); // -1 means pending for item location calculation
   const [itemLocations, setItemLocations] = useState<number[]>([]);
   const { showDialog, hideDialog } = useDialog();
   const firstSelection = context.luckysheet_select_save?.[0];
   const flowdata = getFlowdata(context);
   contextRef.current = context;
-
-  /**
-   * Whether the commit just made actually changed the sheet's filter.
-   * `createFilter` and `clearFilter` both decline silently — a multi-range
-   * selection, a pivot table, a read-only sheet, or a clear with nothing to
-   * clear — and pulling focus off the toolbar for a command that did nothing is
-   * a surprise rather than a fix. Identity is enough: neither function leaves
-   * `luckysheet_filter_save` re-assigned when it bails, and immer preserves the
-   * reference for an untouched subtree.
-   *
-   * Read through `contextRef`, not the render's `context`, because the caller is
-   * `focusAfterCommit`'s deferred callback — by then the commit has landed and
-   * the ref points at it.
-   */
-  const filterChanged = useCallback(
-    (before: unknown) => contextRef.current.luckysheet_filter_save !== before,
-    []
-  );
   const row = firstSelection?.row_focus;
 
   const col = firstSelection?.column_focus;
@@ -590,6 +591,20 @@ const Toolbar: React.FC<{
               </Select>
             )}
           </Combo>
+        );
+      }
+      if (name === "keyboard-shortcuts") {
+        return (
+          <Button
+            iconId={name}
+            tooltip={tooltip}
+            key={name}
+            onClick={() =>
+              setContext((draftCtx) => {
+                draftCtx.showShortcutsDialog = true;
+              })
+            }
+          />
         );
       }
       if (name === "undo") {
@@ -1409,8 +1424,13 @@ const Toolbar: React.FC<{
               // left on the toolbar control that opened this menu (WCAG 2.4.3):
               // the new dropdowns are in the grid, and the grid's keyboard
               // handling only runs while the cell input holds focus.
+              // Skipped when the command declined to act, so a filter that did
+              // not change does not relocate focus either. contextRef, not
+              // `context`: this callback runs after the commit has landed.
               focusAfterCommit(() =>
-                filterChanged(filterBefore) ? refs.cellInput.current : null
+                filterUnchanged(contextRef.current, filterBefore)
+                  ? null
+                  : refs.cellInput.current
               );
             },
           },
@@ -1424,7 +1444,9 @@ const Toolbar: React.FC<{
                 clearFilter(draftCtx);
               });
               focusAfterCommit(() =>
-                filterChanged(filterBefore) ? refs.cellInput.current : null
+                filterUnchanged(contextRef.current, filterBefore)
+                  ? null
+                  : refs.cellInput.current
               );
             },
           },
@@ -1497,7 +1519,6 @@ const Toolbar: React.FC<{
       textWrap,
       rotation,
       filter,
-      filterChanged,
       splitText,
       findAndReplace,
       context.luckysheet_select_save,

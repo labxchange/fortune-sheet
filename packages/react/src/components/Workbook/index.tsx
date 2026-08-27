@@ -23,6 +23,7 @@ import {
   groupValuesRefresh,
   setFormulaCellInfoMap,
   GRID_ROOT_CLASS,
+  ShortcutSection,
 } from "@fortune-sheet/core";
 import React, {
   useMemo,
@@ -53,6 +54,7 @@ import { generateAPIs } from "./api";
 import { ModalProvider } from "../../context/modal";
 import FilterMenu from "../ContextMenu/FilterMenu";
 import SheetList from "../SheetList";
+import ShortcutsDialog from "../ShortcutsDialog";
 
 enablePatches();
 
@@ -61,6 +63,13 @@ export type WorkbookInstance = ReturnType<typeof generateAPIs>;
 type AdditionalProps = {
   onChange?: (data: SheetType[]) => void;
   onOp?: (op: Op[]) => void;
+  /**
+   * Extra groups appended to the keyboard shortcuts dialog, for shortcuts the
+   * embedding application implements around the workbook — jumping to its own
+   * panels, for instance. Already-localised strings; the workbook renders them
+   * as given.
+   */
+  extraShortcutSections?: ShortcutSection[];
 };
 
 const triggerGroupValuesRefresh = (ctx: Context) => {
@@ -78,7 +87,10 @@ const concatProducer = (...producers: ((ctx: Context) => void)[]) => {
 };
 
 const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
-  ({ onChange, onOp, data: originalData, ...props }, ref) => {
+  (
+    { onChange, onOp, data: originalData, extraShortcutSections, ...props },
+    ref
+  ) => {
     const globalCache = useRef<GlobalCache>({ undoList: [], redoList: [] });
     const cellInput = useRef<HTMLDivElement>(null);
     const fxInput = useRef<HTMLDivElement>(null);
@@ -103,7 +115,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     );
 
     const [context, setContext] = useState(defaultContext(refs));
-    const { formula, info } = locale(context);
+    const { formula } = locale(context);
 
     const [moreToolbarItems, setMoreToolbarItems] =
       useState<React.ReactNode>(null);
@@ -606,6 +618,63 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
 
     const onKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLDivElement>) => {
+        // Handled here rather than in core's key dispatch because they move
+        // focus and open UI, both of which are this layer's concern. An
+        // embedding application that wants these to work from outside the
+        // workbook binds them itself and calls the matching imperative method;
+        // because it can stop propagation before this handler runs, the two do
+        // not double-fire.
+        const withPrimary = e.ctrlKey || e.metaKey;
+
+        // AltGr is delivered as Ctrl+Alt on Windows and Linux, so on any layout
+        // that composes characters with it — Polish ą/ń/ś, and German, Spanish,
+        // Czech, Turkish and more — those keystrokes are indistinguishable from
+        // the region chords below by ctrlKey/altKey/code alone, and would be
+        // swallowed mid-cell. A genuine Ctrl+Alt reports AltGraph as false.
+        if (e.getModifierState("AltGraph")) return;
+
+        // No `!e.shiftKey` here: `e.key` is the composed character, and `/` is
+        // Shift+7 on German and Nordic layouts and Shift+: on AZERTY, so
+        // requiring Shift to be up made the dialog unreachable on all of them.
+        // It costs nothing on a US layout, where Shift+/ produces "?" and this
+        // comparison is already false.
+        if (withPrimary && e.key === "/") {
+          e.preventDefault();
+          setContextWithProduce((draftCtx) => {
+            draftCtx.showShortcutsDialog = true;
+          });
+          return;
+        }
+        if (withPrimary && e.altKey && !e.shiftKey) {
+          const region = {
+            KeyT: ".fortune-toolbar",
+            KeyS: `.${GRID_ROOT_CLASS}`,
+            KeyB: ".fortune-sheettab-container-c",
+          }[e.code];
+          if (region) {
+            const container =
+              workbookContainer.current?.querySelector<HTMLElement>(region);
+            if (container) {
+              e.preventDefault();
+              // The grid is entered at its root, which holds tabIndex -1 for
+              // the purpose: landing on one of the controls inside it (the
+              // select-all corner, a filter funnel) makes the grid guard in
+              // handleGlobalKeyDown treat focus as outside the grid, and the
+              // arrow keys then move nothing. The toolbar and the tab strip are
+              // roving-tabindex composites, so those are entered at whichever
+              // item currently holds tabIndex 0.
+              const target =
+                e.code === "KeyS"
+                  ? container
+                  : container.querySelector<HTMLElement>(
+                      '[tabindex="0"]:not([aria-disabled="true"])'
+                    ) ?? container;
+              target.focus();
+              return;
+            }
+          }
+        }
+
         const isContextMenuShortcut =
           (e.ctrlKey || e.metaKey) && e.shiftKey && e.code === "KeyM";
         const isRowContextMenuShortcut =
@@ -837,7 +906,8 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
           mergedSettings,
           cellInput.current,
           scrollbarX.current,
-          scrollbarY.current
+          scrollbarY.current,
+          workbookContainer
         ),
       [context, setContextWithProduce, handleUndo, handleRedo, mergedSettings]
     );
@@ -860,30 +930,12 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             onKeyDown={onKeyDown}
           >
             {/*
-              Hidden from screen readers: these 16 sr-only shortcuts added noise to the
-              reading order. Nothing inside may be focusable — a tab stop inside an
-              aria-hidden subtree traps keyboard users on an undescribed control.
+              The shortcut list used to live here as an sr-only, aria-hidden
+              section — visible to sighted keyboard users and screen reader
+              users alike, which is to say nobody. It is now a real dialog,
+              reachable by Ctrl/Cmd+/ and from the toolbar.
             */}
-            <section id="shortcut-list" className="sr-only" aria-hidden="true">
-              <h2 id="shortcuts-heading">{info.shortcuts}</h2>
-              <ul>
-                <li>{info.selectRangeShortcut}</li>
-                <li>{info.autoFillDownShortcut}</li>
-                <li>{info.autoFillRightShortcut}</li>
-                <li>{info.boldTextShortcut}</li>
-                <li>{info.copyShortcut}</li>
-                <li>{info.pasteShortcut}</li>
-                <li>{info.undoShortcut}</li>
-                <li>{info.redoShortcut}</li>
-                <li>{info.deleteCellContentShortcut}</li>
-                <li>{info.confirmCellEditShortcut}</li>
-                <li>{info.moveRightShortcut}</li>
-                <li>{info.moveLeftShortcut}</li>
-                <li>{info.contextMenuShortcut}</li>
-                <li>{info.rowContextMenuShortcut}</li>
-                <li>{info.columnContextMenuShortcut}</li>
-              </ul>
-            </section>
+            <ShortcutsDialog extraSections={extraShortcutSections} />
             <SVGDefines currency={mergedSettings.currency} />
             <div className="fortune-workarea">
               {mergedSettings.showToolbar && (

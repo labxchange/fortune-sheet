@@ -26,6 +26,7 @@ import { useDialog } from "../../hooks/useDialog";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
 import { focusAfterCommit } from "../../utils/keyboardActivation";
+import { filterUnchanged } from "../../utils/filterDom";
 import Divider from "./Divider";
 import "./index.css";
 import Menu from "./Menu";
@@ -637,7 +638,7 @@ const ContextMenu: React.FC = () => {
               // when createFilter declined to act, so a command that changed
               // nothing does not move focus either.
               focusAfterCommit(() =>
-                contextRef.current.luckysheet_filter_save === filterBefore
+                filterUnchanged(contextRef.current, filterBefore)
                   ? null
                   : refs.cellInput.current
               );

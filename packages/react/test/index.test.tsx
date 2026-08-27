@@ -14,12 +14,14 @@ describe("Worksheet", () => {
   it("should not announce a sheet focus lock", async () => {
     const { container } = render(<Workbook data={[{ name: "Sheet1" }]} />);
     // #sr-selection stays the single announcement channel for the grid; the
-    // focus-lock live region and its shortcut entry are gone.
+    // focus-lock live region is gone.
     expect(container.querySelector("#sr-selection")).toBeTruthy();
     expect(container.querySelector("#sr-sheetFocus")).toBeNull();
-    expect(container.querySelector("#shortcut-list")?.textContent).not.toMatch(
-      /focus lock/i
-    );
+    // The focus lock also had an entry in the sr-only shortcut list. That whole
+    // list is gone now, replaced by the shortcuts dialog, which is closed until
+    // asked for — so nothing renders it and nothing can reintroduce the entry.
+    expect(container.querySelector("#shortcut-list")).toBeNull();
+    expect(container.textContent).not.toMatch(/focus lock/i);
   });
 
   // The core-level scoping tests build their own overlay, so they cannot catch a

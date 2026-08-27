@@ -5,15 +5,21 @@ import {
   getCellValue,
   getFlowdata,
   getSheetIndex,
+  getInlineStringNoStyle,
   indexToColumnChar,
+  isInlineStringCell,
   locale,
   replaceHtml,
 } from "@fortune-sheet/core";
 import _ from "lodash";
 import React, { useCallback, useContext, useEffect } from "react";
 import WorkbookContext from "../../context";
-import { mouseDownToggleHandlers } from "../../utils/keyboardActivation";
-import { FILTER_FUNNEL_COL_ATTR, FILTER_MENU_ID } from "../../utils/filterDom";
+import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
+import {
+  FILTER_FUNNEL_COL_ATTR,
+  FILTER_MENU_ID,
+  findFilterFunnel,
+} from "../../utils/filterDom";
 import SVGIcon from "../SVGIcon";
 
 const FilterOptions: React.FC = () => {
@@ -30,27 +36,35 @@ const FilterOptions: React.FC = () => {
   const { info } = locale(context);
 
   /**
-   * Accessible name for one column's funnel (WCAG 4.1.2). A row of identically
-   * named buttons is unusable by ear, so each is named after the header cell
-   * that owns it — the name the user knows the column by — falling back to the
-   * column letter when that header is blank.
+   * Accessible name for one column's funnel (WCAG 4.1.2). A row of funnels named
+   * only by column letter is far less use by ear than one named by the header
+   * the user reads, so the header cell's own text is preferred and the letter is
+   * the fallback for a blank header. Either way it carries the criterion state,
+   * which is the other thing the icon alone conveys.
    *
    * A plain function rather than a useCallback: the name is derived from the
    * sheet's own data, so any dependency list honest enough to include it would
    * change on every render that could alter the name anyway.
    */
   const flowdata = getFlowdata(context);
-  const funnelLabel = (col: number) => {
-    const header =
-      filterOptions == null || flowdata == null
-        ? null
-        : getCellValue(filterOptions.startRow, col, flowdata, "m");
+  const funnelLabel = (col: number, active: boolean) => {
+    let header: unknown = null;
+    if (filterOptions != null && flowdata != null) {
+      const { startRow } = filterOptions;
+      // A header with mixed inline formatting keeps its text in `ct.s` rather
+      // than in `m`, so `getCellValue(…, "m")` returns null for it and the name
+      // would fall back to the column letter on a header that is plainly not
+      // blank. Checked first, the order FxEditor and InputBox already read a
+      // cell in.
+      header = isInlineStringCell(flowdata[startRow]?.[col])
+        ? getInlineStringNoStyle(startRow, col, flowdata)
+        : getCellValue(startRow, col, flowdata, "m");
+    }
     const headerText = _.isNil(header) ? "" : String(header).trim();
-    return headerText
+    const name = headerText
       ? replaceHtml(info.filterDropdown, { column: headerText })
-      : replaceHtml(info.filterDropdownUnnamed, {
-          column: indexToColumnChar(col),
-        });
+      : replaceHtml(info.filterColumn, { column: indexToColumnChar(col) });
+    return active ? `${name} ${info.cellFilterActive}` : name;
   };
 
   useEffect(() => {
@@ -116,6 +130,31 @@ const FilterOptions: React.FC = () => {
     },
     [filterOptions, refs.scrollbarX, refs.scrollbarY, setContext]
   );
+
+  // Ctrl+Cmd+R / Ctrl+Alt+R records the column it wants in core, because
+  // positioning the popup needs scroll offsets and geometry only this layer
+  // has. Clicking the funnel reuses every bit of that maths, so the request is
+  // fulfilled by clicking it rather than by recomputing the popup position.
+  const requestedColumn = context.openFilterMenuForColumn;
+  useEffect(() => {
+    if (requestedColumn == null) return;
+    // Addressed through the same data-filter-col lookup the popup uses to hand
+    // focus back, rather than a second ref map of the same funnels — and that
+    // lookup is where the "only columns in the range render a funnel, and one
+    // scrolled under a frozen pane is display:none and refuses focus" guard now
+    // lives, so both callers get it.
+    const funnel = findFilterFunnel(
+      refs.workbookContainer.current,
+      requestedColumn
+    );
+    if (funnel) {
+      funnel.click();
+      funnel.focus();
+    }
+    setContext((draftCtx) => {
+      draftCtx.openFilterMenuForColumn = null;
+    });
+  }, [requestedColumn, setContext, refs.workbookContainer]);
 
   const freezeType = frozen?.type;
   let frozenColumns = -1;
@@ -191,23 +230,32 @@ const FilterOptions: React.FC = () => {
 
         const v_adjusted = { ...v, left, top };
 
-        const isOpen = context.filterContextMenu?.col === v.col;
+        const columnIndex = filterOptions.startCol + i;
+        const isOpen = context.filterContextMenu?.col === columnIndex;
 
         return (
           <div
-            // Toggles on mousedown, the way every other popup trigger in the
-            // workbook does: the popup closes itself on any mousedown outside
-            // it, so running the toggle on click instead meant the outside-click
-            // close and the click-to-open raced (3af3000). Also makes the
-            // control operable by keyboard (WCAG 2.1.1) — Enter and Space run
-            // the same toggle, which is what this funnel had no handler for.
-            {...mouseDownToggleHandlers(() =>
-              toggleFilterContextMenu(v_adjusted, i)
-            )}
+            // Kept on mousedown: it stops the press reaching the popup's own
+            // document-level outside-click listener, which is what keeps the
+            // close-then-reopen race of 3af3000 away from a click-driven
+            // toggle — and what lets the shortcut below open the popup with a
+            // plain .click().
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              // Toggles rather than only opening: a second press closes the
+              // popup, so the aria-expanded below is a state the button can
+              // actually change.
+              toggleFilterContextMenu(v_adjusted, i);
+            }}
             onDoubleClick={(e) => e.stopPropagation()}
+            // A div with only onClick never fires on Enter, so the funnel was
+            // focusable but not operable. Enter/Space now forward to the click.
+            onKeyDown={activateOnEnterOrSpace}
             role="button"
-            aria-label={funnelLabel(v.col)}
+            aria-haspopup="menu"
             aria-expanded={isOpen}
+            aria-label={funnelLabel(columnIndex, filterParam != null)}
             // Gated on `isOpen`: the popup is only rendered while open, so the
             // reference would otherwise dangle.
             aria-controls={isOpen ? FILTER_MENU_ID : undefined}

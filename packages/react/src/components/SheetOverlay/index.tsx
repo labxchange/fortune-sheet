@@ -51,6 +51,7 @@ import NotationBoxes from "../NotationBoxes";
 import RangeDialog from "../DataVerification/RangeDialog";
 import { useDialog } from "../../hooks/useDialog";
 import { useFilterAnnouncements } from "../../hooks/useFilterAnnouncements";
+import { useSelectionModeAnnouncement } from "../../hooks/useSelectionModeAnnouncement";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
@@ -446,6 +447,7 @@ const SheetOverlay: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context.currentSheetId, context.luckysheet_select_save]);
 
+  const selectionModeAnnouncement = useSelectionModeAnnouncement(context);
   const { cellAnnouncement: filterCellAnnouncement, regionAnnouncement } =
     useFilterAnnouncements(context, info);
 
@@ -922,6 +924,12 @@ const SheetOverlay: React.FC = () => {
       */}
       <div id="sr-filterRegion" className="sr-only" role="status">
         {regionAnnouncement}
+      </div>
+      {/* Shift+F8 anchors a duplicate of the range in focus, so neither the
+          grid nor `#sr-selection` changes — without this, entering the mode is
+          silent as well as invisible. Polite, for the same reason as above. */}
+      <div id="sr-selectionMode" className="sr-only" role="status">
+        {selectionModeAnnouncement}
       </div>
     </main>
   );

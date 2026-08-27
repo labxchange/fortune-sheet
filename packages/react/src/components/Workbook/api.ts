@@ -15,10 +15,12 @@ import {
   SingleRange,
   createFilterOptions,
   getSheetIndex,
+  GRID_ROOT_CLASS,
   Sheet,
   CellMatrix,
   CellWithRowAndCol,
 } from "@fortune-sheet/core";
+import type { RefObject } from "react";
 import { applyPatches } from "immer";
 import _ from "lodash";
 import { SetContextOptions } from "../../context";
@@ -34,13 +36,76 @@ export function generateAPIs(
   settings: Required<Settings>,
   cellInput: HTMLDivElement | null,
   scrollbarX: HTMLDivElement | null,
-  scrollbarY: HTMLDivElement | null
+  scrollbarY: HTMLDivElement | null,
+  workbookContainer: RefObject<HTMLDivElement | null>
 ) {
   type ApiCall = {
     name: string;
     args: any[];
   };
+
+  /**
+   * Focus a region's single keyboard entry point. The toolbar and the sheet
+   * tabs are roving-tabindex composites, so the element to land on is whichever
+   * item currently holds tabIndex 0 — falling back to the container itself, so
+   * the shortcut still moves focus even before a region has been visited.
+   */
+  const focusRegion = (containerSelector: string) => {
+    // `.current` is read here, at call time, not captured when this memo runs:
+    // on the first render the ref is not attached yet, so a host calling this
+    // from its own mount effect would otherwise get a silent false.
+    const region =
+      workbookContainer.current?.querySelector<HTMLElement>(containerSelector);
+    if (!region) return false;
+    const target =
+      region.querySelector<HTMLElement>(
+        '[tabindex="0"]:not([aria-disabled="true"])'
+      ) ?? region;
+    target.focus();
+    // Report whether focus landed, not merely that a target was found. The
+    // browser refuses to focus anything inside a display:none / inert subtree
+    // and leaves activeElement alone; an embedder that trusts a bare true
+    // swallows the keystroke and denies this workbook its own chance at it.
+    return document.activeElement === target;
+  };
+
   return {
+    /**
+     * Move keyboard focus to the cell grid, ready to navigate.
+     *
+     * Deliberately not `focusRegion`: the grid root contains focusable controls
+     * of its own (the select-all corner, the filter funnels), and landing on
+     * one of those makes `handleGlobalKeyDown`'s grid guard classify focus as
+     * *outside* the grid, so the arrow keys would move nothing. The root itself
+     * carries tabIndex -1 for exactly this purpose.
+     */
+    focusSpreadsheet: () => {
+      const grid = workbookContainer.current?.querySelector<HTMLElement>(
+        `.${GRID_ROOT_CLASS}`
+      );
+      if (!grid) return false;
+      grid.focus();
+      return document.activeElement === grid;
+    },
+
+    /** Move keyboard focus to the toolbar. */
+    focusToolbar: () => focusRegion(".fortune-toolbar"),
+
+    /** Move keyboard focus to the sheet tab bar. */
+    focusSheetTabs: () => focusRegion(".fortune-sheettab-container-c"),
+
+    openShortcutsDialog: () => {
+      setContext((draftCtx) => {
+        draftCtx.showShortcutsDialog = true;
+      });
+    },
+
+    closeShortcutsDialog: () => {
+      setContext((draftCtx) => {
+        draftCtx.showShortcutsDialog = false;
+      });
+    },
+
     applyOp: (ops: Op[]) => {
       setContext(
         (ctx_) => {

@@ -1,8 +1,7 @@
 import {
   Sheet,
   editSheetName,
-  cancelNormalSelected,
-  cancelActiveImgItem,
+  switchToSheet,
   locale,
 } from "@fortune-sheet/core";
 import _ from "lodash";
@@ -148,23 +147,18 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
   /** Shared by the tab itself and by the options trigger, which switches to
    * the sheet it belongs to before opening. Previously the trigger only set
    * currentSheetId and relied on its click bubbling to the tab's own onClick
-   * for the rest, which meant a keyboard-opened menu skipped that half. */
+   * for the rest, which meant a keyboard-opened menu skipped that half.
+   *
+   * The transition itself lives in core's `switchToSheet`, so this route, the
+   * all-sheets list and the Alt+Arrow shortcut cannot drift — they had already
+   * drifted by a line before it was shared. Note it early-returns when the id
+   * is already active, so re-opening the options menu on the current sheet no
+   * longer re-stores the scroll record or cancels the selection; that was work
+   * with no observable effect. */
   const switchToThisSheet = useCallback(
-    (draftCtx: typeof context) => {
-      draftCtx.sheetScrollRecord[draftCtx.currentSheetId] = {
-        scrollLeft: draftCtx.scrollLeft,
-        scrollTop: draftCtx.scrollTop,
-        luckysheet_select_status: draftCtx.luckysheet_select_status,
-        luckysheet_select_save: draftCtx.luckysheet_select_save,
-        luckysheet_selection_range: draftCtx.luckysheet_selection_range,
-      };
-      draftCtx.dataVerificationDropDownList = false;
-      draftCtx.currentSheetId = sheet.id!;
-      draftCtx.zoomRatio = sheet.zoomRatio || 1;
-      cancelActiveImgItem(draftCtx, refs.globalCache);
-      cancelNormalSelected(draftCtx);
-    },
-    [refs.globalCache, sheet.id, sheet.zoomRatio]
+    (draftCtx: typeof context) =>
+      switchToSheet(draftCtx, refs.globalCache, sheet.id!),
+    [refs.globalCache, sheet.id]
   );
 
   const toggleOptionsMenu = useCallback(() => {

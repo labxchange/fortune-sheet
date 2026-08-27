@@ -52,10 +52,10 @@ describe("filter criteria applied through the dropdown", () => {
       f.className.includes("luckysheet-filter-options-active")
     );
 
-  /** The funnel toggles on mousedown, as the workbook's other popup triggers do. */
+  /** Presses a funnel; the click both opens and, pressed again, closes. */
   const pressFunnel = (columnOffset: number) =>
     act(() => {
-      fireEvent.mouseDown(funnels()[columnOffset]);
+      fireEvent.click(funnels()[columnOffset]);
     });
 
   /** Open a column's dropdown, toggle a value, and confirm. */
@@ -163,12 +163,24 @@ describe("filter criteria applied through the dropdown", () => {
         "button",
         "button",
       ]);
-      // Not "Filter column C": a row of funnels named by letter is far less
-      // use by ear than one named by the header the user reads.
-      expect(funnels().map((f) => f.getAttribute("aria-label"))).toEqual([
-        "Filter Fruit",
-        "Filter Color",
+      expect(funnels().map((f) => f.getAttribute("aria-haspopup"))).toEqual([
+        "menu",
+        "menu",
       ]);
+      // Not "Filter for column C.": a row of funnels named by letter is far
+      // less use by ear than one named by the header the user reads.
+      expect(funnels().map((f) => f.getAttribute("aria-label"))).toEqual([
+        "Filter Fruit.",
+        "Filter Color.",
+      ]);
+    });
+
+    it("carries the criterion state, not just the column", () => {
+      toggleValue(0, "Banana");
+      expect(funnels()[0].getAttribute("aria-label")).toBe(
+        "Filter Fruit. Filter active."
+      );
+      expect(funnels()[1].getAttribute("aria-label")).toBe("Filter Color.");
     });
 
     it("falls back to the column letter when the header cell is blank", () => {
@@ -177,7 +189,9 @@ describe("filter criteria applied through the dropdown", () => {
       act(() => {
         ref.current?.setCellValue(0, 3, "");
       });
-      expect(funnels()[1].getAttribute("aria-label")).toBe("Filter column D");
+      expect(funnels()[1].getAttribute("aria-label")).toBe(
+        "Filter for column D."
+      );
     });
 
     it("opens the dropdown on Enter and on Space", () => {
@@ -308,6 +322,22 @@ describe("filter criteria applied through the dropdown", () => {
       expect(document.activeElement).toBe(funnels()[0]);
     });
 
+    it("falls through to the active cell when the funnel is hidden", async () => {
+      // The funnel is still mounted, so `isConnected` is no help: a funnel
+      // scrolled behind a frozen pane renders `display: none`, and a browser
+      // refuses `.focus()` on it — leaving focus on the footer button this
+      // commit unmounts, i.e. <body>. findFilterFunnel reports it absent so the
+      // caller's `?? cellInput` fallback runs. Hidden by hand here because the
+      // freeze geometry that produces it needs scroll offsets jsdom reports as
+      // zero; findFilterFunnel's own guard is unit-tested in filterDom.test.ts.
+      focus(0, 2);
+      pressFunnel(0);
+      funnels()[0].setAttribute("style", "display: none");
+      clickButton("Confirm");
+      await flushFocus();
+      expect(document.activeElement).toBe(cellInput());
+    });
+
     it("moves focus to the active cell when Clear filter removes every funnel", async () => {
       // The reported bug: clearing unmounts the funnel that focus would be
       // restored to, so the restore was skipped and focus fell to <body>,
@@ -320,5 +350,45 @@ describe("filter criteria applied through the dropdown", () => {
       expect(funnels()).toHaveLength(0);
       expect(document.activeElement).toBe(cellInput());
     });
+  });
+});
+
+// A header whose text lives in `ct.s` segments rather than in `m`: seeded in
+// celldata rather than written through setCellValue, which fills `m` in and so
+// cannot reproduce the case.
+describe("a funnel over a header with mixed inline formatting", () => {
+  const inlineHeader = {
+    name: "Sheet1",
+    id: "s1",
+    row: 10,
+    column: 8,
+    celldata: [
+      {
+        r: 0,
+        c: 2,
+        v: {
+          ct: {
+            fa: "General",
+            t: "inlineStr",
+            s: [
+              { ff: "Arial", bl: 1, v: "Fr" },
+              { ff: "Arial", bl: 0, v: "uit" },
+            ],
+          },
+        },
+      },
+      { r: 1, c: 2, ...cell("Apple") },
+      { r: 2, c: 2, ...cell("Banana") },
+    ],
+    filter_select: { row: [0, 2], column: [2, 2] },
+    filter: {},
+  };
+
+  it("is named from the segments, not by its column letter", () => {
+    const { container } = render(
+      <Workbook lang="en" data={[inlineHeader as any]} />
+    );
+    const funnel = container.querySelector(".luckysheet-filter-options")!;
+    expect(funnel.getAttribute("aria-label")).toBe("Filter Fruit.");
   });
 });
