@@ -10912,6 +10912,7 @@ export default {
     border: "邊框",
     borderStyle: "邊框類型",
     "merge-cell": "合併儲存格",
+    search: "查找和替換",
     chooseMergeType: "選擇合併類型",
     horizontalAlign: "水准對齊",
     verticalAlign: "垂直對齊",
@@ -11010,6 +11011,7 @@ export default {
 
     add: "添加",
     addLast: "在底部添加",
+    addRowsInputLabel: "要添加的行數",
     backTop: "回到頂部",
     pageInfo: "共${total}條,${totalPage}頁,當前已顯示${currentPage}頁",
     nextPage: "下一頁",
@@ -11479,6 +11481,8 @@ export default {
     borderColor: "邊框顏色",
     borderSize: "邊框粗細",
     borderSlash: "邊框斜線",
+    borderDefault: "預設樣式",
+    borderStyle: "邊框樣式",
   },
   merge: {
     mergeAll: "全部合併",

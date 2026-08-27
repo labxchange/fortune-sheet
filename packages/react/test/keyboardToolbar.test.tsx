@@ -482,4 +482,76 @@ describe("Toolbar Button disabled state", () => {
 
     expect(onAncestorKeyDown).toHaveBeenCalledTimes(1);
   });
+
+  // `Combo` appends its `text` to the tooltip to build the accessible name, but
+  // renders that text visibly only when there is no `iconId`. Merge-cell has an
+  // icon, so a stray `text="合并单元格"` was invisible on screen and reached
+  // only screen readers, as "Merge cells: 合并单元格".
+  // Identify a button by its icon rather than by dumping the node: an unnamed
+  // icon button has nothing else to call it by, and 20 serialised divs in a
+  // failure message are unreadable.
+  const toolbarButtonNames = (toolbar: ReturnType<typeof within>) =>
+    toolbar.getAllByRole("button").map((button) => ({
+      icon:
+        button
+          .querySelector("use")
+          ?.getAttribute("xlink:href")
+          ?.replace(/^#/, "") ?? "(no icon)",
+      name: button.getAttribute("aria-label") ?? button.textContent ?? "",
+    }));
+
+  it("names icon-only combos without leaking untranslated text", () => {
+    const { getByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+    const toolbar = within(getByRole("toolbar"));
+
+    expect(toolbar.getByRole("button", { name: "Merge cells" })).toBeTruthy();
+
+    toolbarButtonNames(toolbar).forEach(({ name }) => {
+      // Any CJK in a toolbar button's accessible name means a hardcoded string
+      // escaped the locale files — the class of bug this test exists to catch.
+      expect(name).not.toMatch(/[一-鿿]/);
+    });
+  });
+
+  it("gives every toolbar button a name at all", () => {
+    const { getByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+    const toolbar = within(getByRole("toolbar"));
+
+    // Without this the sweep above passes vacuously: a refactor that dropped
+    // the aria-labels would leave every name as the empty string, which
+    // contains no CJK and so would look clean.
+    //
+    // It also catches a whole class of bug on its own. `Button`/`CustomButton`
+    // set `aria-label={tooltip}`, and Toolbar derives `tooltip` as
+    // `toolbar[name]` — so an entry in `toolbarItems` (core settings) with no
+    // matching `toolbar.<name>` locale key renders a control that announces as
+    // bare "button" and nothing else. `search` was exactly that, and nothing
+    // visible was wrong: the icon rendered, the click worked, only the name was
+    // missing. Same 4.1.2 failure as the leaked Chinese string, one step
+    // further along.
+    const names = toolbarButtonNames(toolbar);
+    expect(names.length).toBeGreaterThan(0);
+
+    // Reported by icon id: an unnamed icon button has nothing else to call it
+    // by, and a serialised node per offender is unreadable in a failure.
+    const unnamed = names
+      .filter(({ name }) => name.trim() === "")
+      .map(({ icon }) => icon)
+      .sort();
+    expect(unnamed).toEqual([]);
+  });
+
+  it("localises the toolbar names rather than hardcoding English", () => {
+    const { getByRole } = render(
+      <Workbook lang="zh" data={[{ name: "Sheet1" }]} />
+    );
+    const toolbar = within(getByRole("toolbar"));
+
+    // The positive control for the CJK sweep. Deleting merge-cell's stray
+    // `text` prop must not cost the button its translated name: the tooltip it
+    // is built from is a locale string, so in Chinese the name is expected to
+    // BE Chinese. This is what distinguishes "no leaked hardcoded string" from
+    // "no localisation at all".
+    expect(toolbar.getByRole("button", { name: "合并单元格" })).toBeTruthy();
+  });
 });

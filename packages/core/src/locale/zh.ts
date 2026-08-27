@@ -10934,6 +10934,7 @@ export default {
     border: "边框",
     borderStyle: "边框类型",
     "merge-cell": "合并单元格",
+    search: "查找和替换",
     chooseMergeType: "选择合并类型",
     horizontalAlign: "水平对齐",
     verticalAlign: "垂直对齐",
@@ -11043,6 +11044,7 @@ export default {
 
     add: "添加",
     addLast: "在底部添加",
+    addRowsInputLabel: "要添加的行数",
     backTop: "回到顶部",
     pageInfo: "共${total}条，${totalPage}页，当前已显示${currentPage}页",
     nextPage: "下一页",

@@ -131,8 +131,6 @@ describe("locale key parity", () => {
       "format.format",
       "format.currency",
       "currencyDetail",
-      "border.borderDefault",
-      "border.borderStyle",
       "splitText.splitSymbols",
       "splitText.tipNoSelect",
       "drag.affectPivot",
@@ -161,8 +159,6 @@ describe("locale key parity", () => {
       "format.format",
       "format.currency",
       "currencyDetail",
-      "border.borderDefault",
-      "border.borderStyle",
       "protection.enterHintTitle",
     ],
   };
@@ -193,4 +189,42 @@ describe("locale key parity", () => {
       locale({ lang: "es" } as unknown as Context).toolbar.sortAndFilter
     ).toBe("Ordenar y filtrar");
   });
+});
+
+/**
+ * A translation file can carry a key whose "translation" is the key name itself
+ * — `borderTop: "borderTop"` — which the parity test above cannot see, because
+ * the key is present. Nothing is undefined, nothing throws, and the menu just
+ * renders an English identifier at a reader of that language.
+ *
+ * The whole `border` section of `es` was in that state: thirteen camelCase
+ * identifiers rendered verbatim in the border menu. That is what the
+ * "Border labels are English-only" report turned out to be.
+ *
+ * Matching on `value === key` alone would be noisy and mostly wrong — plenty of
+ * strings are legitimately identical to their key (`currencyDetail.EUR`,
+ * `rightclick.log`, `align.left`). The signal is the key being **camelCase**:
+ * no human language renders `borderTop`, but `EUR` and `log` are fine as they
+ * are. So the rule is value === key AND the key has an internal capital, which
+ * needs no allow-list and so cannot rot.
+ */
+describe("locale placeholder values", () => {
+  const CAMEL_CASE = /[a-z][A-Z]/;
+
+  const placeholders = (obj: unknown, prefix = ""): string[] =>
+    Object.entries(obj as Record<string, unknown>).flatMap(([key, value]) => {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        return placeholders(value, `${prefix}${key}.`);
+      }
+      return value === key && CAMEL_CASE.test(key) ? [`${prefix}${key}`] : [];
+    });
+
+  const FILES: Record<string, unknown> = { en, es, hi, ru, zh, zh_tw };
+
+  it.each(Object.keys(FILES))(
+    "%s translates every camelCase key rather than echoing it",
+    (lang) => {
+      expect(placeholders(FILES[lang])).toEqual([]);
+    }
+  );
 });

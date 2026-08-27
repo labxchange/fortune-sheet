@@ -119,6 +119,37 @@ const SheetOverlay: React.FC = () => {
     [refs.workbookContainer, setContext, settings, refs.cellArea]
   );
 
+  /**
+   * The cell area is `overflow: hidden` with a fixed size, which still makes it
+   * a scroll container: gestures are blocked, but the browser scrolls it
+   * natively to bring a focused element into view. Tabbing to the add-row
+   * controls at the bottom of the sheet did exactly that, and because the only
+   * sync was context -> DOM, `scrollTop` in context never moved. The canvas kept
+   * painting rows for the old offset while every DOM overlay shifted with the
+   * container, so the add-row strip, the selection outline and the cell input
+   * all landed over the wrong cells.
+   *
+   * Adopting the browser's scroll as the real one keeps the two in step. The
+   * equality guard is what stops this ping-ponging with the effect below that
+   * writes context back onto the element.
+   */
+  const cellAreaScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const { scrollTop, scrollLeft } = e.currentTarget;
+      setContext((draftCtx) => {
+        if (
+          draftCtx.scrollTop === scrollTop &&
+          draftCtx.scrollLeft === scrollLeft
+        ) {
+          return;
+        }
+        draftCtx.scrollTop = scrollTop;
+        draftCtx.scrollLeft = scrollLeft;
+      });
+    },
+    [setContext]
+  );
+
   const cellAreaDoubleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       const { nativeEvent } = e;
@@ -519,6 +550,7 @@ const SheetOverlay: React.FC = () => {
           onMouseDown={cellAreaMouseDown}
           onDoubleClick={cellAreaDoubleClick}
           onContextMenu={cellAreaContextMenu}
+          onScroll={cellAreaScroll}
           style={{
             width: context.cellmainWidth,
             height: context.cellmainHeight,
@@ -887,12 +919,14 @@ const SheetOverlay: React.FC = () => {
                     ref={bottomAddRowInputRef}
                     type="text"
                     style={{ width: 50 }}
+                    // The adjacent `info.row` is a unit suffix, not a label, and
+                    // a placeholder is not an accessible name — without this the
+                    // field announces only as "edit text".
+                    aria-label={info.addRowsInputLabel}
                     placeholder={context.addDefaultRows.toString()}
                   />{" "}
-                  <span style={{ fontSize: 14 }}>{info.row}</span>{" "}
-                  <span style={{ fontSize: 14, color: "#9c9c9c" }}>
-                    ({info.addLast})
-                  </span>
+                  <span className="fortune-add-row-unit">{info.row}</span>{" "}
+                  <span className="fortune-add-row-hint">({info.addLast})</span>
                   <span
                     className="fortune-add-row-button"
                     onClick={() => {
