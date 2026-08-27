@@ -345,45 +345,56 @@ const SearchReplace: React.FC<{
         </div>
         {searchResult.length > 0 && (
           <div id="searchAllbox">
-            <div className="boxTitle">
-              <span>{findAndReplace.searchTargetSheet}</span>
-              <span>{findAndReplace.searchTargetCell}</span>
-              <span>{findAndReplace.searchTargetValue}</span>
-            </div>
-            <div className="boxMain">
-              {searchResult.map((v) => {
-                return (
-                  <div
-                    className={`boxItem ${
-                      _.isEqual(selectedCell, { r: v.r, c: v.c }) ? "on" : ""
-                    }`}
-                    key={v.cellPosition}
-                    onClick={() => {
-                      setContext((draftCtx) => {
-                        draftCtx.luckysheet_select_save = normalizeSelection(
-                          draftCtx,
-                          [
-                            {
-                              row: [v.r, v.r],
-                              column: [v.c, v.c],
-                            },
-                          ]
-                        );
-                        scrollToHighlightCell(draftCtx, v.r, v.c);
-                      });
-                      setSelectedCell({ r: v.r, c: v.c });
-                    }}
-                    onKeyDown={activateOnEnterOrSpace}
-                    tabIndex={0}
-                    role="button"
-                  >
-                    <span>{v.sheetName}</span>
-                    <span>{v.cellPosition}</span>
-                    <span>{v.value}</span>
-                  </div>
-                );
-              })}
-            </div>
+            <table className="searchResultsTable">
+              <caption className="sr-only">
+                {findAndReplace.resultsTableName}
+              </caption>
+              <thead>
+                <tr className="boxTitle">
+                  <th scope="col">{findAndReplace.searchTargetSheet}</th>
+                  <th scope="col">{findAndReplace.searchTargetCell}</th>
+                  <th scope="col">{findAndReplace.searchTargetValue}</th>
+                </tr>
+              </thead>
+              <tbody className="boxMain">
+                {searchResult.map((v) => {
+                  return (
+                    // No role="button" here: a row that overrides its role
+                    // stops being a row, which would undo the table semantics
+                    // this markup exists for. It stays a row, focusable and
+                    // activatable — what it is *called*, and where activating
+                    // it sends focus, is the next commit.
+                    <tr
+                      className={`boxItem ${
+                        _.isEqual(selectedCell, { r: v.r, c: v.c }) ? "on" : ""
+                      }`}
+                      key={v.cellPosition}
+                      onClick={() => {
+                        setContext((draftCtx) => {
+                          draftCtx.luckysheet_select_save = normalizeSelection(
+                            draftCtx,
+                            [
+                              {
+                                row: [v.r, v.r],
+                                column: [v.c, v.c],
+                              },
+                            ]
+                          );
+                          scrollToHighlightCell(draftCtx, v.r, v.c);
+                        });
+                        setSelectedCell({ r: v.r, c: v.c });
+                      }}
+                      onKeyDown={activateOnEnterOrSpace}
+                      tabIndex={0}
+                    >
+                      <td>{v.sheetName}</td>
+                      <td>{v.cellPosition}</td>
+                      <td>{v.value}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

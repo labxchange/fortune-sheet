@@ -95,33 +95,43 @@
   position: relative;
 }
 
-#fortune-search-replace #searchAllbox .boxTitle {
+#fortune-search-replace #searchAllbox .searchResultsTable {
   width: 100%;
+  border-collapse: collapse;
+  /* Fixed, so the three column widths below are honoured rather than being
+     renegotiated by content — the old markup sized floated spans by
+     percentage and a long cell value must not widen its column. */
+  table-layout: fixed;
+}
+
+#fortune-search-replace #searchAllbox .boxTitle th {
   height: 30px;
   line-height: 29px;
   padding: 0 5px;
   background-color: #fff;
   border-bottom: 1px solid #d4d4d4;
   box-sizing: border-box;
-  position: sticky;
-  left: 0;
-  top: 0;
-}
-
-#fortune-search-replace #searchAllbox .boxTitle span {
-  display: inline-block;
   text-align: center;
+  font-weight: normal;
+  /* The header used to be a sticky block; on a table it is the cells that
+     stick, since a sticky <tr> is not honoured across browsers. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
-#fortune-search-replace #searchAllbox .boxTitle span:nth-of-type(1) {
+#fortune-search-replace #searchAllbox .boxTitle th:nth-of-type(1),
+#fortune-search-replace #searchAllbox .boxMain .boxItem td:nth-of-type(1) {
   width: 25%;
 }
 
-#fortune-search-replace #searchAllbox .boxTitle span:nth-of-type(2) {
+#fortune-search-replace #searchAllbox .boxTitle th:nth-of-type(2),
+#fortune-search-replace #searchAllbox .boxMain .boxItem td:nth-of-type(2) {
   width: 25%;
 }
 
-#fortune-search-replace #searchAllbox .boxTitle span:nth-of-type(3) {
+#fortune-search-replace #searchAllbox .boxTitle th:nth-of-type(3),
+#fortune-search-replace #searchAllbox .boxMain .boxItem td:nth-of-type(3) {
   width: 50%;
 }
 
@@ -129,7 +139,6 @@
   height: 30px;
   line-height: 29px;
   border-bottom: 1px solid #d4d4d4;
-  padding: 0 5px;
   box-sizing: border-box;
 }
 
@@ -144,28 +153,9 @@
   outline-offset: -2px;
 }
 
-#fortune-search-replace #searchAllbox .boxMain .boxItem span {
-  display: block;
+#fortune-search-replace #searchAllbox .boxMain .boxItem td {
+  padding: 0 5px;
   text-align: center;
-  float: left;
-}
-
-#fortune-search-replace #searchAllbox .boxMain .boxItem span:nth-of-type(1) {
-  width: 25%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-#fortune-search-replace #searchAllbox .boxMain .boxItem span:nth-of-type(2) {
-  width: 25%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-#fortune-search-replace #searchAllbox .boxMain .boxItem span:nth-of-type(3) {
-  width: 50%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -11794,6 +11794,7 @@ export default {
     space: "空格",
   },
   findAndReplace: {
+    resultsTableName: "搜索结果",
     matchesFoundTip: "找到 ${xlength} 处匹配",
     replacedTip: "已替换 ${xlength} 处",
     resultsShownTip: "已显示结果表",

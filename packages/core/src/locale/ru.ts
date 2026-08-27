@@ -14340,6 +14340,7 @@ export default {
     space: "Пробел",
   },
   findAndReplace: {
+    resultsTableName: "Результаты поиска",
     matchesFoundTip: "Найдено совпадений: ${xlength}",
     replacedTip: "Заменено вхождений: ${xlength}",
     resultsShownTip: "Показана таблица результатов",
