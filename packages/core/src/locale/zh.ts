@@ -11795,6 +11795,9 @@ export default {
     space: "空格",
   },
   findAndReplace: {
+    matchesFoundTip: "找到 ${xlength} 处匹配",
+    replacedTip: "已替换 ${xlength} 处",
+    resultsShownTip: "已显示结果表",
     dialogTitle: "查找替换",
     find: "查找",
     replace: "替换",

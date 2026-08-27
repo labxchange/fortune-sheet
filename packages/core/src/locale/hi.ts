@@ -11775,6 +11775,9 @@ export default {
     space: "स्थान",
   },
   findAndReplace: {
+    matchesFoundTip: "${xlength} मिलान मिले",
+    replacedTip: "${xlength} घटनाएं बदली गईं",
+    resultsShownTip: "परिणाम तालिका प्रदर्शित",
     dialogTitle: "ढूंढें और बदलें",
     find: "खोजें",
     replace: "बदलें",
