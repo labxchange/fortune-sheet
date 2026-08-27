@@ -25,9 +25,18 @@
   line-height: 2;
 }
 
+/*
+ * #8c89fe carried white text at 2.95:1, against the 4.5:1 WCAG 1.4.3 asks for
+ * — and it is the only thing distinguishing the selected tab, so the failure
+ * was on the one control that has to be readable. #5b57d1 is the same hue at
+ * 5.63:1. The next lighter step that clears the bar, #6b67e0, sits at 4.52:1;
+ * landing two hundredths above a threshold leaves nothing for a future tweak,
+ * so this keeps a margin instead. The border darkens with it, or it
+ * disappears into its own fill.
+ */
 #fortune-search-replace .tabBox span.on {
-  background-color: #8c89fe;
-  border-color: #726efe;
+  background-color: #5b57d1;
+  border-color: #4a46b8;
   color: #fff;
 }
 
@@ -151,8 +160,10 @@
   box-sizing: border-box;
 }
 
+/* Same colour, same failure, same fix — the selected result row carried white
+ * text on #8c89fe too, so one value was behind both bullets of the ticket. */
 #fortune-search-replace #searchAllbox .boxMain .boxItem.on {
-  background-color: #8c89fe;
+  background-color: #5b57d1;
   color: #fff;
 }
 
