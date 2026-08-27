@@ -11757,6 +11757,7 @@ export default {
     space: "空格",
   },
   findAndReplace: {
+    dialogTitle: "尋找取代",
     find: "查找",
     replace: "替換",
     goto: "轉到",

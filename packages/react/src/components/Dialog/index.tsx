@@ -1,9 +1,10 @@
 import { locale } from "@fortune-sheet/core";
-import React, { useContext, useEffect, useRef } from "react";
+import React, { useContext, useRef } from "react";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
+import { useDialogFocus } from "../../hooks/useDialogFocus";
 import "./index.css";
 
 type Props = {
@@ -49,7 +50,6 @@ const Dialog: React.FC<Props> = ({
   const { context } = useContext(WorkbookContext);
   const { button } = locale(context);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const previousActiveElement = useRef<HTMLElement | null>(null);
 
   // The setup below must run once per open, not once per handler identity.
   // Callers reasonably pass inline arrows, and when those were in the effect's
@@ -66,7 +66,7 @@ const Dialog: React.FC<Props> = ({
   // the capture phase, so a still-open toolbar dropdown used to claim the key
   // and stopPropagation before this dialog's element-level listener ever ran —
   // the press appeared to do nothing. autoFocus/restoreFocus are off because
-  // the effect below already does both, via initialFocusRef.
+  // useDialogFocus below already does both, via initialFocusRef.
   useEscapeToClose({
     onClose: () => {
       const { onEscape: esc, onCancel: cancel } = handlers.current;
@@ -77,54 +77,7 @@ const Dialog: React.FC<Props> = ({
     restoreFocus: false,
   });
 
-  useEffect(() => {
-    previousActiveElement.current =
-      document.activeElement as HTMLElement | null;
-    const dialog = dialogRef.current;
-    if (!dialog) return undefined;
-    const trapFocus = (e: KeyboardEvent) => {
-      // Escape is not handled here: it goes through useEscapeToClose below, so
-      // this dialog joins the same open-instance stack every popup uses.
-      if (e.key !== "Tab") return;
-      const focusable = Array.from(
-        dialog.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        )
-      ).filter((el) => !el.hasAttribute("disabled"));
-      if (focusable.length === 0) {
-        e.preventDefault();
-        dialog.focus();
-        return;
-      }
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const current = document.activeElement as HTMLElement | null;
-      if (e.shiftKey && current === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && current === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    const focusable = dialog.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    if (initialFocusRef?.current) {
-      initialFocusRef.current.focus();
-    } else if (focusable.length > 0) {
-      focusable[0].focus();
-    } else {
-      dialog.focus();
-    }
-    dialog.addEventListener("keydown", trapFocus);
-    return () => {
-      dialog.removeEventListener("keydown", trapFocus);
-      if (previousActiveElement.current?.isConnected) {
-        previousActiveElement.current.focus();
-      }
-    };
-  }, [initialFocusRef]);
+  useDialogFocus(dialogRef, initialFocusRef);
 
   return (
     <div

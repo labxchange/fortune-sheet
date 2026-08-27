@@ -14340,6 +14340,7 @@ export default {
     space: "Пробел",
   },
   findAndReplace: {
+    dialogTitle: "Найти и заменить",
     find: "Найти",
     replace: "Заменить",
     goto: "Перейти к",
