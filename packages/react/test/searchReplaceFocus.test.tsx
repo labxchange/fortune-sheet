@@ -27,6 +27,15 @@ const focusablesIn = (dialog: HTMLElement) =>
     )
   ).filter((el) => !el.hasAttribute("disabled"));
 
+// The dialog carries two controls named "Close" — the icon in the corner and
+// the footer button — so a query for that name has to say which one it means.
+// Both run the same closeDialog path; the footer button is the one a keyboard
+// user tabs to.
+const footerClose = (dialog: HTMLElement) =>
+  within(dialog)
+    .getAllByRole("button", { name: "Close" })
+    .find((el) => el.classList.contains("close-button"))!;
+
 const renderWorkbook = () =>
   render(<Workbook data={[{ name: "Sheet1" }]} toolbarItems={["search"]} />);
 
@@ -120,7 +129,7 @@ describe("Find and Replace dialog focus", () => {
     const dialog = await waitFor(() => getByRole("dialog"));
     expect(document.activeElement).not.toBe(opener);
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    fireEvent.click(footerClose(dialog));
 
     await waitFor(() => expect(queryByRole("dialog")).toBeNull());
     expect(document.activeElement).toBe(opener);
@@ -136,7 +145,7 @@ describe("Find and Replace dialog focus", () => {
     opener.remove();
     const findBox = within(dialog).getByLabelText(/find content/i);
     findBox.focus();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    fireEvent.click(footerClose(dialog));
 
     await waitFor(() => expect(queryByRole("dialog")).toBeNull());
     expect(document.activeElement).not.toBe(document.body);

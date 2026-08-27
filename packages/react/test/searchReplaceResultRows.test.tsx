@@ -8,7 +8,7 @@ import {
   act,
 } from "@testing-library/react";
 import React from "react";
-import Workbook from "../src/components/Workbook";
+import Workbook, { WorkbookInstance } from "../src/components/Workbook";
 
 // A Find All result row looked clickable and, to a screen reader, was an
 // unnamed row of three values with no indication that it did anything. It also
@@ -57,8 +57,21 @@ const findAll = async (getByRole: any, term: string) => {
 const resultRows = (dialog: HTMLElement) =>
   within(within(dialog).getByRole("table")).getAllByRole("row").slice(1);
 
-const renderWorkbook = () =>
-  render(<Workbook data={DATA as any} toolbarItems={["search"]} />);
+// A sheet that has never been clicked still carries the placeholder selection
+// SheetOverlay installs on mount, `{ row: [0], column: [0] }` — open-ended, and
+// `searchAll` walks `r1..r2` with `r2` undefined, so Find All reports no
+// matches however many there are. Selecting a cell is what a user does before
+// searching, and it is what puts the sheet in the state these cases are about.
+const renderWorkbook = () => {
+  const ref = React.createRef<WorkbookInstance>();
+  const view = render(
+    <Workbook ref={ref} data={DATA as any} toolbarItems={["search"]} />
+  );
+  act(() => {
+    ref.current!.setSelection([{ row: [0, 0], column: [0, 0] }]);
+  });
+  return view;
+};
 
 describe("Find All result rows", () => {
   it("names each row with its content and what activating it does", async () => {
