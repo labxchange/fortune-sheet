@@ -143,6 +143,16 @@
     var(--color_border_focus_outer, #0063c3);
 }
 
+.fortune-add-row-unit {
+  font-size: 14px;
+}
+
+/* Was #9c9c9c inline, which is 2.75:1 on white and fails WCAG 1.4.3. */
+.fortune-add-row-hint {
+  font-size: 14px;
+  color: var(--color_text_subcopy, #455c6c);
+}
+
 .luckysheet-cell-selected-focus {
   position: absolute;
   pointer-events: none;

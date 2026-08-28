@@ -1088,7 +1088,6 @@ const Toolbar: React.FC<{
             iconId="merge-all"
             key={name}
             tooltip={tooltip}
-            text="合并单元格"
             onClick={() =>
               setContext((ctx) => {
                 handleMerge(ctx, "merge-all");

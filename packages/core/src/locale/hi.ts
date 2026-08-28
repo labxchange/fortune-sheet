@@ -10952,6 +10952,7 @@ export default {
     border: "सीमा",
     borderStyle: "सीमा शैली",
     "merge-cell": "सेल मिलाएँ",
+    search: "खोजें और बदलें",
     chooseMergeType: "मिलाने का प्रकार चुनें",
     horizontalAlign: "क्षैतिज अलाइनमेंट",
     verticalAlign: "लंबवत अलाइनमेंट",
@@ -11049,7 +11050,7 @@ export default {
   info: {
     detailUpdate: "नया खुला",
     detailSave: "स्थानीय कैश पुनर्स्थापित",
-    row: "",
+    row: "पंक्तियाँ",
     column: "",
     loading: "लोड हो रहा है...",
 
@@ -11062,6 +11063,7 @@ export default {
 
     add: "जोड़ें",
     addLast: "नीचे और पंक्तियाँ",
+    addRowsInputLabel: "जोड़ने के लिए पंक्तियों की संख्या",
     backTop: "शीर्ष पर वापस जाएँ",
     pageInfo: "कुल ${total}，${totalPage} पृष्ठ，वर्तमान ${currentPage}",
     nextPage: "अगला",

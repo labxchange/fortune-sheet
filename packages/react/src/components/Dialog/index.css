@@ -59,18 +59,31 @@
   justify-content: flex-end;
 }
 
+/*
+ * The `#close` symbol hardcodes `stroke="#262A33"` at `stroke-opacity="0.9"`
+ * and never uses `currentColor`, so a `color` declared here paints nothing --
+ * the `color: #d4d4d4` this rule used to carry was dead. `opacity` is the only
+ * lever, and it multiplies the stroke's own alpha: the old 0.3 left an
+ * effective 0.27, compositing to 1.72:1 on the white panel and failing WCAG
+ * 1.4.11. 0.75 gives 5.02:1. The 3:1 threshold sits near 0.56, so this keeps a
+ * margin instead of landing on the line.
+ */
 .fortune-modal-dialog-icon-close {
-  color: #d4d4d4;
-  opacity: 0.3;
+  opacity: 0.75;
 }
 
 .fortune-modal-dialog-icon-close:hover {
-  opacity: 0.7;
+  opacity: 1;
 }
 
+/*
+ * Full opacity, not 0.7: `opacity` composites the outline along with the glyph,
+ * so the old value dimmed the focus ring to 3.30:1 rather than the 5.88:1 its
+ * colour states.
+ */
 .fortune-modal-dialog-icon-close:focus-visible {
   outline: var(--border_focus_outer, 3px) solid
     var(--color_border_focus_outer, #0063c3);
-  opacity: 0.7;
+  opacity: 1;
   outline-offset: -4px;
 }

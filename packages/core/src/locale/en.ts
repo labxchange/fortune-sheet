@@ -10951,6 +10951,7 @@ export default {
     border: "Border",
     borderStyle: "Border style",
     "merge-cell": "Merge cells",
+    search: "Find and replace",
     chooseMergeType: "Choose merge type",
     horizontalAlign: "Horizontal align",
     verticalAlign: "Vertical align",
@@ -11052,7 +11053,7 @@ export default {
   info: {
     detailUpdate: "New opened",
     detailSave: "Local cache restored",
-    row: "",
+    row: "rows",
     column: "",
     loading: "Loading...",
 
@@ -11065,6 +11066,7 @@ export default {
 
     add: "Add",
     addLast: "more rows at bottom",
+    addRowsInputLabel: "Number of rows to add",
     backTop: "Back to the top",
     pageInfo: "Total ${total}，${totalPage} page，current ${currentPage}",
     nextPage: "Next",
