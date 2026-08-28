@@ -4,8 +4,15 @@ const FOCUSABLE =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 /**
- * Modal focus behaviour for a dialog: trap Tab inside it, land focus somewhere
+ * Focus behaviour for a dialog: cycle Tab inside it, land focus somewhere
  * sensible on open, and give focus back to whatever opened it on close.
+ *
+ * The Tab cycle is not a claim of modality, and a caller must not read it as
+ * licence to set `aria-modal`. It keeps Tab a dialog gesture instead of a grid
+ * move; whether the rest of the page is genuinely inert is the caller's
+ * question, answered differently by the two callers here — `Dialog` is
+ * task-blocking and sets `aria-modal`, `SearchReplace` sits over a live grid
+ * and deliberately does not.
  *
  * Extracted from `Dialog`, which is not reusable by every dialog in the
  * package: `SearchReplace` is draggable and absolutely positioned and renders
@@ -14,8 +21,8 @@ const FOCUSABLE =
  * the restore-on-close half in particular is easy to omit, and omitting it
  * drops focus to <body>.
  *
- * `getFocusable` is read at keydown rather than closed over, because a dialog's
- * focusable set changes while it is open — `SearchReplace` grows a Replace
+ * The focusable set is read at keydown rather than closed over, because it
+ * changes while a dialog is open — `SearchReplace` grows a Replace
  * input and two more buttons when its Replace tab is selected, and a stale
  * first/last pair traps against elements that are no longer the edges.
  *
@@ -81,17 +88,19 @@ export function useDialogFocus(
     dialog.addEventListener("keydown", trapFocus);
     return () => {
       dialog.removeEventListener("keydown", trapFocus);
-      // Focusing a detached node silently moves focus to <body> — the failure
-      // this restore exists to prevent — so a vanished opener is not focused
-      // but handed on to the fallback instead.
+      // Focusing a detached node does nothing at all — focus is left exactly
+      // where it is, which as this dialog unmounts means it goes to <body>
+      // along with the element being removed. That is the failure this restore
+      // exists to prevent, so a vanished opener is not focused and quietly
+      // relied on; it is handed to the fallback instead.
       if (previousActiveElement?.isConnected) {
         previousActiveElement.focus();
       } else if (fallbackFocusRef?.current?.isConnected) {
         // Read at close time, not captured when the dialog opened: the node
         // this points at is owned by the workbook and can be replaced while
-        // the dialog is up, and a captured one would by then be the detached
-        // node whose focus() lands on <body> — exactly what this branch is
-        // here to avoid.
+        // the dialog is up, and a captured one would by then be detached — so
+        // focusing it would be a no-op and focus would fall to <body> with the
+        // unmounting dialog, exactly what this branch is here to avoid.
         // eslint-disable-next-line react-hooks/exhaustive-deps
         fallbackFocusRef.current.focus();
       }

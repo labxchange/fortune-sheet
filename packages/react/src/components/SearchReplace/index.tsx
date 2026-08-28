@@ -104,7 +104,20 @@ const SearchReplace: React.FC<{
       className="fortune-search-replace fortune-dialog"
       ref={dialogRef}
       role="dialog"
-      aria-modal="true"
+      // Deliberately no aria-modal. It would tell assistive tech the rest of
+      // the page is inert, and this dialog is not that kind of dialog: there
+      // is no mask and nothing is inert, the grid stays scrollable and
+      // clickable underneath, activating a result row hands focus to the cell
+      // input on purpose, and the outcomes this dialog does not announce
+      // itself are announced by SheetOverlay's #sr-selection — which lives
+      // outside this element. Under aria-modal a screen reader is entitled to
+      // ignore all three, and which ones it ignores varies by reader.
+      //
+      // The Tab cycle in useDialogFocus stays: it keeps Tab a dialog gesture
+      // rather than a grid move, which is a keyboard convenience and not a
+      // claim of modality. It is escapable by standard keys either way —
+      // both Close controls are in the cycle, and activating a result row
+      // leaves for the grid.
       aria-labelledby="fortune-search-replace-title"
       tabIndex={-1}
       style={getInitialPosition(getContainer())}
@@ -359,6 +372,10 @@ const SearchReplace: React.FC<{
           result-row activation move the selection, which SheetOverlay's
           assertive #sr-selection announces. Adding those here would make the
           screen reader say each of them twice.
+
+          Both of those fallbacks sit outside this dialog, which is the other
+          half of why the root element does not claim aria-modal — see the
+          note there.
         */}
         <div className="sr-only" role="status">
           {announcement}

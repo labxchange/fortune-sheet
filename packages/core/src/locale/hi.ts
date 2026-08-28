@@ -11777,8 +11777,8 @@ export default {
     resultRowLabel:
       "${sheet}, ${cell}, ${value}। सेल ${cell} पर जाने के लिए सक्रिय करें",
     resultsTableName: "खोज परिणाम",
-    matchesFoundTip: "${xlength} मिलान मिले",
-    replacedTip: "${xlength} घटनाएं बदली गईं",
+    matchesFoundTip: "मिलान मिले: ${xlength}",
+    replacedTip: "बदली गई घटनाएं: ${xlength}",
     resultsShownTip: "परिणाम तालिका प्रदर्शित",
     dialogTitle: "ढूंढें और बदलें",
     find: "खोजें",
