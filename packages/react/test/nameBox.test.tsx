@@ -146,17 +146,44 @@ describe("name box", () => {
       const before = selection();
       commit(typed);
       expect(selection()).toEqual(before);
-      expect(nameBox().value).toBe("A1");
+      // The rejected text stays put to be corrected — what is wrong is almost
+      // always a typo, and reverting throws the whole string away.
+      expect(nameBox().value).toBe(typed);
       expect(rejectionText()).toContain("Reference not recognised.");
     }
   );
 
-  it("keeps focus in the box with the reverted text selected on rejection", () => {
+  it("reverts to the current reference once focus leaves", () => {
+    // Keeping the bad text is a mid-edit state, not a resting one: the box
+    // must still tell the truth whenever it is not being edited.
+    const input = nameBox();
+    commit("hello");
+    expect(input.value).toBe("hello");
+    fireEvent.blur(input);
+    expect(input.value).toBe("A1");
+  });
+
+  it("re-reports a second Enter on text that is still wrong", () => {
+    // The box is no longer untouched after a rejection, so Enter re-attempts
+    // rather than falling into the no-op path — and must say so again.
+    const input = nameBox();
+    commit("hello");
+    const first = rejectionText();
+    fireEvent.keyDown(input, { key: "Enter" });
+    const second = rejectionText();
+    expect(second).toContain("Reference not recognised.");
+    expect(second).not.toBe(first);
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("keeps focus in the box with the rejected text selected", () => {
     const input = nameBox();
     commit("hello");
     // Moving focus to the grid here would strand whoever mistyped: they would
-    // have to tab back before they could correct it.
+    // have to tab back before they could correct it. Selected, so the next
+    // keystroke replaces it, but editable in place if the fix is one character.
     expect(document.activeElement).toBe(input);
+    expect(input.value).toBe("hello");
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
   });
@@ -226,9 +253,9 @@ describe("name box", () => {
   });
 
   it("lets the user retry in place after a rejection", () => {
-    // Reverting on rejection leaves the box showing the current reference, so
-    // a second Enter — the natural "let me try again" — used to commit that
-    // and throw focus into the grid, away from the box being corrected.
+    // A second Enter must never throw focus into the grid, away from the box
+    // being corrected — whether it re-attempts the bad text or, once the box
+    // has been reverted, does nothing.
     const input = nameBox();
     commit("bogus");
     expect(document.activeElement).toBe(input);

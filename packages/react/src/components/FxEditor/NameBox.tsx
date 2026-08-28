@@ -155,9 +155,9 @@ const LocationBox: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context.currentSheetId, context.luckysheet_select_save]);
 
-  // Selecting the reverted text is a DOM operation on a controlled input, so it
-  // has to happen after the reverted value has been written back — not in the
-  // handler that decided to revert.
+  // Selecting the rejected text is a DOM operation on a controlled input, so it
+  // has to happen after the render that carries the message, not in the handler
+  // that decided to reject.
   const selectOnStatus = useRef(false);
   useEffect(() => {
     if (!status || !selectOnStatus.current) return;
@@ -204,7 +204,13 @@ const LocationBox: React.FC = () => {
         : resolveReference(txt, maxRow, maxColumn);
 
     if (!resolved) {
-      setDraft(null);
+      // The draft is deliberately left as typed rather than reverted. What is
+      // wrong is almost always a typo, and reverting throws the whole string
+      // away to leave the *previous* reference selected — inviting the user to
+      // retype something they never got wrong. Keeping it selected means the
+      // next keystroke still replaces it, and the reference is there to edit if
+      // that is easier. The resting invariant is unaffected: blur reverts, so
+      // the box still shows the selection whenever it is not being edited.
       selectOnStatus.current = true;
       announce(info.nameBoxInvalidReference);
       return;
