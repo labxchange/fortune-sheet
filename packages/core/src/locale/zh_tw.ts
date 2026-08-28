@@ -11044,8 +11044,8 @@ export default {
     horizontalScrollbar: "試算表",
     verticalScrollbar: "試算表",
     nameBoxReferenceClamped: "參照超出工作表範圍。已移至最接近的儲存格。",
-    scrollbarRowPosition: "第 ${index} 列",
-    scrollbarColumnPosition: "第 ${index} 欄",
+    scrollbarRowPosition: "第 ${index} 行",
+    scrollbarColumnPosition: "第 ${index} 列",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of

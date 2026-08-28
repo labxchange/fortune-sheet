@@ -129,16 +129,21 @@ export type Context = {
   // new range instead of moving the existing one, the keyboard counterpart of
   // ctrl-clicking. Cleared by Escape, by a plain click and on sheet change.
   selectionModeActive: boolean;
-  /** Bumped every time `selectAll` actually selects the sheet. The selection it
+  /** Optional, not required, so adding them does not break an external
+   *  consumer that builds a `Context` from a literal — `defaultContext` always
+   *  sets them, so the `?? 0` guards at the read sites are the one story rather
+   *  than dead code beside a required type.
+   *
+   *  Bumped every time `selectAll` actually selects the sheet. The selection it
    *  writes is identical on a repeat, and `normalizeSelection` reassigns the
    *  range arrays on unrelated updates, so neither the value nor the identity
    *  of `luckysheet_select_save` can tell a fresh activation from a re-render.
    *  This can. */
-  selectAllCount: number;
+  selectAllCount?: number;
   /** Bumped when the name box lands somewhere other than the reference typed.
    *  Carried on the context so the grid's own cell announcement can report it,
    *  rather than a second region racing that one. */
-  nameBoxClampCount: number;
+  nameBoxClampCount?: number;
   // Column index whose filter dropdown a keyboard shortcut asked to open.
   // Positioning the popup needs scroll offsets and element geometry that only
   // the React layer has, so core records the request and `FilterOption`

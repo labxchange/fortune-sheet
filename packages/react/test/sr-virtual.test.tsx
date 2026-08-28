@@ -106,6 +106,51 @@ describe("what a screen reader announces", () => {
     }
   );
 
+  it("speaks a clamped name box jump, and speaks a repeat of it", async () => {
+    // This path had no virtual-reader coverage at all, which is how a missing
+    // repeat marker slipped past the attribute tests, the DOM-text tests and
+    // this layer together.
+    const input =
+      container.querySelector<HTMLInputElement>(".fortune-name-box")!;
+    const commitRef = async (value: string) => {
+      await act(async () => {
+        input.focus();
+      });
+      fireEvent.change(input, { target: { value } });
+      await act(async () => {
+        fireEvent.keyDown(input, { key: "Enter" });
+      });
+      await act(async () => {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 60);
+        });
+      });
+    };
+
+    await virtual.start({ container });
+    await commitRef("A99999");
+    // Both land on the last row, so the words are identical each time.
+    await commitRef("A50");
+    const spoken = await virtual.spokenPhraseLog();
+    const clamps = spoken.filter((p) =>
+      p.includes("Reference is outside the sheet.")
+    );
+    // Compared as *distinct* phrases: this reader can log one DOM mutation more
+    // than once, so a raw count would be measuring the tool rather than the
+    // behaviour. What matters is that the second clamp produced a phrase the
+    // first did not, since a live region only speaks on a change.
+    const distinct = [...new Set(clamps)];
+    expect(distinct).toHaveLength(2);
+    // ...and that the difference is inaudible: the same words, one zero-width
+    // space apart.
+    expect([
+      ...new Set(distinct.map((p) => p.replace(/\u200B/g, ""))),
+    ]).toHaveLength(1);
+    // Carried on the cell alert rather than a region of its own, so the user
+    // hears where they landed and why in one go.
+    distinct.forEach((p) => expect(p).toContain("assertive:"));
+  });
+
   it("speaks the select-all announcement politely", async () => {
     await virtual.start({ container: container.querySelector("main")! });
     await act(async () => {

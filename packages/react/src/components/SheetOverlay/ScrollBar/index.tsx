@@ -146,6 +146,12 @@ const ScrollBar: React.FC<Props> = ({ axis, controls }) => {
   // same coordinate space as the offset. Note the axis names invert: a
   // *vertical* freeze line is what freezes columns, which the horizontal
   // scrollbar scrolls.
+  //
+  // Slot 0 only — deliberately not slot 2, which the renderer subtracts as the
+  // scroll offset captured when the freeze was taken. The two agree today only
+  // because `frozenTofreezen` hardcodes that capture to 0 (`freeze.ts`), so if
+  // freezing ever starts recording a non-zero offset this needs the same
+  // subtraction the renderer does.
   const freeze = refs.globalCache.freezen?.[context.currentSheetId];
   const frozenExtent =
     (horizontal

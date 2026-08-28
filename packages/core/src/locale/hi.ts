@@ -11099,7 +11099,7 @@ export default {
     nameBoxReferenceClamped:
       "संदर्भ शीट के बाहर है। निकटतम कक्ष पर ले जाया गया।",
     scrollbarRowPosition: "पंक्ति ${index}",
-    scrollbarColumnPosition: "स्तंभ ${index}",
+    scrollbarColumnPosition: "कॉलम ${index}",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of

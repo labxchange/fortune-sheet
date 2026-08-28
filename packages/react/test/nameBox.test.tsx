@@ -273,6 +273,24 @@ describe("name box", () => {
     expect(rejectionText()).toBe("");
   });
 
+  it("re-announces a second clamp that lands on the same cell", () => {
+    // `A99999` then `A50` on a ten-row sheet both clamp to A10, so the cell
+    // alert composes byte-identical text and a live region says nothing the
+    // second time — which is precisely when someone retypes, having not caught
+    // it the first time. Unlike the filter state appended to the same region, a
+    // clamp is an event rather than a property of the cell, so it can repeat
+    // while the cell holds still.
+    commit("A99999");
+    const first = selectionText();
+    expect(first).toContain("Reference is outside the sheet.");
+    commit("A50");
+    const second = selectionText();
+    expect(second).toContain("Reference is outside the sheet.");
+    expect(second).not.toBe(first);
+    // Differing only by the zero-width space, which adds no spoken word.
+    expect(second.replace(/\u200B/g, "")).toBe(first.replace(/\u200B/g, ""));
+  });
+
   it("drops the clamp notice on the next selection change", () => {
     // It rides exactly one cell announcement — it must not still be attached
     // the next time the user arrows somewhere.

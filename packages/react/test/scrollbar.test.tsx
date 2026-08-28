@@ -244,6 +244,25 @@ describe("scrollbar semantics", () => {
     }
   );
 
+  it("counts the frozen extent, not the frozen count, away from the origin", () => {
+    // The two cases above both sit at offset 0, where adding a frozen *pixel
+    // extent* and adding a frozen *row count* give the same answer — they pin
+    // the behaviour without pinning the arithmetic. Here the block is 90px
+    // against 20px rows: four and a half rows, so no whole-row count can
+    // reproduce it. Offset 200 alone is index 10 ("Row 11"); 200 + 90 = 290
+    // falls in index 14, so only the pixel extent yields "Row 15".
+    const { bar } = renderBar(
+      "y",
+      { scrollTop: 200 },
+      {
+        freezen: {
+          s1: { horizontal: { freezenhorizontaldata: [90], top: 0 } },
+        },
+      }
+    );
+    expect(bar.getAttribute("aria-valuetext")).toBe("Row 15");
+  });
+
   it("is unaffected when the sheet has no frozen panes", () => {
     const { bar } = renderBar("x", { scrollLeft: 0 });
     expect(bar.getAttribute("aria-valuetext")).toBe("Column A");
