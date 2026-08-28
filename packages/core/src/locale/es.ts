@@ -11021,7 +11021,7 @@ export default {
   info: {
     detailUpdate: "Nuevo abierto",
     detailSave: "Cache local restaurado",
-    row: "",
+    row: "filas",
     column: "",
     loading: "Cargando...",
 

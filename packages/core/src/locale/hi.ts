@@ -11050,7 +11050,7 @@ export default {
   info: {
     detailUpdate: "नया खुला",
     detailSave: "स्थानीय कैश पुनर्स्थापित",
-    row: "",
+    row: "पंक्तियाँ",
     column: "",
     loading: "लोड हो रहा है...",
 

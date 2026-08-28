@@ -28,9 +28,10 @@ describe("Add-row bar accessibility", () => {
   it("names the unit the number is counting", () => {
     const { getByText } = renderBar();
 
-    // English left `info.row` empty — as do es, hi and ru; only zh and zh_tw
-    // filled it — so the strip read "Add [50]  (more rows at bottom)" with no
-    // noun anywhere.
+    // `info.row` was empty in English, es, hi and ru — only zh and zh_tw
+    // carried it — so the strip read "Add [50]  (more rows at bottom)" with no
+    // noun anywhere. All six are filled now; `locale.test.ts` guards the other
+    // five, this one guards that the strip still renders it.
     expect(getByText("rows")).toBeTruthy();
   });
 
@@ -40,8 +41,10 @@ describe("Add-row bar accessibility", () => {
 
     // The colour was inline `#9c9c9c` — 2.75:1 on white, failing WCAG 1.4.3.
     // Asserting the inline style is empty is what catches a re-introduction:
-    // the class's own value lives in CSS that jsdom never loads.
-    expect(hint.className).toBe("fortune-add-row-hint");
+    // the class's own value lives in CSS that jsdom never loads. Membership
+    // rather than equality, so an unrelated class added alongside is not this
+    // failure.
+    expect(hint.classList.contains("fortune-add-row-hint")).toBe(true);
     expect(hint.style.color).toBe("");
   });
 

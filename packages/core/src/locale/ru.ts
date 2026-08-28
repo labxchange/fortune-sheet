@@ -12931,7 +12931,7 @@ export default {
   info: {
     detailUpdate: "Открыт новый",
     detailSave: "Локальный кэш восстановлен",
-    row: "",
+    row: "строк",
     column: "",
     loading: "Загрузка...",
     copy: "Копировать",

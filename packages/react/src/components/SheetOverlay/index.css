@@ -425,22 +425,14 @@
   text-decoration: none;
 }
 
-/*
- * The strip floats over the grid (absolute, z-index above the cells), so
- * without an opaque background its text renders straight on top of cell
- * content and both become unreadable. No padding: the height is a fixed 30px,
- * so padding only eats the content box and clips the buttons.
- */
 .luckysheet-bottom-controll-row {
   position: absolute;
   height: 30px;
   /*width: 400px;*/
+  /* background: #000; */
   bottom: 38px;
   left: 0px;
   z-index: 1000;
-  background-color: #fff;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 #luckysheet-bottom-add-row {

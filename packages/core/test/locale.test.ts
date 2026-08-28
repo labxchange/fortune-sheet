@@ -27,12 +27,24 @@ describe("screen-reader locale coverage", () => {
   LANGS.forEach((lang) => {
     it(`resolves every info string for ${lang}`, () => {
       const info = infoFor(lang) as unknown as Record<string, unknown>;
-      // A string — empty included, since English deliberately leaves `row` and
-      // `column` blank where other languages carry a suffix. The hazard is
-      // `undefined` reaching `replaceHtml`, not emptiness.
+      // A string — empty included, since `column` is still blank in four of
+      // the six files. The hazard here is `undefined` reaching `replaceHtml`,
+      // not emptiness; the case below is what holds `row` to more than that.
       enStringKeys.forEach((key) => {
         expect(typeof info[key]).toBe("string");
       });
+    });
+
+    it(`gives ${lang} a unit noun for the add-row strip`, () => {
+      // The strip renders `${add} [n] ${row} (${addLast})`, so `row` is the
+      // only thing naming what the number counts. It was empty in en, es, hi
+      // and ru, which left the count with no noun in four of six languages —
+      // and an empty string is exactly what the parity and fallback guards
+      // above are built to tolerate, so neither could see it.
+      //
+      // Scoped to `row`. `column` is empty in the same four and stays that
+      // way: nothing renders it as a bare unit.
+      expect(infoFor(lang).row).not.toBe("");
     });
 
     it(`keeps every English placeholder in ${lang}`, () => {

@@ -87,8 +87,9 @@ describe("Dialog close button", () => {
     // The contrast fix is the resting `opacity` in Dialog/index.css. An inline
     // opacity or color here would win over it, and jsdom loads no CSS to
     // compare against — so asserting the inline style is empty is what catches
-    // a re-dim that moves back into the markup.
-    expect(close.className).toBe(SHARED_CLASS);
+    // a re-dim that moves back into the markup. Membership rather than
+    // equality: an unrelated class added alongside is not this failure.
+    expect(close.classList.contains(SHARED_CLASS)).toBe(true);
     expect(close.style.opacity).toBe("");
     expect(close.style.color).toBe("");
   });
