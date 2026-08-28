@@ -13055,6 +13055,7 @@ export default {
     shortcutGroupSelection: "Выделение",
     shortcutGroupEditing: "Редактирование и форматирование",
     shortcutGroupData: "Данные и меню",
+    shortcutScrollableRegion: "Сочетания клавиш, прокручиваемая область",
     shortcutDescriptions: {
       moveBetweenCells: "Перемещение между ячейками",
       moveRight: "Перейти вправо",

@@ -19,6 +19,12 @@
   padding: 0px 25px;
 }
 
+.fortune-dialog-box-content[role="region"]:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+  outline-offset: -3px;
+}
+
 .fortune-dialog-box-button-container {
   padding-top: 10px;
   padding-bottom: 20px;

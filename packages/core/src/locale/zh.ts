@@ -11157,6 +11157,7 @@ export default {
     shortcutGroupSelection: "选择",
     shortcutGroupEditing: "编辑与格式",
     shortcutGroupData: "数据与菜单",
+    shortcutScrollableRegion: "键盘快捷键，可滚动",
     shortcutDescriptions: {
       moveBetweenCells: "在单元格间移动",
       moveRight: "向右移动",

@@ -157,6 +157,7 @@ const ShortcutsDialog: React.FC<{
         labelledBy={headingId}
         containerStyle={{ maxWidth: 640, width: "90%" }}
         contentStyle={{ maxHeight: "70vh", overflowY: "auto" }}
+        contentRegionLabel={info.shortcutScrollableRegion}
       >
         <h2 className="fortune-shortcuts-title" id={headingId}>
           {info.shortcuts}

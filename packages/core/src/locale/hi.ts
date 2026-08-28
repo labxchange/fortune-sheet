@@ -11181,6 +11181,7 @@ export default {
     shortcutGroupSelection: "चयन",
     shortcutGroupEditing: "संपादन और स्वरूपण",
     shortcutGroupData: "डेटा और मेन्यू",
+    shortcutScrollableRegion: "कीबोर्ड शॉर्टकट, स्क्रॉल करने योग्य",
     shortcutDescriptions: {
       moveBetweenCells: "कक्षों के बीच जाएँ",
       moveRight: "दाईं ओर जाएँ",

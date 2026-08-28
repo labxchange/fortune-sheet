@@ -11150,6 +11150,7 @@ export default {
     shortcutGroupSelection: "Selección",
     shortcutGroupEditing: "Edición y formato",
     shortcutGroupData: "Datos y menús",
+    shortcutScrollableRegion: "Atajos de teclado, con desplazamiento",
     shortcutDescriptions: {
       moveBetweenCells: "Moverse entre celdas",
       moveRight: "Mover a la derecha",

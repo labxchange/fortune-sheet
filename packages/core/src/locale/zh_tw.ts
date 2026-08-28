@@ -11124,6 +11124,7 @@ export default {
     shortcutGroupSelection: "選取",
     shortcutGroupEditing: "編輯與格式",
     shortcutGroupData: "資料與選單",
+    shortcutScrollableRegion: "鍵盤快速鍵，可捲動",
     shortcutDescriptions: {
       moveBetweenCells: "在儲存格間移動",
       moveRight: "向右移動",
