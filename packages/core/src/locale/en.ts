@@ -11792,8 +11792,14 @@ export default {
     resultRowLabel:
       "${sheet}, ${cell}, ${value}. Activate to navigate to cell ${cell}",
     resultsTableName: "Search results",
-    matchesFoundTip: "${xlength} matches found",
-    replacedTip: "${xlength} occurrences replaced",
+    // Label first, count second, on purpose. Count first reads "1 matches
+    // found" and "1 occurrences replaced", and both of these are spoken by a
+    // screen reader; there is no pluralization layer in this package to
+    // inflect them. The label-first form is correct at every count, and is
+    // already how the Russian translation of these two reads. Reordering them
+    // back reintroduces the disagreement in en, es and hi.
+    matchesFoundTip: "Matches found: ${xlength}",
+    replacedTip: "Occurrences replaced: ${xlength}",
     resultsShownTip: "Results table displayed",
     dialogTitle: "Find and Replace",
     find: "Find",

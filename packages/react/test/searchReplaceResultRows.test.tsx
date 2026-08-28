@@ -127,6 +127,16 @@ describe("Find All result rows", () => {
       );
       expect(cellInput).toBeTruthy();
       expect(document.activeElement).toBe(cellInput);
+
+      // The dialog stays open with focus outside it, and that is the intended
+      // end state: the point of activating a row is to reach the cell, and the
+      // grid's keyboard handling only runs while the cell input holds focus.
+      // It is also why the dialog must not be aria-modal — focus would then be
+      // parked on a node the dialog declares inert, and the Tab cycle, whose
+      // listener is on the dialog element, would stop seeing keydowns while
+      // still claiming to hold the user.
+      expect(dialog.isConnected).toBe(true);
+      expect(dialog.getAttribute("aria-modal")).toBeNull();
     } finally {
       jest.useRealTimers();
     }

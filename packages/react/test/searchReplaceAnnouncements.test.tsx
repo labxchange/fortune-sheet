@@ -101,7 +101,7 @@ describe("Find and Replace announcements", () => {
     fireEvent.click(byId(dialog, "searchAllBtn"));
 
     await waitFor(() =>
-      expect(regionIn(dialog).textContent).toContain("2 matches found")
+      expect(regionIn(dialog).textContent).toContain("Matches found: 2")
     );
     expect(regionIn(dialog).textContent).toContain("Results table displayed");
   });
@@ -117,14 +117,14 @@ describe("Find and Replace announcements", () => {
     fireEvent.click(findAll);
     const first = await waitFor(() => {
       const text = regionIn(dialog).textContent!;
-      expect(text).toContain("2 matches found");
+      expect(text).toContain("Matches found: 2");
       return text;
     });
 
     fireEvent.click(findAll);
     await waitFor(() => expect(regionIn(dialog).textContent).not.toBe(first));
     // Same words, different text node — the marker is invisible and unspoken.
-    expect(regionIn(dialog).textContent).toContain("2 matches found");
+    expect(regionIn(dialog).textContent).toContain("Matches found: 2");
     expect(regionIn(dialog).textContent!.replace(/\u200B/g, "")).toBe(first);
   });
 
@@ -142,6 +142,9 @@ describe("Find and Replace announcements", () => {
   });
 
   it("reports a single replacement, which nothing visible reports", async () => {
+    // "Occurrences replaced: 1", not "1 occurrences replaced": these strings
+    // are read aloud and the package has no pluralization layer, so the count
+    // goes last. Asserted with the count to catch a reordering back.
     const { getByRole } = renderWorkbook();
     const dialog = await openDialog(getByRole);
 
@@ -153,7 +156,7 @@ describe("Find and Replace announcements", () => {
     fireEvent.click(byId(dialog, "replaceBtn"));
 
     await waitFor(() =>
-      expect(regionIn(dialog).textContent).toContain("1 occurrences replaced")
+      expect(regionIn(dialog).textContent).toContain("Occurrences replaced: 1")
     );
   });
 
@@ -169,7 +172,7 @@ describe("Find and Replace announcements", () => {
     fireEvent.click(byId(dialog, "replaceAllBtn"));
 
     await waitFor(() =>
-      expect(document.body.textContent).toContain("occurrences replaced")
+      expect(document.body.textContent).toContain("Occurrences replaced")
     );
     expect(regionIn(dialog).textContent).toBe("");
   });
@@ -191,7 +194,7 @@ describe("replaceAll's own message", () => {
     fireEvent.click(byId(dialog, "replaceAllBtn"));
 
     await waitFor(() =>
-      expect(document.body.textContent).toContain("2 occurrences replaced")
+      expect(document.body.textContent).toContain("Occurrences replaced: 2")
     );
     expect(document.body.textContent).not.toContain("2 items found");
   });

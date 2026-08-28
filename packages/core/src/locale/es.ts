@@ -11742,8 +11742,8 @@ export default {
     resultRowLabel:
       "${sheet}, ${cell}, ${value}. Active para ir a la celda ${cell}",
     resultsTableName: "Resultados de la búsqueda",
-    matchesFoundTip: "${xlength} coincidencias encontradas",
-    replacedTip: "${xlength} apariciones reemplazadas",
+    matchesFoundTip: "Coincidencias encontradas: ${xlength}",
+    replacedTip: "Apariciones reemplazadas: ${xlength}",
     resultsShownTip: "Tabla de resultados mostrada",
     dialogTitle: "Buscar y reemplazar",
     find: "Encontrar",

@@ -5,7 +5,7 @@ import Workbook from "../src/components/Workbook";
 // SearchReplace borrows Dialog's focus behaviour through `useDialogFocus`
 // rather than rendering through Dialog itself — it is draggable, absolutely
 // positioned, and owns its own close button. These cases pin the borrowed half
-// (modal semantics, initial focus, Tab wrapping, restore-on-close) on both
+// (dialog semantics, initial focus, Tab wrapping, restore-on-close) on both
 // callers, since a hook used by two components can regress for one of them
 // while the other stays green.
 //
@@ -45,12 +45,17 @@ describe("Find and Replace dialog focus", () => {
     expect(queryByRole("dialog")).toBeNull();
   });
 
-  it("exposes itself as a modal dialog named by its heading", async () => {
+  it("exposes itself as a dialog named by its heading, and not as a modal one", async () => {
     const { getByRole } = renderWorkbook();
     openFromToolbar(getByRole);
 
     const dialog = await waitFor(() => getByRole("dialog"));
-    expect(dialog.getAttribute("aria-modal")).toBe("true");
+    // Asserted absent, not merely unset: aria-modal would tell a screen reader
+    // the rest of the page is inert, and two things this dialog depends on live
+    // outside it — SheetOverlay's #sr-selection, which announces Find Next and
+    // a result-row jump, and the cell input that a result row hands focus to.
+    // Under aria-modal a reader may ignore both, and which it ignores varies.
+    expect(dialog.getAttribute("aria-modal")).toBeNull();
     const labelledBy = dialog.getAttribute("aria-labelledby");
     expect(labelledBy).toBeTruthy();
     expect(document.getElementById(labelledBy!)?.textContent).toBe(
