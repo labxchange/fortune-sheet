@@ -11071,6 +11071,14 @@ export default {
     selectAllCells: "选择所有单元格",
     columnOptions: "列选项",
     filterDropdown: "筛选${column}。",
+    nameBox: "名称框",
+    nameBoxInvalidReference: "无法识别的引用。",
+    allCellsSelected: "已选择所有单元格。",
+    horizontalScrollbar: "电子表格",
+    verticalScrollbar: "电子表格",
+    nameBoxReferenceClamped: "引用超出工作表范围。已移动到最近的单元格。",
+    scrollbarRowPosition: "第 ${index} 行",
+    scrollbarColumnPosition: "第 ${index} 列",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of

@@ -11038,6 +11038,14 @@ export default {
     selectAllCells: "選擇所有儲存格",
     columnOptions: "欄選項",
     filterDropdown: "篩選${column}。",
+    nameBox: "名稱方塊",
+    nameBoxInvalidReference: "無法辨識的參照。",
+    allCellsSelected: "已選擇所有儲存格。",
+    horizontalScrollbar: "試算表",
+    verticalScrollbar: "試算表",
+    nameBoxReferenceClamped: "參照超出工作表範圍。已移至最接近的儲存格。",
+    scrollbarRowPosition: "第 ${index} 行",
+    scrollbarColumnPosition: "第 ${index} 列",
     // Accessible names for the colour-picker swatches, keyed by hex. Without
     // them each swatch announced its hex string, which VoiceOver and NVDA read
     // character by character ("pound, e, zero, six, six, six, six") — 64 of

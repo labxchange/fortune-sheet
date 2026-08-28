@@ -19,20 +19,36 @@
   align-items: center;
 }
 
+/* An <input> rather than the div this replaces, so it can be typed into. The
+   chrome an input brings by default is removed to keep the resting appearance
+   the div had — but not the focus ring, which it now needs: this is a real
+   focus stop where there was none. */
 .fortune-name-box {
   width: 100%;
+  height: 100%;
+  box-sizing: border-box;
   text-align: center;
   margin: 0;
-  outline: none;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  font: inherit;
+  color: inherit;
   cursor: text;
-  /* -webkit-user-modify: read-write-plaintext-only; */
   white-space: nowrap;
   overflow: hidden;
   -webkit-transform: translateZ(0);
   background-color: white;
-  word-wrap: break-word;
-  -webkit-nbsp-mode: space;
-  -webkit-line-break: after-white-space;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Drawn inside the box: the formula-bar row is 28px tall and the container
+   ends at a divider, so an outward 3px ring would be clipped on three sides. */
+.fortune-name-box:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+  outline-offset: -3px;
 }
 
 .fortune-fx-input-container {
