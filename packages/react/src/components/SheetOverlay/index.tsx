@@ -54,6 +54,7 @@ import { useDialog } from "../../hooks/useDialog";
 import { useFilterAnnouncements } from "../../hooks/useFilterAnnouncements";
 import { useSelectionModeAnnouncement } from "../../hooks/useSelectionModeAnnouncement";
 import { useSelectAllAnnouncement } from "../../hooks/useSelectAllAnnouncement";
+import { useNameBoxClampAnnouncement } from "../../hooks/useNameBoxClampAnnouncement";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
@@ -482,6 +483,7 @@ const SheetOverlay: React.FC = () => {
 
   const selectionModeAnnouncement = useSelectionModeAnnouncement(context);
   const selectAllAnnouncement = useSelectAllAnnouncement(context);
+  const clampAnnouncement = useNameBoxClampAnnouncement(context, info);
   const cellAreaId = useId();
   const { cellAnnouncement: filterCellAnnouncement, regionAnnouncement } =
     useFilterAnnouncements(context, info);
@@ -955,7 +957,7 @@ const SheetOverlay: React.FC = () => {
       </div>
       <div id="sr-selection" className="sr-only" role="alert">
         {!rangeText.includes("NaN")
-          ? `${rangeText} ${computedCellValue}${filterCellAnnouncement}`
+          ? `${rangeText} ${computedCellValue}${filterCellAnnouncement}${clampAnnouncement}`
           : `A1. ${info.sheetSrIntro}`}
       </div>
       {/*

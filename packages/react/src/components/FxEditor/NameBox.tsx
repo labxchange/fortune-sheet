@@ -230,16 +230,17 @@ const LocationBox: React.FC = () => {
       ];
       normalizeSelection(draftCtx, draftCtx.luckysheet_select_save);
       scrollToHighlightCell(draftCtx, r1, c1);
+      if (resolved.clamped) {
+        draftCtx.nameBoxClampCount = (draftCtx.nameBoxClampCount ?? 0) + 1;
+      }
     });
 
-    // The cell itself is announced by `#sr-selection` once focus lands, so this
-    // only has to report the part the user cannot infer: that they did not go
-    // where they asked.
-    if (resolved.clamped) {
-      announce(info.nameBoxReferenceClamped);
-    } else {
-      setStatus("");
-    }
+    // A clamp is *not* announced from here. Writing it to this polite region
+    // put it in a three-way race it loses: `#sr-selection` is an alert, gets
+    // the new cell in the same tick, and focus jumps to the grid at the same
+    // time. It is appended to that alert instead, so one announcement carries
+    // both the cell and the fact that it is not the one asked for.
+    setStatus("");
 
     // Focus follows the selection into the grid, so the arrows keep working
     // where the user just navigated to — a deliberate focus change on user
@@ -270,7 +271,6 @@ const LocationBox: React.FC = () => {
     context,
     draft,
     info.nameBoxInvalidReference,
-    info.nameBoxReferenceClamped,
     rangeText,
     refs.cellInput,
     refs.workbookContainer,
@@ -304,7 +304,11 @@ const LocationBox: React.FC = () => {
         dir="ltr"
         aria-label={info.nameBox}
         value={draft ?? rangeText}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          // Typing is the correction; the rejection has served its purpose.
+          setStatus("");
+        }}
         // Seeding the draft on focus is what stops a selection change from
         // overwriting the box while it is being typed into. Clearing the status
         // here rather than on blur is deliberate: a successful commit moves
@@ -315,8 +319,16 @@ const LocationBox: React.FC = () => {
           setStatus("");
         }}
         // Abandoning on blur, as Escape does. Leaving a stale draft behind
-        // would silently stop the box tracking the selection for good.
-        onBlur={() => setDraft(null)}
+        // would silently stop the box tracking the selection for good. The
+        // status goes with it: this region sits beside the box rather than with
+        // the others at the end of the grid, so anything left in it is parked
+        // in a browse-mode reader's path through the formula bar. Only the
+        // rejection message lives here now, and a rejection keeps focus in the
+        // box — so clearing on blur cannot cut an announcement short.
+        onBlur={() => {
+          setDraft(null);
+          setStatus("");
+        }}
         onKeyDown={onKeyDown}
       />
       <div id="sr-nameBox" className="sr-only" role="status">

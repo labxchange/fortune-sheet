@@ -135,6 +135,10 @@ export type Context = {
    *  of `luckysheet_select_save` can tell a fresh activation from a re-render.
    *  This can. */
   selectAllCount: number;
+  /** Bumped when the name box lands somewhere other than the reference typed.
+   *  Carried on the context so the grid's own cell announcement can report it,
+   *  rather than a second region racing that one. */
+  nameBoxClampCount: number;
   // Column index whose filter dropdown a keyboard shortcut asked to open.
   // Positioning the popup needs scroll offsets and element geometry that only
   // the React layer has, so core records the request and `FilterOption`
@@ -447,6 +451,7 @@ export function defaultContext(refs: RefValues): Context {
     luckysheet_select_status: false,
     selectionModeActive: false,
     selectAllCount: 0,
+    nameBoxClampCount: 0,
     openFilterMenuForColumn: null,
     luckysheet_select_save: undefined,
     luckysheet_selection_range: [],

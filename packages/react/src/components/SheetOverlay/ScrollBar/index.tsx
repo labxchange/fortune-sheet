@@ -138,9 +138,22 @@ const ScrollBar: React.FC<Props> = ({ axis, controls }) => {
 
   const valueMax = measuredMax ?? geometryMax;
 
+  // Frozen rows and columns are painted over the top of the scroll area rather
+  // than scrolling with it, so the first row or column actually on screen sits
+  // a whole frozen block past the raw offset — the position was reported short
+  // by exactly the frozen count. `freezen[...]` slot 0 is that block's pixel
+  // extent (`visibledatarow[row_st]` / `visibledatacolumn[col_st]`), in the
+  // same coordinate space as the offset. Note the axis names invert: a
+  // *vertical* freeze line is what freezes columns, which the horizontal
+  // scrollbar scrolls.
+  const freeze = refs.globalCache.freezen?.[context.currentSheetId];
+  const frozenExtent =
+    (horizontal
+      ? freeze?.vertical?.freezenverticaldata?.[0]
+      : freeze?.horizontal?.freezenhorizontaldata?.[0]) ?? 0;
   const positionIndex = indexAtOffset(
     horizontal ? context.visibledatacolumn : context.visibledatarow,
-    valueNowRaw
+    valueNowRaw + frozenExtent
   );
   // Columns are lettered and rows are numbered — a spreadsheet's own naming,
   // and what the name box and every formula use. "Column 3" would be a

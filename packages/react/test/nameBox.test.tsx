@@ -28,6 +28,10 @@ describe("name box", () => {
   const rejectionText = () =>
     container.querySelector("#sr-nameBox")?.textContent ?? "";
 
+  /** The grid's own cell alert, which now carries the clamp notice too. */
+  const selectionText = () =>
+    container.querySelector("#sr-selection")?.textContent ?? "";
+
   const selection = () => ref.current?.getSelection()?.[0];
 
   /** Focus, type, and press Enter — the whole commit interaction. */
@@ -233,15 +237,48 @@ describe("name box", () => {
   });
 
   it.each(["A0", "A99999"])("announces that %s was clamped", (typed) => {
-    // Clamping is allowed; clamping silently is not. Landing somewhere other
-    // than the reference typed, with an empty status region, leaves a
-    // screen-reader user believing they are where they asked to be.
+    // Clamping is allowed; clamping silently is not. But the notice rides the
+    // grid's own cell alert rather than the name box's polite region: a clamp
+    // changes the selection, so `#sr-selection` fires in the same commit and a
+    // polite write alongside it loses the race.
     commit(typed);
-    expect(rejectionText()).toContain("Reference is outside the sheet.");
+    expect(selectionText()).toContain("Reference is outside the sheet.");
+    expect(rejectionText()).toBe("");
+  });
+
+  it("drops the clamp notice on the next selection change", () => {
+    // It rides exactly one cell announcement — it must not still be attached
+    // the next time the user arrows somewhere.
+    commit("A99999");
+    expect(selectionText()).toContain("Reference is outside the sheet.");
+    act(() => {
+      ref.current?.setSelection([{ row: [1, 1], column: [1, 1] }]);
+    });
+    expect(selectionText()).not.toContain("Reference is outside the sheet.");
   });
 
   it("says nothing extra when the reference needed no clamping", () => {
     commit("B3");
+    expect(rejectionText()).toBe("");
+    expect(selectionText()).not.toContain("Reference is outside the sheet.");
+  });
+
+  it("clears the rejection message once the user starts correcting it", () => {
+    // This region sits beside the box rather than with the others at the end of
+    // the grid, so anything left in it is parked in a browse-mode reader's path
+    // through the formula bar.
+    const input = nameBox();
+    commit("hello");
+    expect(rejectionText()).toContain("Reference not recognised.");
+    fireEvent.change(input, { target: { value: "B" } });
+    expect(rejectionText()).toBe("");
+  });
+
+  it("clears the rejection message when focus leaves the box", () => {
+    const input = nameBox();
+    commit("hello");
+    expect(rejectionText()).toContain("Reference not recognised.");
+    fireEvent.blur(input);
     expect(rejectionText()).toBe("");
   });
 

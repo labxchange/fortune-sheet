@@ -19,6 +19,7 @@ const CELL_AREA_ID = "cell-area";
 const makeContext = (over: Partial<Context> = {}) =>
   ({
     lang: "en",
+    currentSheetId: "s1",
     scrollLeft: 0,
     scrollTop: 0,
     // Viewport, and content larger than it on both axes.
@@ -55,17 +56,22 @@ const Harness: React.FC<{
   );
 };
 
-const renderBar = (axis: "x" | "y", over: Partial<Context> = {}) => {
+const renderBar = (
+  axis: "x" | "y",
+  over?: Partial<Context>,
+  globalCache?: Record<string, any>
+) => {
   const refs = {
     scrollbarX: React.createRef<HTMLDivElement>(),
     scrollbarY: React.createRef<HTMLDivElement>(),
+    globalCache: { undoList: [], redoList: [], ...(globalCache ?? {}) },
   };
   const outerKeyDown = jest.fn();
   const setContext = jest.fn();
   const view = render(
     <Harness
       axis={axis}
-      over={over}
+      over={over ?? {}}
       refs={refs}
       onKeyDown={outerKeyDown}
       setContext={setContext}
@@ -215,6 +221,33 @@ describe("scrollbar semantics", () => {
       expect(bar.getAttribute("aria-valuetext")).toBe(expected);
     }
   );
+
+  it.each([
+    // A *vertical* freeze line freezes columns, which the horizontal scrollbar
+    // scrolls — the axis names invert, so both directions are pinned here.
+    ["x", { vertical: { freezenverticaldata: [200], left: 0 } }, "Column C"],
+    ["y", { horizontal: { freezenhorizontaldata: [80], top: 0 } }, "Row 5"],
+  ])(
+    "counts the frozen block when naming the %s position",
+    (axis, freeze, expected) => {
+      // Frozen rows and columns are painted over the scroll area rather than
+      // scrolling with it, so the first one actually on screen sits a whole
+      // frozen block past the raw offset. Without this the position was short
+      // by exactly the frozen count. Columns here are 100px and rows 20px, so a
+      // 200px / 80px frozen block is two columns / four rows.
+      const { bar } = renderBar(
+        axis as "x" | "y",
+        { [axis === "x" ? "scrollLeft" : "scrollTop"]: 0 } as any,
+        { freezen: { s1: freeze } }
+      );
+      expect(bar.getAttribute("aria-valuetext")).toBe(expected);
+    }
+  );
+
+  it("is unaffected when the sheet has no frozen panes", () => {
+    const { bar } = renderBar("x", { scrollLeft: 0 });
+    expect(bar.getAttribute("aria-valuetext")).toBe("Column A");
+  });
 
   it("collapses to a single value when the content does not overflow", () => {
     // Rather than reporting a range that cannot be moved through.
