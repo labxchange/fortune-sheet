@@ -125,32 +125,38 @@ const SheetOverlay: React.FC = () => {
   /**
    * The cell area is `overflow: hidden` with a fixed size, which still makes it
    * a scroll container: gestures are blocked, but the browser scrolls it
-   * natively to bring a focused element into view. Tabbing to the add-row
-   * controls at the bottom of the sheet did exactly that, and because the only
-   * sync was context -> DOM, `scrollTop` in context never moved. The canvas kept
-   * painting rows for the old offset while every DOM overlay shifted with the
-   * container, so the add-row strip, the selection outline and the cell input
-   * all landed over the wrong cells.
+   * natively to bring a focused element into view, and both the add-row
+   * controls and the cell input live inside it. Because the only sync was
+   * context -> DOM, `scrollTop` in context never learned about that scroll: the
+   * canvas kept painting rows for the old offset while every DOM overlay
+   * shifted with the container, so the add-row strip, the selection outline and
+   * the cell input all landed over the wrong cells.
    *
-   * Adopting the browser's scroll as the real one keeps the two in step. The
-   * equality guard is what stops this ping-ponging with the effect below that
-   * writes context back onto the element.
+   * Snap the element back to the context's offset instead, and deliberately
+   * change no state while doing it. Adopting the browser's offset also keeps
+   * the two in step, but only by running `setContext` from inside a scroll
+   * event — and the browser emits that event while committing a cell edit,
+   * because confirming an edit moves focus to the next cell's input and the
+   * browser scrolls to reveal it. The extra producer lands in the middle of the
+   * commit and the pending edit is dropped: type a formula in F2, press Enter,
+   * and F2 is silently left empty.
+   *
+   * The scroll the user actually asked for always arrives through context
+   * (wheel, scrollbar, keyboard navigation) and is written onto the element by
+   * the effect below, so refusing every element-originated scroll costs nothing.
+   * Snapping back re-fires `scroll` once, which then compares equal and stops.
    */
   const cellAreaScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
-      const { scrollTop, scrollLeft } = e.currentTarget;
-      setContext((draftCtx) => {
-        if (
-          draftCtx.scrollTop === scrollTop &&
-          draftCtx.scrollLeft === scrollLeft
-        ) {
-          return;
-        }
-        draftCtx.scrollTop = scrollTop;
-        draftCtx.scrollLeft = scrollLeft;
-      });
+      const el = e.currentTarget;
+      if (el.scrollTop !== context.scrollTop) {
+        el.scrollTop = context.scrollTop;
+      }
+      if (el.scrollLeft !== context.scrollLeft) {
+        el.scrollLeft = context.scrollLeft;
+      }
     },
-    [setContext]
+    [context.scrollTop, context.scrollLeft]
   );
 
   const cellAreaDoubleClick = useCallback(
