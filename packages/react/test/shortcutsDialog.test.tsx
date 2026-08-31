@@ -6,6 +6,7 @@ import {
   act,
 } from "@testing-library/react";
 import React from "react";
+import { GRID_ROOT_CLASS } from "@fortune-sheet/core";
 import Workbook, { WorkbookInstance } from "../src/components/Workbook";
 
 const openWithShortcut = (container: HTMLElement) => {
@@ -251,6 +252,28 @@ describe("Keyboard shortcuts dialog", () => {
       expect(searchBox(getByRole).value).toBe("");
       expect(queryByText("Copy")).toBeTruthy();
     });
+  });
+
+  it("closes itself and moves focus when a Go To region shortcut fires from inside it", async () => {
+    // Activating "Go to Spreadsheet" (Ctrl+Alt+S) while this dialog was open
+    // used to move focus to the grid but leave the still-open, aria-modal
+    // dialog behind with no way back to it — a keyboard trap (WCAG 2.1.2).
+    const { container, getByRole, queryByRole } = render(
+      <Workbook data={[{ name: "Sheet1" }]} />
+    );
+    openWithShortcut(container);
+    const dialog = await waitFor(() => getByRole("dialog"));
+
+    fireEvent.keyDown(dialog, {
+      code: "KeyS",
+      ctrlKey: true,
+      altKey: true,
+    });
+
+    await waitFor(() => expect(queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(
+      container.querySelector(`.${GRID_ROOT_CLASS}`)
+    );
   });
 
   it("closes on Escape", async () => {

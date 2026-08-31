@@ -656,6 +656,16 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               workbookContainer.current?.querySelector<HTMLElement>(region);
             if (container) {
               e.preventDefault();
+              // Firing this while the Shortcuts dialog is open would move
+              // focus to the destination but leave the still-open,
+              // aria-modal dialog behind with no way back to it (WCAG 2.1.2
+              // no keyboard trap) — close it first so focus lands cleanly on
+              // the destination instead.
+              if (context.showShortcutsDialog) {
+                setContextWithProduce((draftCtx) => {
+                  draftCtx.showShortcutsDialog = false;
+                });
+              }
               // The grid is entered at its root, which holds tabIndex -1 for
               // the purpose: landing on one of the controls inside it (the
               // select-all corner, a filter funnel) makes the grid guard in
