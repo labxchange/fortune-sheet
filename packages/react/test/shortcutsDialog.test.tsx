@@ -59,6 +59,8 @@ describe("Keyboard shortcuts dialog", () => {
       name: "Keyboard shortcuts, scrollable",
     });
     expect(region.getAttribute("tabIndex")).toBe("0");
+    region.focus();
+    expect(document.activeElement).toBe(region);
   });
 
   it("opens from the toolbar button too", async () => {
