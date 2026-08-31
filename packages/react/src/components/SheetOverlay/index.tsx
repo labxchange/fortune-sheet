@@ -125,26 +125,34 @@ const SheetOverlay: React.FC = () => {
   /**
    * The cell area is `overflow: hidden` with a fixed size, which still makes it
    * a scroll container: gestures are blocked, but the browser scrolls it
-   * natively to bring a focused element into view, and both the add-row
-   * controls and the cell input live inside it. Because the only sync was
-   * context -> DOM, `scrollTop` in context never learned about that scroll: the
-   * canvas kept painting rows for the old offset while every DOM overlay
-   * shifted with the container, so the add-row strip, the selection outline and
-   * the cell input all landed over the wrong cells.
+   * natively anyway. Because the only sync was context -> DOM, `scrollTop` in
+   * context never learned about that scroll: the canvas kept painting rows for
+   * the old offset while every DOM overlay shifted with the container, so the
+   * add-row strip, the selection outline and the cell input all landed over the
+   * wrong cells.
    *
-   * Snap the element back to the context's offset instead, and deliberately
-   * change no state while doing it. Adopting the browser's offset also keeps
-   * the two in step, but only by running `setContext` from inside a scroll
-   * event — and the browser emits that event while committing a cell edit,
-   * because confirming an edit moves focus to the next cell's input and the
-   * browser scrolls to reveal it. The extra producer lands in the middle of the
-   * commit and the pending edit is dropped: type a formula in F2, press Enter,
-   * and F2 is silently left empty.
+   * What is established about the regression: #19 adopted every such native
+   * scroll into context by calling `setContext` from this handler, and that is
+   * what broke committing a formula. The only functional change in the tarball
+   * diff between the last green release and the red one is this `onScroll`, and
+   * the e2e (`practicing-imputation-methods` 4.C/4.D) is red on the release that
+   * added it and green with it gone. The extra `setContext` producer lands in
+   * the middle of a cell commit and the pending edit is dropped: type a formula
+   * in F2, press Enter, and F2 is silently left empty.
    *
-   * The scroll the user actually asked for always arrives through context
-   * (wheel, scrollbar, keyboard navigation) and is written onto the element by
-   * the effect below, so refusing every element-originated scroll costs nothing.
-   * Snapping back re-fires `scroll` once, which then compares equal and stops.
+   * What is not fully pinned down is why the browser scrolls the area mid-commit
+   * in the first place. It is not a focus reveal — no `focus()` fires during
+   * that commit — most likely the caret/selection being repositioned inside the
+   * still-focused contenteditable. The precise trigger does not change the fix:
+   * refuse the scroll entirely. Snap the element back to context's offset and
+   * change no state.
+   *
+   * Refusing every element-originated scroll is safe because the scroll a user
+   * asks for never arrives here — wheel, scrollbar and keyboard navigation all
+   * write context, and the effect below writes context back onto the element,
+   * where the snap-back compares equal and stops. The one thing that did depend
+   * on the native scroll, revealing a focused control below the last row, is
+   * redone by `cellAreaFocus` off the focus event, which never fires mid-commit.
    */
   const cellAreaScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
@@ -157,6 +165,64 @@ const SheetOverlay: React.FC = () => {
       }
     },
     [context.scrollTop, context.scrollLeft]
+  );
+
+  /**
+   * Keyboard focus can land on a control the browser has to scroll to reveal:
+   * the add-row strip and its "back to the top" button sit below the last row,
+   * inside `.fortune-cell-area`. `cellAreaScroll` refuses the browser's native
+   * reveal scroll along with everything else — it cannot tell a focus reveal
+   * apart from the mid-commit scroll above — so a control tabbed to below the
+   * fold would be left focused but off-screen (WCAG 2.4.7).
+   *
+   * Redo that reveal as a context scroll. This is a focus event, not a scroll
+   * event: focus does not move during a cell commit, so unlike #19's handler
+   * this `setContext` cannot land mid-commit and drop an edit. It moves only
+   * when the focused descendant is actually outside the visible box, and only by
+   * the minimum needed to bring it in — matching what the browser would have
+   * done natively, but recorded in context so the canvas repaints to match.
+   */
+  const cellAreaFocus = useCallback(
+    (e: React.FocusEvent<HTMLDivElement>) => {
+      const container = e.currentTarget;
+      const target = e.target as HTMLElement;
+      if (target === container) return;
+
+      const cRect = container.getBoundingClientRect();
+      const tRect = target.getBoundingClientRect();
+
+      // Content coordinates, invariant to any native scroll the browser may have
+      // already applied: both rects reflect the same current scroll offset, so
+      // adding it back cancels it out.
+      const topInContent = tRect.top - cRect.top + container.scrollTop;
+      const bottomInContent = topInContent + tRect.height;
+      const leftInContent = tRect.left - cRect.left + container.scrollLeft;
+      const rightInContent = leftInContent + tRect.width;
+
+      let nextTop = context.scrollTop;
+      let nextLeft = context.scrollLeft;
+      if (topInContent < nextTop) {
+        nextTop = topInContent;
+      } else if (bottomInContent > nextTop + container.clientHeight) {
+        nextTop = bottomInContent - container.clientHeight;
+      }
+      if (leftInContent < nextLeft) {
+        nextLeft = leftInContent;
+      } else if (rightInContent > nextLeft + container.clientWidth) {
+        nextLeft = rightInContent - container.clientWidth;
+      }
+      nextTop = Math.max(0, nextTop);
+      nextLeft = Math.max(0, nextLeft);
+
+      if (nextTop === context.scrollTop && nextLeft === context.scrollLeft) {
+        return;
+      }
+      setContext((draftCtx) => {
+        draftCtx.scrollTop = nextTop;
+        draftCtx.scrollLeft = nextLeft;
+      });
+    },
+    [context.scrollTop, context.scrollLeft, setContext]
   );
 
   const cellAreaDoubleClick = useCallback(
@@ -566,6 +632,7 @@ const SheetOverlay: React.FC = () => {
           onDoubleClick={cellAreaDoubleClick}
           onContextMenu={cellAreaContextMenu}
           onScroll={cellAreaScroll}
+          onFocusCapture={cellAreaFocus}
           style={{
             width: context.cellmainWidth,
             height: context.cellmainHeight,

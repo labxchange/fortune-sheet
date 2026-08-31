@@ -5,8 +5,8 @@ import Workbook from "../src/components/Workbook";
 /**
  * `.fortune-cell-area` is `overflow: hidden` with a fixed size, which still
  * makes it a scroll container: gestures are blocked, but the browser scrolls it
- * natively to bring a focused element into view, and both the add-row controls
- * and the cell input live inside it.
+ * natively anyway, and both the add-row controls and the cell input live inside
+ * it.
  *
  * That native scroll must not become the sheet's scroll position, and it must
  * not be left in place either. The canvas paints from `context.scrollTop` while
@@ -14,10 +14,16 @@ import Workbook from "../src/components/Workbook";
  * two only agree while the element's own offset equals the context's — leaving
  * a native scroll in place slides the add-row strip, the selection outline and
  * the cell input off their cells, and adopting it into context runs a producer
- * from inside a scroll event, which is emitted mid-commit (confirming an edit
- * moves focus to the next cell's input, and the browser scrolls to reveal it)
- * and drops the pending edit. So the handler snaps the element back and changes
- * no state.
+ * from inside a scroll event, which lands mid-commit and drops the pending edit
+ * (established by the tarball diff and the red/green e2e; the browser's exact
+ * reason for scrolling mid-commit is not pinned down, but is not a focus reveal
+ * — no `focus()` fires during that commit). So the scroll handler snaps the
+ * element back and changes no state.
+ *
+ * The one native scroll that was legitimate — the browser revealing a focused
+ * control below the last row — is redone as a context scroll off the focus
+ * event, so refusing every element-originated scroll does not strand keyboard
+ * focus off-screen (WCAG 2.4.7).
  *
  * These cases cover the grid's core scroll path, not just the strip, because
  * that is the blast radius: the headers and both scrollbars all slave their
@@ -25,9 +31,10 @@ import Workbook from "../src/components/Workbook";
  *
  * Deliberately NOT asserted here, because jsdom cannot show it and asserting it
  * would be theatre:
- *   - The trigger itself. jsdom has no layout, so it never clamps `scrollTop`
- *     and never scrolls an ancestor to reveal a focused element; the native
- *     scroll has to be simulated by assigning and firing `scroll`.
+ *   - The scroll trigger itself. jsdom has no layout, so it never clamps
+ *     `scrollTop` and never scrolls an ancestor natively; the native scroll has
+ *     to be simulated by assigning and firing `scroll`, and the focus-reveal
+ *     geometry has to be stubbed onto the elements.
  *   - That a cell edit survives a native scroll landing on the commit. That
  *     needs a real browser: it is covered by the e2e that caught the
  *     regression, `practicing-imputation-methods` Protocol 4.C/4.D.
@@ -49,6 +56,53 @@ describe("Cell area native scroll", () => {
       rowHeader: find(".fortune-row-header"),
       colHeader: find(".fortune-col-header"),
     };
+  };
+
+  // jsdom has no layout: `getBoundingClientRect` is all zeros and `clientHeight`
+  // /`clientWidth` are 0. Stand in the geometry so the focus-reveal math has
+  // something to read. `viewport` fixes the visible box at the container's
+  // origin; `place` positions a focus target in that same coordinate space.
+  const rect = (
+    top: number,
+    left: number,
+    width: number,
+    height: number
+  ): DOMRect => ({
+    top,
+    left,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height,
+    x: left,
+    y: top,
+    toJSON() {},
+  });
+
+  const viewport = (
+    el: HTMLElement,
+    { width, height }: { width: number; height: number }
+  ) => {
+    Object.defineProperty(el, "clientHeight", {
+      value: height,
+      configurable: true,
+    });
+    Object.defineProperty(el, "clientWidth", {
+      value: width,
+      configurable: true,
+    });
+    el.getBoundingClientRect = () => rect(0, 0, width, height);
+  };
+
+  const placeControl = (
+    parent: HTMLElement,
+    box: { top: number; left: number; width: number; height: number }
+  ) => {
+    const control = document.createElement("button");
+    control.getBoundingClientRect = () =>
+      rect(box.top, box.left, box.width, box.height);
+    parent.appendChild(control);
+    return control;
   };
 
   it("refuses a native vertical scroll and snaps the element back", () => {
@@ -156,5 +210,65 @@ describe("Cell area native scroll", () => {
 
     expect(scrollbarY.scrollTop).toBe(0);
     expect(cellArea.scrollTop).toBe(0);
+  });
+
+  it("reveals a focused control below the fold by scrolling context", () => {
+    const { cellArea, scrollbarY } = renderGrid();
+
+    // A 400px-tall viewport with a control 1200px down, entirely below the
+    // fold — the add-row strip that Shift+Tab lands on.
+    viewport(cellArea, { width: 900, height: 400 });
+    const control = placeControl(cellArea, {
+      top: 1200,
+      left: 0,
+      width: 100,
+      height: 20,
+    });
+
+    fireEvent.focusIn(control);
+
+    // The reveal goes through context (the scrollbar tracks context), not by
+    // leaving a native offset on the element: 1220 - 400 = 820. That the canvas
+    // repaints to match is exactly what a raw element scroll could not do.
+    expect(scrollbarY.scrollTop).toBe(820);
+    expect(cellArea.scrollTop).toBe(820);
+  });
+
+  it("reveals a focused control clipped to the right by scrolling context", () => {
+    const { cellArea, scrollbarX } = renderGrid();
+
+    viewport(cellArea, { width: 900, height: 400 });
+    const control = placeControl(cellArea, {
+      top: 10,
+      left: 1000,
+      width: 100,
+      height: 20,
+    });
+
+    fireEvent.focusIn(control);
+
+    // 1100 - 900 = 200 on the horizontal axis; the vertical axis is untouched.
+    expect(scrollbarX.scrollLeft).toBe(200);
+  });
+
+  it("leaves context alone when the focused element is already visible", () => {
+    const { cellArea, scrollbarX, scrollbarY } = renderGrid();
+
+    viewport(cellArea, { width: 900, height: 400 });
+    const control = placeControl(cellArea, {
+      top: 100,
+      left: 100,
+      width: 100,
+      height: 20,
+    });
+
+    fireEvent.focusIn(control);
+
+    // Fully inside the box, so no reveal — otherwise focusing the active cell
+    // input during normal editing would jog the sheet.
+    expect(scrollbarY.scrollTop).toBe(0);
+    expect(scrollbarX.scrollLeft).toBe(0);
+    expect(cellArea.scrollTop).toBe(0);
+    expect(cellArea.scrollLeft).toBe(0);
   });
 });
