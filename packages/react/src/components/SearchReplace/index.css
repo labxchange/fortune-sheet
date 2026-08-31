@@ -2,7 +2,13 @@
 #fortune-search-replace {
   position: absolute;
   padding: 30px 42px;
-  z-index: 1002;
+  /* Was 1002. SheetOverlay's own scrollbars (.luckysheet-scrollbar-ltr) and
+     formula hint/search popups are 1003 — above this dialog despite the
+     grid being what it floats over, so the results table sat under the
+     horizontal scrollbar rather than above it. 1004 matches the other
+     floating chrome (ContextMenu, ConditionFormat, ZoomControl, Toolbar
+     dropdowns) that's meant to sit above the grid's own overlay pieces. */
+  z-index: 1004;
 }
 
 #fortune-search-replace .icon-close {
@@ -56,6 +62,22 @@
   display: flex;
   flex-direction: row;
   justify-content: space-between;
+}
+
+/*
+ * findTextbox/replaceTextbox/regCheck/wordCheck/caseCheck used to be plain
+ * text or a <span>, so a host page's own `label` rules (block display,
+ * margin, bold — Bootstrap-style form resets are the common case) never
+ * reached this dialog. Naming these controls with real <label> elements
+ * made them match for the first time, and the fixed 30px row height below
+ * has no room for a label that now wants its own block or margin: the
+ * overflow lands on top of the input or the row after it. Reset back to
+ * what a <span> looked like so the row's fixed height keeps holding.
+ */
+#fortune-search-replace label {
+  display: inline;
+  margin: 0;
+  font-weight: normal;
 }
 
 #fortune-search-replace .inputBox {
