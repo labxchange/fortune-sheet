@@ -11205,6 +11205,7 @@ export default {
     shortcutGroupSelection: "Selection",
     shortcutGroupEditing: "Editing and formatting",
     shortcutGroupData: "Data and menus",
+    shortcutScrollableRegion: "Keyboard shortcuts, scrollable",
     shortcutDescriptions: {
       moveBetweenCells: "Move between cells",
       moveRight: "Move right",

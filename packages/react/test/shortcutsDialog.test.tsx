@@ -47,6 +47,22 @@ describe("Keyboard shortcuts dialog", () => {
     );
   });
 
+  it("exposes its scrollable content as a focusable, named region", async () => {
+    const { container, getByRole } = render(
+      <Workbook data={[{ name: "Sheet1" }]} />
+    );
+
+    openWithShortcut(container);
+
+    const dialog = await waitFor(() => getByRole("dialog"));
+    const region = within(dialog).getByRole("region", {
+      name: "Keyboard shortcuts, scrollable",
+    });
+    expect(region.getAttribute("tabIndex")).toBe("0");
+    region.focus();
+    expect(document.activeElement).toBe(region);
+  });
+
   it("opens from the toolbar button too", async () => {
     const { getByRole, queryByRole } = render(
       <Workbook

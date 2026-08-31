@@ -12,6 +12,14 @@ type Props = {
   onCancel?: () => void;
   containerStyle?: React.CSSProperties;
   contentStyle?: React.CSSProperties;
+  /**
+   * Accessible name for the content area, when it scrolls independently of
+   * the page. Turns the content `div` into a focusable `role="region"` so
+   * keyboard users can reach it and scroll with the arrow keys — a plain
+   * `overflow-y: auto` block is otherwise unreachable without a mouse (WCAG
+   * 2.1.1).
+   */
+  contentRegionLabel?: string;
   /** Id of the element naming this dialog, usually its heading. */
   labelledBy?: string;
   /**
@@ -42,6 +50,7 @@ const Dialog: React.FC<Props> = ({
   children,
   containerStyle,
   contentStyle,
+  contentRegionLabel,
   labelledBy,
   onEscape,
   initialFocusRef,
@@ -162,7 +171,13 @@ const Dialog: React.FC<Props> = ({
           <SVGIcon name="close" style={{ padding: 7, cursor: "pointer" }} />
         </div>
       </div>
-      <div className="fortune-dialog-box-content" style={contentStyle}>
+      <div
+        className="fortune-dialog-box-content"
+        style={contentStyle}
+        {...(contentRegionLabel
+          ? { tabIndex: 0, role: "region", "aria-label": contentRegionLabel }
+          : undefined)}
+      >
         {children}
       </div>
       {type != null && (
