@@ -81,7 +81,12 @@ export function handleGlobalWheel(
   scrollbarX: HTMLDivElement,
   scrollbarY: HTMLDivElement
 ) {
-  if (cache.searchDialog?.mouseEnter && ctx.showSearch && ctx.showReplace)
+  // Find opens with showSearch alone and Replace with showReplace alone (see
+  // keyboard.ts's Ctrl+F/Ctrl+H handlers) — requiring both true made this
+  // bail-out unreachable in practice, so every wheel gesture over the dialog
+  // fell through to the grid's own scrollbars and the results list never got
+  // to scroll itself.
+  if (cache.searchDialog?.mouseEnter && (ctx.showSearch || ctx.showReplace))
     return;
   if (ctx.filterContextMenu != null) return;
   let { scrollLeft } = scrollbarX;

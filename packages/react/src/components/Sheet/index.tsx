@@ -241,6 +241,13 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
 
   const onWheel = useCallback(
     (e: WheelEvent) => {
+      // handleGlobalWheel calls e.preventDefault() itself, but only once it
+      // gets past its own bail-out guards (the search dialog's results box,
+      // an open filter menu). A second, unconditional call here undid those
+      // guards from outside: the grid's own scroll was skipped, but the
+      // wheel gesture's default action — the browser's native scroll of
+      // whatever the cursor is actually over — was cancelled regardless, so
+      // nothing scrolled at all.
       setContext((draftCtx) => {
         handleGlobalWheel(
           draftCtx,
@@ -250,7 +257,6 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
           refs.scrollbarY.current!
         );
       });
-      e.preventDefault();
     },
     [refs.globalCache, refs.scrollbarX, refs.scrollbarY, setContext]
   );
