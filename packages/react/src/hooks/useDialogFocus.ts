@@ -48,6 +48,13 @@ const DISABLED = '[disabled], [aria-disabled="true"]';
  * removed. Without it that case lands on <body>, which is the same lost-focus
  * failure the restore exists to prevent, just reached by a different route.
  *
+ * Neither restore fires when focus has already left the dialog by the time it
+ * closes. A caller that deliberately moves focus and then dismisses — a
+ * shortcut that leaves this dialog for the grid, an outside click — has
+ * already put focus where it belongs, and restoring would drag it back to the
+ * opener. This mirrors useEscapeToClose, which gates its own restore the same
+ * way for the same reason.
+ *
  * `deferRestore` decides *when* the restore runs, and only `Dialog` needs it —
  * see the cleanup for the full reasoning. It defaults to the synchronous
  * restore this hook was extracted with, so `SearchReplace`, which has no
@@ -103,6 +110,18 @@ export function useDialogFocus(
       }
     };
 
+    // Tracked continuously rather than read from the ref at cleanup time:
+    // callers unmount the dialog on close, and React nulls `dialogRef` during
+    // the mutation phase, which runs before this passive effect's cleanup. The
+    // listener goes on before initial focus below so that focus lands inside
+    // and is seen landing there — otherwise this starts and stays false, and
+    // every restore below is skipped.
+    let focusInsideDialog = dialog.contains(document.activeElement);
+    const handleFocusIn = (e: FocusEvent) => {
+      focusInsideDialog = dialog.contains(e.target as Node);
+    };
+    document.addEventListener("focusin", handleFocusIn);
+
     const focusable = focusableNow();
     if (initialFocusRef?.current) {
       initialFocusRef.current.focus();
@@ -115,6 +134,10 @@ export function useDialogFocus(
     dialog.addEventListener("keydown", trapFocus);
     return () => {
       dialog.removeEventListener("keydown", trapFocus);
+      document.removeEventListener("focusin", handleFocusIn);
+      // Focus is already where the caller put it, so there is nothing to give
+      // back — and both restores below would take it away from there.
+      if (!focusInsideDialog) return;
       /*
        * Focusing a detached node does nothing at all — focus is left exactly
        * where it is, which as this dialog unmounts means it goes to <body>
