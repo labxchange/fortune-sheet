@@ -181,12 +181,21 @@ const SheetOverlay: React.FC = () => {
    * when the focused descendant is actually outside the visible box, and only by
    * the minimum needed to bring it in — matching what the browser would have
    * done natively, but recorded in context so the canvas repaints to match.
+   *
+   * The cell input is explicitly exempt. It lives in this container but is the
+   * grid's own editing chrome: the grid positions it at the active cell, and
+   * parks it at `left/top: -10000` (`InputBox`) whenever there is no selection.
+   * It also takes keyboard focus on every cell click. Revealing it would be
+   * both wrong (the grid already places it) and harmful — a focus landing while
+   * it is parked reads as far above the fold and would yank the scroll to the
+   * top-left. Only the static chrome below the last row needs revealing.
    */
   const cellAreaFocus = useCallback(
     (e: React.FocusEvent<HTMLDivElement>) => {
       const container = e.currentTarget;
       const target = e.target as HTMLElement;
       if (target === container) return;
+      if (target.closest(".luckysheet-input-box")) return;
 
       const cRect = container.getBoundingClientRect();
       const tRect = target.getBoundingClientRect();

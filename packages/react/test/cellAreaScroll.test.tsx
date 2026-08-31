@@ -271,4 +271,33 @@ describe("Cell area native scroll", () => {
     expect(cellArea.scrollTop).toBe(0);
     expect(cellArea.scrollLeft).toBe(0);
   });
+
+  it("never reveals the cell input, even parked far off-screen", () => {
+    const { cellArea, scrollbarX, scrollbarY } = renderGrid();
+
+    // Put the grid at a real scroll offset so a bad reveal has somewhere wrong
+    // to jump to.
+    scrollbarY.scrollTop = 300;
+    fireEvent.scroll(scrollbarY);
+    scrollbarX.scrollLeft = 200;
+    fireEvent.scroll(scrollbarX);
+
+    viewport(cellArea, { width: 900, height: 400 });
+    // `InputBox` parks the cell input at left/top -10000 whenever there is no
+    // selection, and it takes focus on every cell click. Revealing that would
+    // read as far above the fold and snap the sheet to the top-left — so the
+    // handler must skip anything inside `.luckysheet-input-box`.
+    const inputBox = cellArea.querySelector<HTMLElement>(
+      ".luckysheet-input-box"
+    )!;
+    const cellInput = inputBox.querySelector<HTMLElement>(
+      ".luckysheet-cell-input"
+    )!;
+    cellInput.getBoundingClientRect = () => rect(-10000, -10000, 40, 20);
+
+    fireEvent.focusIn(cellInput);
+
+    expect(scrollbarY.scrollTop).toBe(300);
+    expect(scrollbarX.scrollLeft).toBe(200);
+  });
 });
