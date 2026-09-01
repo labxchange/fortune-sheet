@@ -33,13 +33,19 @@
   justify-content: center;
   /* Above the floating-chrome tier (1004: ContextMenu, ZoomControl, Toolbar
      dropdowns, ConditionFormat, SearchReplace), not level with the grid popups
-     the backdrop above sits with. A modal is the topmost layer by definition —
-     it is the thing the user has to answer before anything else — and it was
-     inheriting 1003 from .fortune-popover-backdrop, so Replace All's own
+     the backdrop above sits with. This element carries both classes, so it was
+     taking 1003 from .fortune-popover-backdrop and Replace All's own
      "Occurrences replaced" alert opened *behind* the Find and Replace dialog
      that raised it. Only the modal rises: .fortune-popover-backdrop keeps 1003
      because Workbook's plain popover backdrop is deliberately below the
-     context menu. */
+     context menu.
+
+     This clears the tier a modal is actually raised from today; it does not
+     make one topmost. SheetTab, Toolbar and ChangeColor menus sit at 2000,
+     SheetList at 10002 and DataVerification at 10000/100003 — and
+     DataVerification does raise an alert from behind its own panel
+     (index.tsx:121). Putting every modal above all of them means agreeing a
+     scale for the whole package, which is its own change. */
   z-index: 1006;
 }
 

@@ -253,8 +253,12 @@ describe("Alert stacking", () => {
   // modal container inherited z-index 1003 from .fortune-popover-backdrop
   // while SearchReplace was raised to 1004 to clear the grid's scrollbars, so
   // Replace All's own alert opened behind the dialog that raised it.
+  // Anchored to the start of a line so a selector *mentioned in a comment*
+  // cannot be mistaken for the rule that declares it — the comments in these
+  // two files now name several of each other's selectors.
   const zIndexOf = (css: string, selector: string) => {
-    const at = css.indexOf(`${selector} {`);
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const at = css.search(new RegExp(`^${escaped}\\s*\\{`, "m"));
     expect(at).toBeGreaterThan(-1);
     const rule = css.slice(at, css.indexOf("}", at));
     const match = rule.match(/z-index:\s*(\d+)/);
