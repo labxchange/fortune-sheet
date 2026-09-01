@@ -74,6 +74,37 @@ import {
 let mouseWheelUniqueTimeout: ReturnType<typeof setTimeout>;
 let scrollLockTimeout: ReturnType<typeof setTimeout>;
 
+/**
+ * Whether a wheel gesture belongs to something floating over the grid rather
+ * than to the grid itself — the search dialog's results list, or an open
+ * filter menu. Both need the browser's own scrolling, so the caller must
+ * neither scroll the grid nor cancel the event.
+ *
+ * Split out of handleGlobalWheel so the caller can ask the same question
+ * *synchronously*. The two must give the same answer, and when they were
+ * written separately they did not: this guard read `showSearch && showReplace`
+ * for a dialog that opens with one or the other (see keyboard.ts's Ctrl+F and
+ * Ctrl+H handlers), so it was unreachable and every gesture over the dialog
+ * fell through to the grid.
+ */
+export function shouldSkipGlobalWheel(
+  ctx: Pick<Context, "showSearch" | "showReplace" | "filterContextMenu">,
+  cache: GlobalCache
+): boolean {
+  if (cache.searchDialog?.mouseEnter && (ctx.showSearch || ctx.showReplace))
+    return true;
+  return ctx.filterContextMenu != null;
+}
+
+/**
+ * Scrolls the grid in response to a wheel gesture.
+ *
+ * Does **not** call preventDefault: this runs inside a setContext recipe,
+ * which React defers into a state updater, so a preventDefault here would land
+ * after the event had finished dispatching and be silently ignored. Cancelling
+ * the gesture is the caller's job, synchronously, gated on
+ * shouldSkipGlobalWheel.
+ */
 export function handleGlobalWheel(
   ctx: Context,
   e: WheelEvent,
@@ -81,14 +112,7 @@ export function handleGlobalWheel(
   scrollbarX: HTMLDivElement,
   scrollbarY: HTMLDivElement
 ) {
-  // Find opens with showSearch alone and Replace with showReplace alone (see
-  // keyboard.ts's Ctrl+F/Ctrl+H handlers) — requiring both true made this
-  // bail-out unreachable in practice, so every wheel gesture over the dialog
-  // fell through to the grid's own scrollbars and the results list never got
-  // to scroll itself.
-  if (cache.searchDialog?.mouseEnter && (ctx.showSearch || ctx.showReplace))
-    return;
-  if (ctx.filterContextMenu != null) return;
+  if (shouldSkipGlobalWheel(ctx, cache)) return;
   let { scrollLeft } = scrollbarX;
   const { scrollTop } = scrollbarY;
   let visibledatacolumn_c = ctx.visibledatacolumn;
@@ -189,8 +213,6 @@ export function handleGlobalWheel(
     delete cache.verticalScrollLock;
     delete cache.horizontalScrollLock;
   }, 50);
-
-  e.preventDefault();
 }
 
 export function fixPositionOnFrozenCells(

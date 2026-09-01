@@ -4,6 +4,7 @@ import {
   updateContextWithCanvas,
   updateContextWithSheetData,
   handleGlobalWheel,
+  shouldSkipGlobalWheel,
   initFreeze,
   Sheet as SheetType,
 } from "@fortune-sheet/core";
@@ -239,15 +240,37 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
     }
   }, [context, refs.canvas, refs.globalCache.freezen, setContext, sheet.id]);
 
+  // Read synchronously by onWheel below, which cannot reach `context` without
+  // taking it as a dependency — and that would rebind the wheel listener on
+  // every scroll, since scrolling is itself a context change.
+  const wheelGuard = useRef({
+    showSearch: context.showSearch,
+    showReplace: context.showReplace,
+    filterContextMenu: context.filterContextMenu,
+  });
+  wheelGuard.current = {
+    showSearch: context.showSearch,
+    showReplace: context.showReplace,
+    filterContextMenu: context.filterContextMenu,
+  };
+
   const onWheel = useCallback(
     (e: WheelEvent) => {
-      // handleGlobalWheel calls e.preventDefault() itself, but only once it
-      // gets past its own bail-out guards (the search dialog's results box,
-      // an open filter menu). A second, unconditional call here undid those
-      // guards from outside: the grid's own scroll was skipped, but the
-      // wheel gesture's default action — the browser's native scroll of
-      // whatever the cursor is actually over — was cancelled regardless, so
-      // nothing scrolled at all.
+      // Cancelling the gesture has to happen here, not inside the recipe
+      // below. setContext hands its recipe to React as a state updater, and
+      // React only runs an updater eagerly while the fiber has no pending
+      // work — during a continuous gesture it usually has, so the recipe runs
+      // in the render pass instead, long after this event finished
+      // dispatching. A preventDefault that late is ignored, and the browser
+      // scrolls whatever is under the cursor on top of the grid scrolling
+      // itself.
+      //
+      // Gated on the same predicate the recipe uses, so a gesture the grid
+      // deliberately does not handle — over the search results, over an open
+      // filter menu — keeps the native scrolling it is asking for.
+      if (!shouldSkipGlobalWheel(wheelGuard.current, refs.globalCache)) {
+        e.preventDefault();
+      }
       setContext((draftCtx) => {
         handleGlobalWheel(
           draftCtx,
