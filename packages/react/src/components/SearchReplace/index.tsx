@@ -43,7 +43,12 @@ const SearchReplace: React.FC<{
   const dialogRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
-  const [activeRow, setActiveRow] = useState(0);
+  // Null until focus first enters the list. aria-selected is a claim about what
+  // the user has chosen, and option 0 carrying it on render tells a screen
+  // reader a result was picked before the list was ever reached. Null also
+  // means "no roving stop yet", which is why the tabIndex below falls back to
+  // the first option: the list still needs exactly one tab stop to enter by.
+  const [activeRow, setActiveRow] = useState<number | null>(null);
   const [announcement, setAnnouncement] = useState("");
 
   // Searching for the same term twice, or replacing one occurrence after
@@ -332,9 +337,10 @@ const SearchReplace: React.FC<{
                   if (!searchText) return;
                   const res = searchAll(draftCtx, searchText, checkMode);
                   setSearchResult(res);
-                  // A new list starts at its first option, or the roving tab
-                  // stop points past the end of a shorter one.
-                  setActiveRow(0);
+                  // A new list starts unentered, or the roving tab stop
+                  // points past the end of a shorter one — and a result the
+                  // user has not arrowed to yet is not a selected result.
+                  setActiveRow(null);
                   if (_.isEmpty(res)) {
                     showAlert(findAndReplace.noFindTip);
                   } else {
@@ -407,11 +413,24 @@ const SearchReplace: React.FC<{
         </div>
         {searchResult.length > 0 && (
           <div id="searchAllbox">
+            {/*
+              A sibling of the listbox, not a child of it: aria-describedby
+              resolves by id from anywhere in the document, and the listbox
+              must own nothing but its options — see the note below.
+            */}
+            <div id="fortune-search-replace-results-hint" className="sr-only">
+              {findAndReplace.resultsUsageHint}
+            </div>
             <div
-              className="searchResultsTable"
+              className="searchResultsList"
               ref={resultsRef}
               role="listbox"
-              aria-label={findAndReplace.resultsTableName}
+              aria-label={findAndReplace.resultsListName}
+              // The instruction is described, not named. As part of each
+              // option's name it was re-read on every arrow key — forty
+              // results meant hearing how to activate one forty times — where
+              // a description on the list is offered once, on entry.
+              aria-describedby="fortune-search-replace-results-hint"
             >
               {/*
                 Decorative, and hidden from assistive tech on purpose. These
@@ -492,7 +511,7 @@ const SearchReplace: React.FC<{
                     // arrows moving inside it. Tracking focus rather than
                     // driving it means useRovingFocus's own .focus() keeps
                     // this in step without the two knowing about each other.
-                    tabIndex={i === activeRow ? 0 : -1}
+                    tabIndex={(activeRow ?? 0) === i ? 0 : -1}
                     aria-label={replaceHtml(findAndReplace.resultRowLabel, {
                       sheet: v.sheetName,
                       cell: v.cellPosition,

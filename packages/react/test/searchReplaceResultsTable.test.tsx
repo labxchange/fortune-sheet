@@ -104,7 +104,7 @@ describe("Find All results list", () => {
     const opts = options(dialog);
     expect(opts).toHaveLength(2);
     expect(opts[0].getAttribute("aria-label")).toBe(
-      "Sheet Sheet1, cell A1, value alpha. Activate to navigate to cell A1"
+      "Sheet Sheet1, cell A1, value alpha"
     );
   });
 
@@ -131,15 +131,63 @@ describe("Find All results list", () => {
     expect(cells.map((c) => c.textContent)).toEqual(["Sheet1", "A1", "alpha"]);
   });
 
-  it("marks the active option selected, and only that one", async () => {
+  it("selects nothing until the list is entered", async () => {
+    // aria-selected is a claim about what the user picked. Before focus has
+    // reached the list nothing has been picked, so option 0 must not carry it
+    // — while the list still has to offer exactly one tab stop to enter by.
+    const { getByRole } = renderWorkbook();
+    const dialog = await findAll(getByRole, "alpha");
+
+    expect(options(dialog).map((o) => o.getAttribute("aria-selected"))).toEqual(
+      ["false", "false"]
+    );
+    expect(options(dialog).map((o) => o.getAttribute("tabindex"))).toEqual([
+      "0",
+      "-1",
+    ]);
+  });
+
+  it("marks the active option selected, and only that one, once entered", async () => {
     // aria-selected is what the highlight is keyed to, so the visual state and
     // the announced state cannot drift apart.
     const { getByRole } = renderWorkbook();
     const dialog = await findAll(getByRole, "alpha");
 
-    expect(options(dialog).map((o) => o.getAttribute("aria-selected"))).toEqual(
-      ["true", "false"]
+    const opts = options(dialog);
+    act(() => opts[0].focus());
+    await waitFor(() =>
+      expect(
+        options(dialog).map((o) => o.getAttribute("aria-selected"))
+      ).toEqual(["true", "false"])
     );
+
+    fireEvent.keyDown(opts[0], { key: "ArrowDown" });
+    await waitFor(() =>
+      expect(
+        options(dialog).map((o) => o.getAttribute("aria-selected"))
+      ).toEqual(["false", "true"])
+    );
+  });
+
+  it("describes how to use the list once, rather than in every option", async () => {
+    // As part of each option's name the instruction was re-read on every
+    // arrow key; as a description on the list it is offered once, on entry.
+    const { getByRole } = renderWorkbook();
+    const dialog = await findAll(getByRole, "alpha");
+    const listbox = within(dialog).getByRole("listbox");
+
+    const describedBy = listbox.getAttribute("aria-describedby")!;
+    expect(document.getElementById(describedBy)!.textContent).toBe(
+      "Activate a result to go to that cell"
+    );
+    // and the description is not inside the listbox, which must own only
+    // its options
+    expect(listbox.querySelector(`#${describedBy}`)).toBeNull();
+    expect(
+      options(dialog).some((o) =>
+        o.getAttribute("aria-label")!.includes("Activate")
+      )
+    ).toBe(false);
   });
 
   it("is a single tab stop, with the arrows moving inside it", async () => {

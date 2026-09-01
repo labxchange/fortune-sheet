@@ -11758,9 +11758,9 @@ export default {
     space: "空格",
   },
   findAndReplace: {
-    resultRowLabel:
-      "工作表 ${sheet}，儲存格 ${cell}，值 ${value}。啟動以跳至儲存格 ${cell}",
-    resultsTableName: "搜尋結果",
+    resultRowLabel: "工作表 ${sheet}，儲存格 ${cell}，值 ${value}",
+    resultsListName: "搜尋結果",
+    resultsUsageHint: "啟動某個結果以跳至該儲存格",
     matchesFoundTip: "找到 ${xlength} 處符合",
     replacedTip: "已取代 ${xlength} 處",
     resultsShownTip: "已顯示結果表",

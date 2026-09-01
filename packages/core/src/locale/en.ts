@@ -11789,9 +11789,9 @@ export default {
     space: "space",
   },
   findAndReplace: {
-    resultRowLabel:
-      "Sheet ${sheet}, cell ${cell}, value ${value}. Activate to navigate to cell ${cell}",
-    resultsTableName: "Search results",
+    resultRowLabel: "Sheet ${sheet}, cell ${cell}, value ${value}",
+    resultsListName: "Search results",
+    resultsUsageHint: "Activate a result to go to that cell",
     // Label first, count second, on purpose. Count first reads "1 matches
     // found" and "1 occurrences replaced", and both of these are spoken by a
     // screen reader; there is no pluralization layer in this package to

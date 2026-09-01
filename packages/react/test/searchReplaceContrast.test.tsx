@@ -34,9 +34,14 @@ const contrast = (a: string, b: string) => {
   return (hi + 0.05) / (lo + 0.05);
 };
 
-/** The declarations of the rule whose selector ends with `selector`. */
+/** The declarations of the top-level rule declaring `selector`.
+ *
+ * Anchored to the start of a line, so it takes the base rule rather than the
+ * indented copy of the same selector inside the forced-colors block below it
+ * — and cannot be fooled by a selector named in a comment. */
 const ruleFor = (selector: string) => {
-  const at = CSS.indexOf(`${selector} {`);
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const at = CSS.search(new RegExp(`^${escaped}\\s*\\{`, "m"));
   expect(at).toBeGreaterThan(-1);
   return CSS.slice(at, CSS.indexOf("}", at));
 };
@@ -104,6 +109,23 @@ describe("Find and Replace colour contrast", () => {
     const border = declaration(rule, "border-color");
     expect(border).not.toBe(background);
     expect(contrast(background, border)).toBeGreaterThan(1.2);
+  });
+
+  it("keeps the selected option distinguishable under forced colours", () => {
+    // The selected option is marked with background-color + color, and forced
+    // colours replaces both with system values — so without an override the
+    // highlight disappears and every option looks alike. Read as text for the
+    // same reason as everything else here: no stylesheet loads under jsdom.
+    const at = CSS.search(/@media \(forced-colors: active\) \{/);
+    expect(at).toBeGreaterThan(-1);
+    const block = CSS.slice(at, CSS.indexOf("\n}", at));
+
+    expect(block).toContain('.boxItem[aria-selected="true"]');
+    expect(block).toMatch(/background-color:\s*Highlight/);
+    expect(block).toMatch(/color:\s*HighlightText/);
+    // The fill alone is not guaranteed across themes; the outline is the belt.
+    expect(block).toMatch(/outline:\s*2px solid Highlight/);
+    expect(block).toMatch(/forced-color-adjust:\s*none/);
   });
 
   it("no longer references the rejected colour in any declaration", () => {

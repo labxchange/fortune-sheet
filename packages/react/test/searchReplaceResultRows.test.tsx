@@ -74,7 +74,7 @@ const renderWorkbook = () => {
 };
 
 describe("Find All result rows", () => {
-  it("names each row with its content and what activating it does", async () => {
+  it("names each row with its content, and nothing else", async () => {
     const { getByRole } = renderWorkbook();
     const dialog = await findAll(getByRole, "convinient");
 
@@ -83,19 +83,37 @@ describe("Find All result rows", () => {
     expect(label).toContain("Sheet1");
     expect(label).toContain("H1");
     expect(label).toContain("convinient");
-    expect(label).toContain("Activate to navigate to cell H1");
+    // How to use the list is described on the listbox, not named on every
+    // option — as part of the name it was re-read on every arrow key.
+    expect(label).not.toContain("Activate");
   });
 
-  it("substitutes the cell reference in both places it appears", async () => {
-    // The label names the cell twice — once as data, once in the hint — and
-    // the second occurrence is the one a naive single-shot substitution drops.
+  it("describes how to activate a result once, on the list itself", async () => {
+    const { getByRole } = renderWorkbook();
+    const dialog = await findAll(getByRole, "convinient");
+    const listbox = within(dialog).getByRole("listbox");
+
+    const hintId = listbox.getAttribute("aria-describedby")!;
+    expect(hintId).toBeTruthy();
+    const hint = document.getElementById(hintId)!;
+    expect(hint.textContent).toContain("Activate");
+    // Described from outside: a listbox must own only its options, so the
+    // hint cannot be a child of it.
+    expect(listbox.contains(hint)).toBe(false);
+  });
+
+  it("substitutes every field of the row label", async () => {
+    // One template, three distinct placeholders — a substitution that handles
+    // only the first would leave the other two as literals in the name.
     const { getByRole } = renderWorkbook();
     const dialog = await findAll(getByRole, "convinient");
 
     const [, second] = resultRows(dialog);
     const label = second.getAttribute("aria-label")!;
-    expect(label).not.toContain("${cell}");
-    expect(label.match(/H2/g)?.length).toBe(2);
+    expect(label).not.toMatch(/\$\{\w+\}/);
+    expect(label).toContain("Sheet1");
+    expect(label).toContain("H2");
+    expect(label).toContain("convinient");
   });
 
   it("leaves no placeholder unsubstituted", async () => {
@@ -191,8 +209,15 @@ describe("Find All result rows", () => {
     const dialog = await findAll(getByRole, "convinient");
 
     const [first] = resultRows(dialog);
-    first.focus();
-    expect(first.getAttribute("aria-selected")).toBe("true");
+    // Nothing is selected until the list is entered, so this is now a real
+    // state change to wait on rather than the initial render's value — which
+    // is what made the previous version of this assertion pass whether the
+    // focus had any effect or not.
+    expect(first.getAttribute("aria-selected")).toBe("false");
+    act(() => first.focus());
+    await waitFor(() =>
+      expect(first.getAttribute("aria-selected")).toBe("true")
+    );
 
     const css = readFileSync(
       join(__dirname, "../src/components/SearchReplace/index.css"),

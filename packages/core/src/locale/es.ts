@@ -11739,9 +11739,9 @@ export default {
     space: "espacio",
   },
   findAndReplace: {
-    resultRowLabel:
-      "Hoja ${sheet}, celda ${cell}, valor ${value}. Active para ir a la celda ${cell}",
-    resultsTableName: "Resultados de la búsqueda",
+    resultRowLabel: "Hoja ${sheet}, celda ${cell}, valor ${value}",
+    resultsListName: "Resultados de la búsqueda",
+    resultsUsageHint: "Active un resultado para ir a esa celda",
     matchesFoundTip: "Coincidencias encontradas: ${xlength}",
     replacedTip: "Apariciones reemplazadas: ${xlength}",
     resultsShownTip: "Tabla de resultados mostrada",

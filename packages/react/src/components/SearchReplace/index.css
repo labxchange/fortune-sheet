@@ -77,7 +77,15 @@
 #fortune-search-replace label {
   display: inline;
   margin: 0;
+  padding: 0;
+  border: 0;
+  float: none;
+  width: auto;
+  max-width: none;
+  line-height: inherit;
   font-weight: normal;
+  font-size: inherit;
+  color: inherit;
 }
 
 #fortune-search-replace .inputBox {
@@ -128,14 +136,18 @@
    * The results box is its own scrolling context and stops there. Without
    * this, a wheel gesture that reaches the end of the list chains to the
    * nearest scrollable ancestor — the grid — so the sheet lurched behind the
-   * dialog instead of the list moving. Nothing in the workbook handles wheel
-   * events in JS, so the chaining was the whole of the bug and this is the
-   * whole of the fix.
+   * dialog instead of the list moving.
+   *
+   * This is half the fix. The other half is in JS: Sheet binds a wheel
+   * listener over the whole grid, and until shouldSkipGlobalWheel was
+   * corrected it scrolled the sheet and cancelled the gesture before the
+   * browser could scroll this box at all. Chaining is what remains once that
+   * handler correctly stands aside, and this is what stops it.
    */
   overscroll-behavior: contain;
 }
 
-#fortune-search-replace #searchAllbox .searchResultsTable {
+#fortune-search-replace #searchAllbox .searchResultsList {
   width: 100%;
 }
 
@@ -171,6 +183,21 @@
 #fortune-search-replace #searchAllbox .boxItem[aria-selected="true"] {
   background-color: #5b57d1;
   color: #fff;
+}
+
+/* Forced colours replaces both of the properties above with system ones, so
+   the selected option would be indistinguishable from the rest of the list.
+   Highlight/HighlightText are the system pair meant for exactly this, and the
+   outline is there because the fill alone is not guaranteed to survive every
+   high-contrast theme. */
+@media (forced-colors: active) {
+  #fortune-search-replace #searchAllbox .boxItem[aria-selected="true"] {
+    background-color: Highlight;
+    color: HighlightText;
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+    forced-color-adjust: none;
+  }
 }
 
 #fortune-search-replace #searchAllbox .boxItem:focus-visible {
