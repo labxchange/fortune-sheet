@@ -259,9 +259,19 @@ describe("Keyboard shortcuts dialog", () => {
     // used to move focus to the grid but leave the still-open, aria-modal
     // dialog behind with no way back to it — a keyboard trap (WCAG 2.1.2).
     const { container, getByRole, queryByRole } = render(
-      <Workbook data={[{ name: "Sheet1" }]} />
+      <Workbook
+        data={[{ name: "Sheet1" }]}
+        toolbarItems={["keyboard-shortcuts"]}
+      />
     );
-    openWithShortcut(container);
+    // Opened from the toolbar rather than with openWithShortcut: the shortcut
+    // leaves <body> as the previously-focused element, and body.focus() is
+    // inert, so Dialog's restore has nothing to yank focus back to and the
+    // assertion below would hold even with the restore left unconditional.
+    // The toolbar trigger is a real focusable element, so it does not.
+    const trigger = getByRole("button", { name: "Keyboard shortcuts" });
+    trigger.focus();
+    fireEvent.click(trigger);
     const dialog = await waitFor(() => getByRole("dialog"));
 
     fireEvent.keyDown(dialog, {
