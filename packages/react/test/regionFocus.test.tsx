@@ -120,6 +120,95 @@ describe("Region focus", () => {
       expect(document.activeElement).not.toBe(grid);
     });
 
+    /** An event carrying the modifier state the platform sets for AltGraph. */
+    const altGraphEvent = (workbook: HTMLElement, init: any) => {
+      const event = createEvent.keyDown(workbook, init);
+      // getModifierState has to be defined on the event object: fireEvent's
+      // init bag silently drops it, leaving the prototype method — which
+      // answers false — in place, so the test would pass either way.
+      Object.defineProperty(event, "getModifierState", {
+        value: (m: string) => m === "AltGraph",
+      });
+      return event;
+    };
+
+    // MDN documents getModifierState("AltGraph") as true whenever Option is
+    // held on macOS, and every Mac binding here is Cmd+Option+letter — so an
+    // unqualified guard reported AltGr for every one of them and killed the
+    // lot. metaKey is the discriminator that costs the Windows/Linux
+    // protection nothing, because AltGr arrives there as ctrlKey.
+    it("still runs the Mac chord, where Option always reports AltGraph", () => {
+      const { container } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+      const workbook =
+        container.querySelector<HTMLElement>(".fortune-container")!;
+
+      fireEvent(
+        workbook,
+        altGraphEvent(workbook, {
+          key: "ß",
+          code: "KeyS",
+          metaKey: true,
+          altKey: true,
+        })
+      );
+
+      expect(document.activeElement).toBe(
+        container.querySelector(`.${GRID_ROOT_CLASS}`)
+      );
+    });
+
+    // `/` is itself AltGr-composed on several layouts, so the dialog branch
+    // needs the guard as much as the region branch does.
+    it("does not open the shortcuts dialog for an AltGr-composed slash", () => {
+      const { container } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+      const workbook =
+        container.querySelector<HTMLElement>(".fortune-container")!;
+
+      fireEvent(
+        workbook,
+        altGraphEvent(workbook, { key: "/", code: "Digit7", ctrlKey: true })
+      );
+
+      expect(container.querySelector(".fortune-shortcuts-dialog")).toBeNull();
+    });
+
+    it("still opens the shortcuts dialog for the Mac chord", async () => {
+      const { container, findByRole } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      const workbook =
+        container.querySelector<HTMLElement>(".fortune-container")!;
+
+      fireEvent(
+        workbook,
+        altGraphEvent(workbook, { key: "/", code: "Slash", metaKey: true })
+      );
+
+      expect(await findByRole("dialog")).toBeTruthy();
+    });
+
+    // The guard used to sit at the very top of the handler, ahead of the
+    // handleGlobalKeyDown call, so a composed keystroke stopped every key the
+    // grid handles -- plain arrows included, which no AltGr chord can produce.
+    // Moving the selection is the cheapest proof the handler now runs.
+    it("no longer gates the grid's own keys", () => {
+      const { container } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+      const nameBox =
+        container.querySelector<HTMLInputElement>(".fortune-name-box")!;
+      expect(nameBox.value).toBe("A1");
+
+      // Fired from inside the grid: the handler deliberately leaves navigation
+      // keys alone when focus sits outside it, so the workbook container is the
+      // wrong origin for this one.
+      const grid = container.querySelector<HTMLElement>(`.${GRID_ROOT_CLASS}`)!;
+      fireEvent(
+        grid,
+        altGraphEvent(grid, { key: "ArrowRight", code: "ArrowRight" })
+      );
+
+      expect(nameBox.value).toBe("B1");
+    });
+
     it("Ctrl+Alt+B enters the sheet tab bar", () => {
       const { container } = render(<Workbook data={[{ name: "Sheet1" }]} />);
       press(container, "KeyB");

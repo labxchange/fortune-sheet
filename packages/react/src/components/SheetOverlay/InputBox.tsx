@@ -244,8 +244,22 @@ const InputBox: React.FC = () => {
           e.stopPropagation();
         } else selectActiveFormula(e);
       } else if (e.key === "Tab" && context.luckysheetCellUpdate.length > 0) {
-        selectActiveFormula(e);
-        e.preventDefault();
+        // Tab has two jobs while a cell is being edited, and only one of them
+        // belongs to this layer: accepting the highlighted formula suggestion,
+        // when a suggestion is actually open. Otherwise the key belongs to the
+        // grid, which commits the edit and moves to the next cell.
+        //
+        // This used to run unconditionally, and that is what made Tab dead in
+        // edit mode: with no suggestion open `selectActiveFormula` does
+        // nothing, and the `preventDefault()` beside it stopped the browser
+        // moving focus while core's Tab branch bailed on the edit -- so the key
+        // did nothing at all. stopPropagation keeps the two jobs exclusive:
+        // when a suggestion is accepted, the grid must not also move the cell.
+        if (getActiveFormula()) {
+          selectActiveFormula(e);
+          e.preventDefault();
+          e.stopPropagation();
+        }
       } else if (e.key === "F4" && context.luckysheetCellUpdate.length > 0) {
         // formula.setfreezonFuc(event);
         e.preventDefault();
@@ -315,6 +329,7 @@ const InputBox: React.FC = () => {
     [
       clearSearchItemActiveClass,
       context.luckysheetCellUpdate.length,
+      getActiveFormula,
       selectActiveFormula,
       setContext,
     ]

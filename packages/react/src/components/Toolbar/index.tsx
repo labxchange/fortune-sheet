@@ -263,6 +263,42 @@ const Toolbar: React.FC<{
     }
   }, [itemLocations, setMoreItems, settings.toolbarItems.length, sheetWidth]);
 
+  /**
+   * Run a toolbar command and put focus back on the cells it acted on.
+   *
+   * Focus belongs in the user's working context after an editing command, not
+   * on the toolbar control that ran it (WCAG 2.4.3): select B5, bold it, and
+   * the next arrow key should move from B5 rather than along the toolbar.
+   *
+   * `refs.cellInput` is the target because that is where a mouse click already
+   * leaves focus, and where the grid's own key handling runs.
+   *
+   * A command that declined to act must not relocate anyone -- generalising the
+   * rule `filterUnchanged` states for the filter items. `luckysheetfile` is the
+   * signal: immer rebuilds the references along the path to whatever a command
+   * wrote, up to and including that array, and preserves them for a subtree
+   * nothing touched. So a command that changed no cell, format, merge or freeze
+   * leaves it identical, and focus stays where the user put it.
+   *
+   * Deferred through `focusAfterCommit`, so it lands after the commit and after
+   * any popup's own focus restoration -- and reads `contextRef`, not `context`,
+   * because by then the commit has happened and `context` here is the value
+   * from before it.
+   */
+  const withFocusReturn = useCallback(
+    <A extends unknown[]>(run: (...args: A) => void) =>
+      (...args: A) => {
+        const before = contextRef.current.luckysheetfile;
+        run(...args);
+        focusAfterCommit(() =>
+          contextRef.current.luckysheetfile === before
+            ? null
+            : refs.cellInput.current
+        );
+      },
+    [refs.cellInput]
+  );
+
   const getToolbarItem = useCallback(
     (name: string, i: number) => {
       // @ts-ignore
@@ -271,7 +307,7 @@ const Toolbar: React.FC<{
         return <Divider key={i} />;
       }
       if (["font-color", "background"].includes(name)) {
-        const pick = (color: string | undefined) => {
+        const pick = withFocusReturn((color: string | undefined) => {
           setContext((draftCtx) =>
             (name === "font-color" ? handleTextColor : handleTextBackground)(
               draftCtx,
@@ -284,7 +320,7 @@ const Toolbar: React.FC<{
           } else {
             refs.globalCache.recentBackgroundColor = color;
           }
-        };
+        });
         return (
           <div style={{ position: "relative" }} key={name}>
             <div
@@ -614,7 +650,7 @@ const Toolbar: React.FC<{
             tooltip={tooltip}
             key={name}
             disabled={refs.globalCache.undoList.length === 0}
-            onClick={() => handleUndo()}
+            onClick={withFocusReturn(() => handleUndo())}
           />
         );
       }
@@ -625,7 +661,7 @@ const Toolbar: React.FC<{
             tooltip={tooltip}
             key={name}
             disabled={refs.globalCache.redoList.length === 0}
-            onClick={() => handleRedo()}
+            onClick={withFocusReturn(() => handleRedo())}
           />
         );
       }
@@ -1483,7 +1519,7 @@ const Toolbar: React.FC<{
           tooltip={tooltip}
           key={name}
           selected={toolbarItemSelectedFunc(name)?.(cell)}
-          onClick={() =>
+          onClick={withFocusReturn(() =>
             setContext((draftCtx) => {
               toolbarItemClickHandler(name)?.(
                 draftCtx,
@@ -1491,7 +1527,7 @@ const Toolbar: React.FC<{
                 refs.globalCache
               );
             })
-          }
+          )}
         />
       );
     },
@@ -1499,6 +1535,7 @@ const Toolbar: React.FC<{
       toolbar,
       cell,
       setContext,
+      withFocusReturn,
       refs.cellInput,
       refs.fxInput,
       refs.globalCache,

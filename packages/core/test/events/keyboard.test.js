@@ -181,6 +181,201 @@ describe("keyboard", () => {
     });
   });
 
+  // The shortcuts dialog advertises these three, and the drift check in
+  // keyboardShortcuts.test.js recorded them as covered by this file — which
+  // referenced none of them. Real cases, so the coverage claim is true.
+  describe("bindings advertised by the shortcuts dialog", () => {
+    const ctrlKeyEvent = (init) =>
+      new KeyboardEvent("keydown", {
+        ctrlKey: true,
+        cancelable: true,
+        ...init,
+      });
+
+    // handleControlPlusArrowKey reads the sheet's declared extent and bails
+    // without it, which the shared fixture does not carry.
+    const getSizedContext = () =>
+      contextFactory({
+        luckysheet_select_save: selectionFactory([0, 0], [0, 0], 0, 0),
+        luckysheetfile: [
+          {
+            id: "id_1",
+            row: 10,
+            column: 8,
+            data: [
+              [{ v: "abc" }, { v: "abc" }],
+              [{ v: "abc" }, { v: "abc" }],
+            ],
+          },
+        ],
+      });
+
+    const pressWithCtrl = (ctx, event, cellInput) =>
+      handleWithCtrlOrMetaKey(
+        ctx,
+        { ignoreWriteCell: false },
+        event,
+        cellInput ?? document.createElement("div"),
+        document.createElement("div"),
+        () => {},
+        () => {}
+      );
+
+    // Ctrl/Cmd + arrow: jump to the edge of the data region.
+    test("ctrl+arrow jumps to the edge of the data region", () => {
+      const ctx = getSizedContext();
+      ctx.luckysheetCellUpdate = [];
+
+      pressWithCtrl(
+        ctx,
+        ctrlKeyEvent({ key: "ArrowRight", code: "ArrowRight" })
+      );
+
+      const last = ctx.luckysheet_select_save[0];
+      // The fixture is a 2x2 block of values starting at A1, so the edge to the
+      // right of A1 is B1 — a jump, not a single step, is what distinguishes
+      // this from a plain arrow key.
+      expect(last.column_focus).toBe(1);
+      expect(last.row_focus).toBe(0);
+    });
+
+    // Ctrl/Cmd + Shift + arrow: extend the selection to that edge instead.
+    test("ctrl+shift+arrow extends the selection to the edge", () => {
+      const ctx = getSizedContext();
+      ctx.luckysheetCellUpdate = [];
+
+      pressWithCtrl(
+        ctx,
+        ctrlKeyEvent({ key: "ArrowRight", code: "ArrowRight", shiftKey: true })
+      );
+
+      const last = ctx.luckysheet_select_save[0];
+      // Extending, so the anchor stays put and the range grows to the edge.
+      expect(last.column).toEqual([0, 1]);
+      expect(last.column_focus).toBe(0);
+    });
+
+    // Ctrl/Cmd + Shift + ; : insert the current date and time.
+    test("ctrl+shift+semicolon inserts the current date and time", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [];
+      const cellInput = document.createElement("div");
+
+      pressWithCtrl(
+        ctx,
+        ctrlKeyEvent({
+          key: ";",
+          code: "Semicolon",
+          keyCode: 186,
+          shiftKey: true,
+        }),
+        cellInput
+      );
+
+      // Written into the cell being edited, not committed outright, so the user
+      // can still amend it before pressing Enter.
+      expect(cellInput.innerText).toMatch(
+        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
+      );
+      expect(ctx.luckysheetCellUpdate).toEqual([0, 0]);
+    });
+  });
+
+  // Tab used to bail outright while a cell was being edited, so it did nothing
+  // at all: InputBox had already preventDefault()ed the key, so focus stayed
+  // put and no cell moved. It now commits and steps sideways, the way Enter
+  // commits and steps down.
+  describe("tab in edit mode", () => {
+    const editing = (ctx, row, col, text) => {
+      const cellInput = document.createElement("div");
+      cellInput.innerText = text;
+      ctx.luckysheetCellUpdate = [row, col];
+      return cellInput;
+    };
+    const tab = (shiftKey = false) =>
+      new KeyboardEvent("keydown", { key: "Tab", shiftKey, cancelable: true });
+
+    const press = (ctx, cellInput, event) =>
+      handleGlobalKeyDown(
+        ctx,
+        cellInput,
+        document.createElement("div"),
+        event,
+        { undoList: [], redoList: [] },
+        () => {},
+        () => {}
+      );
+
+    test("commits the edit and moves right", () => {
+      const ctx = getContext();
+      const cellInput = editing(ctx, 0, 0, "Hello world");
+
+      press(ctx, cellInput, tab());
+
+      expect(getFlowdata(ctx)[0][0].v).toBe("Hello world");
+      expect(ctx.luckysheet_select_save[0].column_focus).toBe(1);
+      expect(ctx.luckysheet_select_save[0].row_focus).toBe(0);
+    });
+
+    test("shift+tab commits the edit and moves left", () => {
+      const ctx = getContext();
+      const cellInput = editing(ctx, 0, 1, "Hello world");
+
+      press(ctx, cellInput, tab(true));
+
+      expect(getFlowdata(ctx)[0][1].v).toBe("Hello world");
+      expect(ctx.luckysheet_select_save[0].column_focus).toBe(0);
+    });
+
+    // Tab must not be a second, subtly different way of writing a cell.
+    test("stores the same value Enter would", () => {
+      const viaTab = getContext();
+      press(viaTab, editing(viaTab, 0, 0, "42"), tab());
+
+      const viaEnter = getContext();
+      const enterInput = editing(viaEnter, 0, 0, "42");
+      handleGlobalEnter(
+        viaEnter,
+        enterInput,
+        new KeyboardEvent("Enter", { key: "Enter" })
+      );
+
+      expect(getFlowdata(viaTab)[0][0]).toEqual(getFlowdata(viaEnter)[0][0]);
+    });
+
+    test("consumes the key so focus cannot also advance", () => {
+      const ctx = getContext();
+      const cellInput = editing(ctx, 0, 0, "abc");
+      const event = tab();
+
+      press(ctx, cellInput, event);
+
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    test("commits without moving past the last addressable column", () => {
+      const ctx = getContext();
+      const lastCol = getFlowdata(ctx)[0].length - 1;
+      const cellInput = editing(ctx, 0, lastCol, "edge");
+
+      press(ctx, cellInput, tab());
+
+      expect(getFlowdata(ctx)[0][lastCol].v).toBe("edge");
+      expect(ctx.luckysheet_select_save[0].column_focus).toBeLessThanOrEqual(
+        lastCol
+      );
+    });
+
+    test("leaves edit mode behind", () => {
+      const ctx = getContext();
+      const cellInput = editing(ctx, 0, 0, "done");
+
+      press(ctx, cellInput, tab());
+
+      expect(ctx.luckysheetCellUpdate).toEqual([]);
+    });
+  });
+
   // The Ctrl+Shift+F "sheet focus lock" toggle was removed: it was a hidden
   // mode with no visible affordance, and the grid now scopes its keys by event
   // target instead, so the toolbar and sheet tabs stay reachable by Tab.
@@ -208,6 +403,11 @@ describe("keyboard", () => {
       overlayButton.className = "fortune-left-top";
       overlayButton.tabIndex = 0;
       overlay.appendChild(overlayButton);
+      const scrollbar = document.createElement("div");
+      scrollbar.className = "luckysheet-scrollbar luckysheet-scrollbar-y";
+      scrollbar.setAttribute("role", "scrollbar");
+      scrollbar.tabIndex = 0;
+      overlay.appendChild(scrollbar);
       const toolbar = document.createElement("div");
       toolbar.className = "fortune-toolbar";
       const toolbarButton = document.createElement("button");
@@ -221,6 +421,7 @@ describe("keyboard", () => {
         cellInput,
         addRowInput,
         overlayButton,
+        scrollbar,
         toolbarButton,
       };
     };
@@ -355,6 +556,70 @@ describe("keyboard", () => {
 
       expect(event.defaultPrevented).toBe(true);
       expect(ctx.luckysheet_select_save[0].column_focus).toBe(1);
+    });
+
+    // The scrollbars are operable widgets with their own key handling (arrows
+    // scroll, Home/End jump), so the grid must not also move the selection when
+    // one of them holds focus.
+    test("arrow keys from a scrollbar are left to the scrollbar", () => {
+      const { cellInput, scrollbar } = buildDom();
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [];
+
+      const event = pressFrom(ctx, cellInput, scrollbar, {
+        key: "ArrowDown",
+        code: "ArrowDown",
+      });
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(ctx.luckysheet_select_save[0].row_focus).toBe(0);
+      expect(document.activeElement).toBe(scrollbar);
+    });
+
+    // The grid root is the grid's own tab stop, not a control rendered around
+    // it. Once it carries tabIndex 0 it starts matching the "focusable control"
+    // selector, and without the carve-out for it the arrow keys would silently
+    // stop moving the selection for anyone who tabbed into the grid.
+    test("arrow keys from a tabbable grid root still move the selection", () => {
+      const { cellInput, overlay } = buildDom();
+      overlay.tabIndex = 0;
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [];
+
+      pressFrom(ctx, cellInput, overlay, {
+        key: "ArrowRight",
+        code: "ArrowRight",
+      });
+
+      expect(ctx.luckysheet_select_save[0].column_focus).toBe(1);
+    });
+
+    test("tab from a tabbable grid root still moves the selection", () => {
+      const { cellInput, overlay } = buildDom();
+      overlay.tabIndex = 0;
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [];
+
+      const event = pressFrom(ctx, cellInput, overlay, { key: "Tab" });
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(ctx.luckysheet_select_save[0].column_focus).toBe(1);
+    });
+
+    // The carve-out is for the root itself, not for everything inside it: a
+    // tabbable control in the overlay stays out of scope whatever the root's
+    // own tabIndex is.
+    test("a tabbable grid root does not put its controls in scope", () => {
+      const { cellInput, overlay, overlayButton } = buildDom();
+      overlay.tabIndex = 0;
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [];
+
+      const event = pressFrom(ctx, cellInput, overlayButton, { key: "Tab" });
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(ctx.luckysheet_select_save[0].column_focus).toBe(0);
+      expect(document.activeElement).toBe(overlayButton);
     });
 
     // Only navigation and typing are grid-scoped. Workbook commands keep acting
