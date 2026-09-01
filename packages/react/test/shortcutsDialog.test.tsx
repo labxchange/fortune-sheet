@@ -268,7 +268,17 @@ describe("Keyboard shortcuts dialog", () => {
     // leaves <body> as the previously-focused element, and body.focus() is
     // inert, so Dialog's restore has nothing to yank focus back to and the
     // assertion below would hold even with the restore left unconditional.
-    // The toolbar trigger is a real focusable element, so it does not.
+    const { container, getByRole, queryByRole } = render(
+      <Workbook
+        data={[{ name: "Sheet1" }]}
+        toolbarItems={["keyboard-shortcuts"]}
+      />
+    );
+    // Opened from the toolbar rather than with openWithShortcut: the shortcut
+    // leaves <body> as the previously-focused element, and body.focus() is
+    // inert, so Dialog's restore has nothing to yank focus back to and this
+    // assertion holds even with the restore left unconditional. The toolbar
+    // trigger is a real focusable element, so it does not.
     const trigger = getByRole("button", { name: "Keyboard shortcuts" });
     trigger.focus();
     fireEvent.click(trigger);
