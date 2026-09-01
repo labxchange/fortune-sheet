@@ -333,6 +333,25 @@ const SearchReplace: React.FC<{
               id="searchAllBtn"
               className="fortune-message-box-button button-default"
               onClick={() =>
+                // These three setStates run inside the recipe, and the recipe
+                // is a React state updater — the same deferral 3215790
+                // documents for the wheel handler, which React runs in the
+                // render pass whenever the fiber has pending work. React says
+                // so in CI: "Cannot update a component (SearchReplace) while
+                // rendering a different component". The updates are scheduled
+                // rather than dropped, so it works, but `announce` riding on
+                // that is a silent a11y regression if it ever stops.
+                //
+                // Not fixed here because the fix is not the obvious hoist:
+                // reading a value the recipe assigned, immediately after
+                // calling setContext, has the same deferral problem one level
+                // out — the recipe may not have run yet, so the hoisted call
+                // would set the previous result. Doing it properly means
+                // splitting `searchAll` into a pure query and the draft
+                // mutation it also performs, which is a core change and its
+                // own ticket. Same shape in the replace, replaceAll and
+                // searchNext handlers, which call showAlert from inside their
+                // recipes; all of it predates this branch.
                 setContext((draftCtx) => {
                   if (!searchText) return;
                   const res = searchAll(draftCtx, searchText, checkMode);
@@ -463,12 +482,17 @@ const SearchReplace: React.FC<{
                   // applying the moment they were not.
                   //
                   // The role has to be one whose name is computed from its
-                  // contents, because those are the roles assistive tech
-                  // flattens into a single stop: `gridcell` is not one, which
-                  // is why a `role="grid"` attempt still read cell by cell in
+                  // contents: `gridcell` is not one, which is why a
+                  // `role="grid"` attempt still read cell by cell in
                   // VoiceOver, and `option` is. `option` also carries the
                   // selection this list actually expresses — the user is
                   // picking one result to travel to.
+                  //
+                  // The role alone does not make the option a single stop,
+                  // though. The spec says such a role flattens its children
+                  // out of the tree; Chrome does not, and leaves them as
+                  // StaticText. So the children are hidden explicitly below
+                  // rather than left to a rule the engines disagree on.
                   <div
                     className="boxItem"
                     key={v.cellPosition}
@@ -518,9 +542,27 @@ const SearchReplace: React.FC<{
                       value: v.value,
                     })}
                   >
-                    <span>{v.sheetName}</span>
-                    <span>{v.cellPosition}</span>
-                    <span>{v.value}</span>
+                    {/*
+                      Hidden from assistive tech, and not decorative by
+                      accident: all three values are already in the option's
+                      name above, so what is left in the tree is the same
+                      words a second time, in the shape that invites the
+                      cell-by-cell walk this listbox exists to end. The
+                      presentational-children rule says an `option` flattens
+                      its children, but Chrome does not implement it — its
+                      accessibility tree keeps all three as StaticText, just
+                      as it kept the old row's cells. Hiding them is what
+                      makes an option one node in any engine, rather than
+                      resting on a rule one of them ignores.
+                      `role="presentation"` here does not work; the text stays
+                      exposed.
+
+                      This makes `aria-label` load-bearing: with the spans
+                      hidden and no label, the option has no name at all.
+                    */}
+                    <span aria-hidden="true">{v.sheetName}</span>
+                    <span aria-hidden="true">{v.cellPosition}</span>
+                    <span aria-hidden="true">{v.value}</span>
                   </div>
                 );
               })}

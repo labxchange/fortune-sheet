@@ -11780,7 +11780,7 @@ export default {
     resultsUsageHint: "उस सेल पर जाने के लिए किसी परिणाम को सक्रिय करें",
     matchesFoundTip: "मिलान मिले: ${xlength}",
     replacedTip: "बदली गई घटनाएं: ${xlength}",
-    resultsShownTip: "परिणाम तालिका प्रदर्शित",
+    resultsShownTip: "परिणाम सूची प्रदर्शित",
     dialogTitle: "ढूंढें और बदलें",
     find: "खोजें",
     replace: "बदलें",

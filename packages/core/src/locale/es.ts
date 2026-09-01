@@ -11744,7 +11744,7 @@ export default {
     resultsUsageHint: "Active un resultado para ir a esa celda",
     matchesFoundTip: "Coincidencias encontradas: ${xlength}",
     replacedTip: "Apariciones reemplazadas: ${xlength}",
-    resultsShownTip: "Tabla de resultados mostrada",
+    resultsShownTip: "Lista de resultados mostrada",
     dialogTitle: "Buscar y reemplazar",
     find: "Encontrar",
     replace: "Reemplazar",

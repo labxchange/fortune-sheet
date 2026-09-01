@@ -95,7 +95,7 @@ describe("Find and Replace announcements", () => {
     expect(regionIn(dialog).getAttribute("role")).toBe("status");
   });
 
-  it("reports how many matches Find All turned up, and that a table appeared", async () => {
+  it("reports how many matches Find All turned up, and that a list appeared", async () => {
     const { getByRole } = renderWorkbook();
     const dialog = await openDialog(getByRole);
 
@@ -105,7 +105,7 @@ describe("Find and Replace announcements", () => {
     await waitFor(() =>
       expect(regionIn(dialog).textContent).toContain("Matches found: 2")
     );
-    expect(regionIn(dialog).textContent).toContain("Results table displayed");
+    expect(regionIn(dialog).textContent).toContain("Results list displayed");
   });
 
   it("re-announces an identical repeated search", async () => {

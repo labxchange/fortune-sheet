@@ -13,6 +13,13 @@ import Workbook, { WorkbookInstance } from "../src/components/Workbook";
 // not associate a value with the "Cell" heading above it or move between rows
 // and columns (WCAG 1.3.1).
 //
+// They are now a listbox of options, not the table the audit ticket asked for:
+// the ticket's scope changed once a screen-reader pass showed that table
+// semantics expose each cell as its own stop, so a reader steps cell by cell
+// and never hears a result as a unit — which was the original complaint. The
+// file is named for the results rather than for their markup, so the next
+// change of shape does not leave the name lying again.
+//
 // These cases assert the semantics through the roles AT resolves, not through
 // tag names, so markup that renders the same but exposes the wrong structure
 // still fails.
@@ -129,6 +136,22 @@ describe("Find All results list", () => {
 
     const cells = within(options(dialog)[0]).getAllByText(/.+/);
     expect(cells.map((c) => c.textContent)).toEqual(["Sheet1", "A1", "alpha"]);
+  });
+
+  it("exposes an option as one node, without relying on the engine to flatten it", async () => {
+    // The spec has an `option` flatten its children out of the tree; Chrome
+    // does not, and leaves all three spans as StaticText — which is the
+    // cell-by-cell walk this list was converted to escape, arrived at by a
+    // different route. The three values are already in the option's name, so
+    // hiding the spans is what makes the option one node in every engine.
+    const { getByRole } = renderWorkbook();
+    const dialog = await findAll(getByRole, "alpha");
+
+    const spans = Array.from(options(dialog)[0].querySelectorAll("span"));
+    expect(spans).toHaveLength(3);
+    spans.forEach((span) => {
+      expect(span.getAttribute("aria-hidden")).toBe("true");
+    });
   });
 
   it("selects nothing until the list is entered", async () => {

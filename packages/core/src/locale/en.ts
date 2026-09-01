@@ -11800,7 +11800,11 @@ export default {
     // back reintroduces the disagreement in en, es and hi.
     matchesFoundTip: "Matches found: ${xlength}",
     replacedTip: "Occurrences replaced: ${xlength}",
-    resultsShownTip: "Results table displayed",
+    // Names the widget Find All builds, so it has to track the markup:
+    // this said "table" until the results became a listbox, which told a
+    // reader to reach for table navigation — the dead end the listbox
+    // exists to escape. All six locales say list.
+    resultsShownTip: "Results list displayed",
     dialogTitle: "Find and Replace",
     find: "Find",
     replace: "Replace",

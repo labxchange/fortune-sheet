@@ -88,6 +88,18 @@ describe("Find All result rows", () => {
     expect(label).not.toContain("Activate");
   });
 
+  it("names every option, since the hidden spans leave nothing else to name it", async () => {
+    // The three spans inside an option are aria-hidden, so `resultRowLabel` is
+    // the option's only source of a name. A refactor that makes the label
+    // conditional does not produce quieter options, it produces nameless ones.
+    const { getByRole } = renderWorkbook();
+    const dialog = await findAll(getByRole, "convinient");
+
+    resultRows(dialog).forEach((row) => {
+      expect(row.getAttribute("aria-label")).toBeTruthy();
+    });
+  });
+
   it("describes how to activate a result once, on the list itself", async () => {
     const { getByRole } = renderWorkbook();
     const dialog = await findAll(getByRole, "convinient");

@@ -14346,7 +14346,7 @@ export default {
     resultsUsageHint: "Активируйте результат, чтобы перейти к этой ячейке",
     matchesFoundTip: "Найдено совпадений: ${xlength}",
     replacedTip: "Заменено вхождений: ${xlength}",
-    resultsShownTip: "Показана таблица результатов",
+    resultsShownTip: "Показан список результатов",
     dialogTitle: "Найти и заменить",
     find: "Найти",
     replace: "Заменить",

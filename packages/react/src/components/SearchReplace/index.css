@@ -4,7 +4,7 @@
   padding: 30px 42px;
   /* Was 1002. SheetOverlay's own scrollbars (.luckysheet-scrollbar-ltr) and
      formula hint/search popups are 1003 — above this dialog despite the
-     grid being what it floats over, so the results table sat under the
+     grid being what it floats over, so the results list sat under the
      horizontal scrollbar rather than above it. 1004 matches the other
      floating chrome (ContextMenu, ConditionFormat, ZoomControl, Toolbar
      dropdowns) that's meant to sit above the grid's own overlay pieces. */
@@ -204,6 +204,18 @@
   outline: var(--border_focus_outer, 3px) solid
     var(--color_border_focus_outer, #0063c3);
   outline-offset: -2px;
+}
+
+/* The focused option is always the selected one — onFocus sets activeRow, and
+   aria-selected keys off activeRow — so this ring is only ever drawn on the
+   #5b57d1 fill above, never on white. #0063c3 on that fill is 1.04:1, i.e.
+   painted and invisible, against the 3:1 that 1.4.11 asks of an indicator.
+   White is 5.63:1 on it, and the negative offset keeps the fill on both sides
+   of the ring, so that is the only pair that has to hold. */
+#fortune-search-replace
+  #searchAllbox
+  .boxItem[aria-selected="true"]:focus-visible {
+  outline-color: #fff;
 }
 
 #fortune-search-replace #searchAllbox .boxTitle span,

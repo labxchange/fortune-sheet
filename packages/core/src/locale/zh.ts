@@ -11800,7 +11800,7 @@ export default {
     resultsUsageHint: "激活某个结果以跳转到该单元格",
     matchesFoundTip: "找到 ${xlength} 处匹配",
     replacedTip: "已替换 ${xlength} 处",
-    resultsShownTip: "已显示结果表",
+    resultsShownTip: "已显示结果列表",
     dialogTitle: "查找替换",
     find: "查找",
     replace: "替换",

@@ -22,7 +22,17 @@ const channel = (v: number) => {
 };
 
 const luminance = (hex: string) => {
-  const n = hex.replace("#", "");
+  const short = hex.replace("#", "");
+  // Shorthand expanded rather than rejected: the stylesheet writes both forms,
+  // and slicing two characters at a time out of #fff reads "ff", "f" and "",
+  // the last of which is NaN and poisons every ratio computed from it.
+  const n =
+    short.length === 3
+      ? short
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : short;
   const [r, g, b] = [0, 2, 4].map((i) =>
     channel(parseInt(n.slice(i, i + 2), 16))
   );
@@ -52,11 +62,26 @@ const declaration = (rule: string, property: string) => {
   return match![1];
 };
 
+/** The declarations of a rule, found in the stylesheet with its whitespace
+ * collapsed — a selector long enough for prettier to break across lines is not
+ * findable by `ruleFor`, which matches a selector sitting on one line. */
+const flatRuleFor = (selector: string) => {
+  const flat = CSS.replace(/\s+/g, " ");
+  const at = flat.indexOf(`${selector} {`);
+  expect(at).toBeGreaterThan(-1);
+  return flat.slice(at, flat.indexOf("}", at));
+};
+
+const SELECTED_OPTION =
+  '#fortune-search-replace #searchAllbox .boxItem[aria-selected="true"]';
+
 describe("Find and Replace colour contrast", () => {
   it("sanity-checks the ratio maths against known pairs", () => {
     // A contrast helper that is silently wrong would pass everything below.
     expect(contrast("#ffffff", "#000000")).toBeCloseTo(21, 1);
     expect(contrast("#ffffff", "#ffffff")).toBeCloseTo(1, 5);
+    // Shorthand reads as the same colour, not as NaN.
+    expect(contrast("#fff", "#000")).toBeCloseTo(21, 1);
     // The value this ticket rejected, at the ratio the ticket reported.
     expect(contrast("#ffffff", "#8c89fe")).toBeLessThan(4.5);
   });
@@ -109,6 +134,32 @@ describe("Find and Replace colour contrast", () => {
     const border = declaration(rule, "border-color");
     expect(border).not.toBe(background);
     expect(contrast(background, border)).toBeGreaterThan(1.2);
+  });
+
+  it("draws the focus ring in a colour that is visible on the fill it lands on", () => {
+    // 1.4.11, and the reason it is not caught by any of the text pairs above:
+    // a focus indicator is measured against the surface it is drawn on, and
+    // this one has only ever one surface. `onFocus` sets `activeRow` and
+    // `aria-selected` keys off `activeRow`, so the focused option is always
+    // the selected option — the ring is never drawn on an unselected white
+    // row, only ever on the selected fill.
+    const fill = declaration(ruleFor(SELECTED_OPTION), "background-color");
+
+    // The token ring every other control in the package uses, taken from the
+    // base rule rather than retyped, so a token change is seen here.
+    const base = ruleFor(
+      "#fortune-search-replace #searchAllbox .boxItem:focus-visible"
+    );
+    const token = base.match(
+      /--color_border_focus_outer,\s*(#[0-9a-fA-F]{3,6})/
+    );
+    expect(token).toBeTruthy();
+    // Which is why it is overridden: it is invisible on that fill.
+    expect(contrast(token![1], fill)).toBeLessThan(3);
+
+    const override = flatRuleFor(`${SELECTED_OPTION}:focus-visible`);
+    const ring = declaration(override, "outline-color");
+    expect(contrast(ring, fill)).toBeGreaterThanOrEqual(3);
   });
 
   it("keeps the selected option distinguishable under forced colours", () => {
