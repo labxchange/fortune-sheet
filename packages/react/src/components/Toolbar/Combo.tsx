@@ -70,6 +70,36 @@ const Combo: React.FC<Props> = ({
   // "Font color: ", "Horizontal align: " and so on.
   const label = text ? `${tooltip}: ${text}` : tooltip;
 
+  /**
+   * When the main button is itself the popup's toggle, the arrow is a second
+   * tab stop with byte-identical behaviour: same handler, same popup, same
+   * accessible name bar a "dropdown" suffix. Two controls, one action — nothing
+   * for a keyboard or screen-reader user to choose between, and one more stop
+   * to pass on every traversal of the toolbar. So there it is demoted to
+   * decoration and hidden from the accessibility tree.
+   *
+   * No tabindex at all rather than -1: an element that is focusable but not
+   * tabbable inside aria-hidden is itself a violation, and nothing needs to
+   * focus this programmatically. The mouse handlers stay on it regardless —
+   * clicking the arrow must keep opening the popup.
+   *
+   * With an onClick the two genuinely differ: the main button applies an
+   * action and the arrow is the only route to the popup, so it keeps its own
+   * tab stop and its own ARIA.
+   */
+  const arrowProps: React.HTMLAttributes<HTMLDivElement> = ownsPopup
+    ? { "aria-hidden": true }
+    : {
+        tabIndex: 0,
+        role: "button",
+        "aria-haspopup": hasPopup || undefined,
+        "aria-expanded": open,
+        // gated on `open` because the popup is rendered conditionally below,
+        // so the id does not exist while closed and the reference would dangle
+        "aria-controls": open ? popupId : undefined,
+        "aria-label": `${tooltip}: ${info.Dropdown}`,
+      };
+
   useOutsideClick(popupRef, () => {
     setOpen(false);
   });
@@ -134,20 +164,20 @@ const Combo: React.FC<Props> = ({
         <div
           className="fortune-toolbar-combo-arrow"
           {...mouseDownToggleHandlers(() => setOpen(!open))}
-          tabIndex={0}
           data-tips={tooltip}
-          role="button"
-          aria-haspopup={hasPopup || undefined}
-          aria-expanded={open}
-          // gated on `open` because the popup is rendered conditionally below,
-          // so the id does not exist while closed and the reference would dangle
-          aria-controls={open ? popupId : undefined}
-          aria-label={`${tooltip}: ${info.Dropdown}`}
+          {...arrowProps}
           style={style}
         >
           <SVGIcon name="combo-arrow" width={10} />
         </div>
-        {tooltip && <div className="fortune-tooltip">{tooltip}</div>}
+        {tooltip && (
+          // Hidden from AT: the visual-only hover tooltip repeats the string
+          // already carried as the buttons' aria-label, and left exposed it
+          // reads as a second, static copy of the name.
+          <div className="fortune-tooltip" aria-hidden="true">
+            {tooltip}
+          </div>
+        )}
       </div>
       {open && (
         <div

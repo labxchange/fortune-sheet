@@ -11047,6 +11047,34 @@ export default {
     pageInfoFull:
       "Total ${total}，página ${totalPage}，Se muestran todos los datos",
 
+    // Toolbar action feedback. A toolbar button changes the sheet without
+    // moving the selection, so nothing else reaches a live region: the result
+    // is conveyed purely by the canvas repainting, which a screen-reader user
+    // never sees. Each phrase describes the state the action produced, not the
+    // action requested — the handlers have many silent no-op paths (a
+    // non-numeric cell, a read-only sheet, no selection) and announcing intent
+    // would report changes that never happened.
+    toolbarBoldOn: "Negrita activada.",
+    toolbarBoldOff: "Negrita desactivada.",
+    toolbarItalicOn: "Cursiva activada.",
+    toolbarItalicOff: "Cursiva desactivada.",
+    toolbarUnderlineOn: "Subrayado activado.",
+    toolbarUnderlineOff: "Subrayado desactivado.",
+    toolbarStrikethroughOn: "Tachado activado.",
+    toolbarStrikethroughOff: "Tachado desactivado.",
+    toolbarFormatPainterOn: "Copiar formato activado.",
+    toolbarFormatPainterOff: "Copiar formato desactivado.",
+    toolbarFormatCleared: "Formato borrado.",
+    toolbarDecimalIncreased: "Decimales aumentados.",
+    toolbarDecimalDecreased: "Decimales reducidos.",
+    toolbarUndone: "Deshecho.",
+    toolbarRedone: "Rehecho.",
+    toolbarCellsMerged: "Celdas combinadas.",
+    toolbarCellsUnmerged: "Celdas separadas.",
+    toolbarTextWrapSet: "Ajuste de texto: ${mode}.",
+    toolbarFilterOn: "Filtro activado.",
+    toolbarFilterOff: "Filtro desactivado.",
+
     sheetSrIntro: "Use las teclas de flecha para moverse entre celdas.",
     cellHasFilterDropdown: "Tiene menú de filtro.",
     cellFilterActive: "Filtro activo.",

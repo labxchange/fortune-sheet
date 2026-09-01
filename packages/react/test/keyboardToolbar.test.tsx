@@ -212,11 +212,9 @@ describe("Toolbar keyboard accessibility", () => {
   });
 
   it("hovering the Highlight-cell-rules condition-format submenu does not steal focus, while keyboard opening still autofocuses and Escape restores it", () => {
-    const { getAllByRole, getByRole } = render(
-      <Workbook data={[{ name: "Sheet1" }]} />
-    );
-    const [conditionFormatCombo] = getAllByRole("button", {
-      name: /^Conditional format:/,
+    const { getByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+    const conditionFormatCombo = getByRole("button", {
+      name: "Conditional format",
     });
     const undoButton = getByRole("button", { name: "Undo" });
 

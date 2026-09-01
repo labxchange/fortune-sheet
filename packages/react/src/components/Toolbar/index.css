@@ -116,6 +116,19 @@
   font-size: 12px;
 }
 
+/* The open-shortcuts keys, shown on the button itself rather than only in its
+   hover tooltip. Deliberately lighter than the dialog's key caps — at toolbar
+   size a bordered cap beside a 16px icon reads as a second control — but the
+   same 12px and the same <kbd> element. #595959 on the #fafafc toolbar is
+   about 7:1, so it stays legible as the secondary text it is. */
+.fortune-toolbar-shortcut-hint {
+  margin-left: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  color: #595959;
+  white-space: nowrap;
+}
+
 .fortune-toolbar-select-option {
   font-size: 12px;
   min-width: 60px;
