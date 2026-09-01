@@ -68,3 +68,20 @@ global.URL.createObjectURL = () => {};
 global.CSS = global.CSS || {
   escape: (value) => String(value).replace(/([^\w-])/g, "\\$1"),
 };
+
+// jsdom does not implement `innerText` either — it is defined in terms of
+// rendered layout, which jsdom has none of. Without this, reading it yields
+// `undefined` and writing it quietly creates an own property that the DOM
+// never sees, so anything built on it (the sheet-tab rename field,
+// `editSheetName`) cannot be tested at all: it neither works nor visibly
+// fails. `textContent` is the standard approximation and is exact for the
+// single-line, unstyled spans these components use.
+Object.defineProperty(global.HTMLElement.prototype, "innerText", {
+  configurable: true,
+  get() {
+    return this.textContent;
+  },
+  set(value) {
+    this.textContent = value;
+  },
+});

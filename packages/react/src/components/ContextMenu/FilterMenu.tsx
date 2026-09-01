@@ -33,7 +33,7 @@ import { useRovingFocus } from "../../hooks/useRovingFocus";
 import { markAsRepeat } from "../../utils/liveRegion";
 import { focusAfterCommit, onActivate } from "../../utils/keyboardActivation";
 import { announce } from "../../hooks/useContextMenuAnnouncements";
-import { FILTER_MENU_ID, findFilterFunnel } from "../../utils/filterDom";
+import { FILTER_MENU_ID } from "../../utils/filterDom";
 
 /**
  * The Filter-by-colour submenu, so the row that opens it can point at it with
@@ -265,39 +265,60 @@ const FilterMenu: React.FC = () => {
   const keyboardOpenRef = useRef<boolean>(false);
   contextRef.current = context;
 
+  /**
+   * Where focus goes when this popup closes, by any route: the cell the user
+   * opened it from.
+   *
+   * This used to come back to the funnel button, on the usual reasoning that the
+   * funnel is the control the user activated. The audit rejected that — the
+   * funnels are a row of adjacent tab stops, so landing on one leaves a keyboard
+   * user tabbing sideways between filter buttons instead of back in the data
+   * they came from, and they have to traverse the whole header to return
+   * (WCAG 2.4.3, and see the ticket's Cell → Popup → Close → Same cell).
+   *
+   * `refs.cellInput` is the grid's focus proxy and tracks the active cell, so
+   * this is that cell rather than an approximation of it. Deferred past the
+   * commit because a criterion change rebuilds the funnels and `clearFilter`
+   * removes them outright; resolving early could aim at a detached node, which
+   * focuses <body> — the failure this is meant to prevent.
+   */
+  const restoreFocusToGrid = useCallback(() => {
+    focusAfterCommit(() => refs.cellInput.current);
+  }, [refs.cellInput]);
+
   // 点击其他区域的时候关闭FilterMenu
   const close = useCallback(() => {
     setContext((ctx) => {
       ctx.filterContextMenu = undefined;
     });
-  }, [setContext]);
+    // Escape, an outside click and focus-out all arrive here, and each must land
+    // on the cell like the footer buttons do. `useEscapeToClose`'s own restore is
+    // disabled below precisely so this is the single decision point — otherwise
+    // it would put focus back on the funnel and only the footer routes would obey
+    // the ticket.
+    restoreFocusToGrid();
+  }, [setContext, restoreFocusToGrid]);
 
-  /**
-   * Where focus goes when one of the footer buttons closes this popup. The
-   * funnel this popup belongs to is the control the user activated, so it is
-   * the place to come back to — but a criterion change rebuilds the funnels and
-   * `clearFilter` removes them outright, and useEscapeToClose skips its restore
-   * for exactly that case (a detached element), dropping focus to <body>.
-   * Resolved after the commit, so the funnel is the one that now exists.
-   */
-  const restoreFocusToFunnel = useCallback(() => {
-    focusAfterCommit(
-      () =>
-        findFilterFunnel(refs.workbookContainer.current, col) ??
-        refs.cellInput.current
-    );
-  }, [refs.workbookContainer, refs.cellInput, col]);
-
-  /** For actions that leave no funnel behind: back to the active cell. */
-  const restoreFocusToGrid = useCallback(() => {
-    focusAfterCommit(() => refs.cellInput.current);
-  }, [refs.cellInput]);
-
-  useOutsideClick(containerRef, close, [close]);
+  /* `subMenuRef` is passed to both routes because the colour submenu renders as
+   * a *sibling* of `containerRef`, not a child (see the JSX at the foot of this
+   * file). Without it `contains()` calls the submenu "outside" in two different
+   * ways: a mousedown on a colour row read as an outside click and unmounted
+   * this entire popup, and focus entering the submenu would now read as focus
+   * leaving it — closing the very thing the user just reached. */
+  useOutsideClick(containerRef, close, [close], [subMenuRef]);
   useEscapeToClose({
     open: filterContextMenu != null,
     onClose: close,
     containerRef,
+    // WCAG 2.4.11. Only the outer layer opts in: the submenu's own instance
+    // below would otherwise close itself when focus moved back to these rows.
+    closeOnFocusOut: true,
+    withinRefs: [subMenuRef],
+    // This hook's restore goes to whatever was focused before opening — the
+    // funnel button — which is the behaviour the audit rejected. `close` places
+    // focus on the cell instead, and it runs on every route out of here, so the
+    // two must not both act or they fight over the same frame.
+    restoreFocus: false,
   });
   /**
    * The colour submenu's own Escape layer, and what puts focus into it on open
@@ -707,6 +728,27 @@ const FilterMenu: React.FC = () => {
               <div
                 key={name}
                 ref={byColorMenuRef}
+                /*
+                 * Reparents the submenu next to its trigger in the accessibility
+                 * tree. It renders in the DOM as a sibling of the whole menu (at
+                 * the foot of this file) because it cannot be a descendant of the
+                 * `role="button"` row — `button` takes presentational children,
+                 * which would strip the colour rows from the tree entirely. But
+                 * that DOM position is also what made it unreachable with
+                 * VoiceOver's cursor: VO+Arrow walks document order, so from this
+                 * row it stepped through Filter-by-values, the search box, every
+                 * value checkbox and the footer before arriving here. Tab worked
+                 * only because the open handler moves focus explicitly.
+                 *
+                 * `aria-owns` is global, so it is valid on this roleless wrapper —
+                 * and putting it here rather than on the Menu keeps the submenu
+                 * out of the button's presentational subtree.
+                 *
+                 * Conditional: an `aria-owns` pointing at an id that is not in the
+                 * document is invalid and axe reports it, and the submenu only
+                 * mounts while open.
+                 */
+                aria-owns={showSubMenu ? BY_COLOR_SUBMENU_ID : undefined}
                 onMouseEnter={() => openColorSubMenu()}
                 onMouseLeave={delayHideSubMenu}
               >
@@ -952,7 +994,7 @@ const FilterMenu: React.FC = () => {
                 announce(draftCtx, "filter.announceFilterApplied");
                 draftCtx.filterContextMenu = undefined;
               });
-              restoreFocusToFunnel();
+              restoreFocusToGrid();
             }}
           >
             {filter.filterConform}
@@ -964,7 +1006,7 @@ const FilterMenu: React.FC = () => {
               setContext((draftCtx) => {
                 draftCtx.filterContextMenu = undefined;
               });
-              restoreFocusToFunnel();
+              restoreFocusToGrid();
             }}
           >
             {filter.filterCancel}
@@ -1062,7 +1104,7 @@ const FilterMenu: React.FC = () => {
                     announce(draftCtx, "filter.announceFilteredByColor");
                     draftCtx.filterContextMenu = undefined;
                   });
-                  restoreFocusToFunnel();
+                  restoreFocusToGrid();
                 }}
               >
                 {filter.filterConform}

@@ -143,6 +143,28 @@ describe("filter dropdown announces its own actions", () => {
     expect(recorded()?.key).toBe("rightclick.announceFilterRemoved");
   });
 
+  it("owns the colour submenu in the accessibility tree while it is open", () => {
+    // The submenu renders as a DOM sibling of the whole menu, because it cannot
+    // live inside the role="button" trigger (presentational children would strip
+    // its rows). That left it unreachable with VoiceOver's cursor, which walks
+    // document order: VO+Arrow from the trigger stepped through the rest of the
+    // menu first. `aria-owns` on the trigger's roleless wrapper reparents it.
+    renderMenu(["filter-by-color"]);
+
+    const wrapper = screen
+      .getByText(filter.filterByColor)
+      .closest(".luckysheet-cols-menuitem")!.parentElement!;
+    // Closed: no dangling reference, which axe reports as an invalid value.
+    expect(wrapper.getAttribute("aria-owns")).toBeNull();
+
+    fireEvent.click(screen.getByText(filter.filterByColor));
+
+    const owns = wrapper.getAttribute("aria-owns");
+    expect(owns).toBe("fortune-filter-bycolor-submenu");
+    // And it must resolve, or the reparenting silently does nothing.
+    expect(document.getElementById(owns!)).not.toBeNull();
+  });
+
   it("announces applying a values filter", () => {
     const { recorded } = renderMenu(["filter-by-value"]);
 

@@ -16,6 +16,7 @@ import WorkbookContext from "../../context";
 import "./index.css";
 import { useDialog } from "../../hooks/useDialog";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
+import { announce } from "../../hooks/useContextMenuAnnouncements";
 
 type RadioChangeEvent = React.ChangeEvent<HTMLInputElement>;
 
@@ -41,6 +42,16 @@ const CustomSort: React.FC<{}> = () => {
   const handleSortConfirm = useCallback(() => {
     setContext((draftCtx: Context) => {
       sortSelection(draftCtx, ascOrDesc, parseInt(selectedValue, 10));
+      // The sort itself was silent. Opening this dialog announces the dialog,
+      // and closing it returns focus to the grid — but nothing ever said the
+      // data had been reordered, which is the one thing that actually changed
+      // (WCAG 4.1.3). Reuses the results the menu's own sort rows announce.
+      announce(
+        draftCtx,
+        ascOrDesc
+          ? "rightclick.announceSortedAsc"
+          : "rightclick.announceSortedDesc"
+      );
       draftCtx.contextMenu = {};
     });
     hideDialog();
@@ -108,11 +119,17 @@ const CustomSort: React.FC<{}> = () => {
   return (
     <div className="fortune-sort">
       <div className="fortune-sort-title">
+        {/*
+          The spaces are real text nodes, and they are load-bearing rather than
+          formatting. This element is the dialog's accessible name via
+          `aria-labelledby`, and name computation concatenates descendant text
+          while ignoring CSS — so while the gaps came only from a `margin: 0 4px`
+          on the cell references, the name computed as "Sort range fromF4toH6"
+          and VoiceOver read it as one run-together word. That margin is gone, so
+          the visible gap and the spoken gap now come from the same source.
+        */}
         <span id={SORT_DIALOG_TITLE_ID}>
-          <span>{sort.sortRangeTitle}</span>
-          <span className="fortune-sort-title-range">{startCell}</span>
-          <span>{sort.sortRangeTitleTo}</span>
-          <span className="fortune-sort-title-range">{endCell}</span>
+          {sort.sortRangeTitle} {startCell} {sort.sortRangeTitleTo} {endCell}
         </span>
       </div>
 

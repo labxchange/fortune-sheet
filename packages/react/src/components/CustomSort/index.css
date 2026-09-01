@@ -8,9 +8,13 @@
   margin: 0 0 16px;
 }
 
-.fortune-sort-title-range {
-  margin: 0 4px;
-}
+/*
+ * `.fortune-sort-title-range` used to live here with `margin: 0 4px`, spacing the
+ * cell references apart visually. That rule is gone: this heading is the Sort
+ * dialog's accessible name, name computation ignores CSS, and a margin-only gap
+ * made VoiceOver read "Sort range fromF4toH6" as one word. The gaps are real
+ * spaces in the markup now, so keeping the margin would have doubled them.
+ */
 
 .fortune-sort-modal > div {
   margin-bottom: 10px;

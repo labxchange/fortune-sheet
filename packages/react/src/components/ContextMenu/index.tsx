@@ -25,6 +25,7 @@ import WorkbookContext, { SetContextOptions } from "../../context";
 import { useAlert } from "../../hooks/useAlert";
 import { useDialog } from "../../hooks/useDialog";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
+import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
 import { focusAfterCommit } from "../../utils/keyboardActivation";
 import { filterUnchanged } from "../../utils/filterDom";
@@ -113,10 +114,18 @@ const ContextMenu: React.FC = () => {
   const focusGridBeforeHandoff = useCallback(() => {
     refs.cellInput.current?.focus();
   }, [refs.cellInput]);
+  /* The only popup in the app that never had one. It closes today purely
+   * because core's grid mousedown zeroes `ctx.contextMenu`
+   * (`core/src/events/mouse.ts`), so a press on the toolbar, the name box, the
+   * formula bar or the sheet-tab strip left it sitting open over the page. */
+  useOutsideClick(containerRef, closeContextMenu, [closeContextMenu]);
   useEscapeToClose({
     open: !_.isEmpty(contextMenu),
     onClose: closeContextMenu,
     containerRef,
+    // WCAG 2.4.11 — an absolutely-positioned menu left open behind whatever the
+    // user tabbed to obscures it. No submenus here, so no withinRefs.
+    closeOnFocusOut: true,
   });
   useRovingFocus({
     containerRef,
