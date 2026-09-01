@@ -422,7 +422,7 @@ const Toolbar: React.FC<{
                   return (
                     <Option
                       key={value}
-                      onClick={() => {
+                      onClick={withFocusReturn(() => {
                         setOpen(false);
                         setContext((ctx) => {
                           const d = getFlowdata(ctx);
@@ -435,7 +435,7 @@ const Toolbar: React.FC<{
                             value
                           );
                         });
-                      }}
+                      })}
                     >
                       <div className="fortune-toolbar-menu-line">
                         <div>{text}</div>
@@ -465,7 +465,7 @@ const Toolbar: React.FC<{
                 {fontarray.map((o) => (
                   <Option
                     key={o}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       setContext((ctx) => {
                         current = o;
                         const d = getFlowdata(ctx);
@@ -473,7 +473,7 @@ const Toolbar: React.FC<{
                         updateFormat(ctx, refs.cellInput.current!, d, "ff", o);
                       });
                       setOpen(false);
-                    }}
+                    })}
                   >
                     {o}
                   </Option>
@@ -501,7 +501,7 @@ const Toolbar: React.FC<{
                 ].map((num) => (
                   <Option
                     key={num}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       setContext((draftContext) =>
                         handleTextSize(
                           draftContext,
@@ -511,7 +511,7 @@ const Toolbar: React.FC<{
                         )
                       );
                       setOpen(false);
-                    }}
+                    })}
                   >
                     {num}
                   </Option>
@@ -553,7 +553,7 @@ const Toolbar: React.FC<{
                 {items.map(({ text, title }) => (
                   <Option
                     key={title}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       setContext((ctx) => {
                         handleHorizontalAlign(
                           ctx,
@@ -562,7 +562,7 @@ const Toolbar: React.FC<{
                         );
                       });
                       setOpen(false);
-                    }}
+                    })}
                   >
                     <div className="fortune-toolbar-menu-line">
                       {text}
@@ -607,7 +607,7 @@ const Toolbar: React.FC<{
                 {items.map(({ text, title }) => (
                   <Option
                     key={title}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       setContext((ctx) => {
                         handleVerticalAlign(
                           ctx,
@@ -616,7 +616,7 @@ const Toolbar: React.FC<{
                         );
                       });
                       setOpen(false);
-                    }}
+                    })}
                   >
                     <div className="fortune-toolbar-menu-line">
                       {text}
@@ -1080,7 +1080,7 @@ const Toolbar: React.FC<{
                 {itemData.map(({ value, text }) => (
                   <Option
                     key={value}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       setContext((ctx) => {
                         autoSelectionFormula(
                           ctx,
@@ -1091,7 +1091,7 @@ const Toolbar: React.FC<{
                         );
                       });
                       setOpen(false);
-                    }}
+                    })}
                   >
                     <div className="fortune-toolbar-menu-line">
                       <div>{text}</div>
@@ -1102,10 +1102,10 @@ const Toolbar: React.FC<{
                 <MenuDivider />
                 <Option
                   key="formula"
-                  onClick={() => {
+                  onClick={withFocusReturn(() => {
                     showDialog(<FormulaSearch onCancel={hideDialog} />);
                     setOpen(false);
-                  }}
+                  })}
                 >{`${formula.find}...`}</Option>
               </Select>
             )}
@@ -1135,12 +1135,12 @@ const Toolbar: React.FC<{
                 {itemdata.map(({ text, value }) => (
                   <Option
                     key={value}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       setContext((ctx) => {
                         handleMerge(ctx, value);
                       });
                       setOpen(false);
-                    }}
+                    })}
                   >
                     <div className="fortune-toolbar-menu-line">
                       <SVGIcon name={value} style={{ marginRight: 4 }} />
@@ -1220,12 +1220,12 @@ const Toolbar: React.FC<{
                   value !== "divider" ? (
                     <Option
                       key={value}
-                      onClick={() => {
+                      onClick={withFocusReturn(() => {
                         setContext((ctx) => {
                           handleBorder(ctx, value, customColor, customStyle);
                         });
                         setOpen(false);
-                      }}
+                      })}
                     >
                       <div className="fortune-toolbar-menu-line">
                         {text}
@@ -1283,12 +1283,12 @@ const Toolbar: React.FC<{
                 {items.map(({ text, value }) => (
                   <Option
                     key={value}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       setContext((ctx) => {
                         handleFreeze(ctx, value);
                       });
                       setOpen(false);
-                    }}
+                    })}
                   >
                     <div className="fortune-toolbar-menu-line">
                       {text}
@@ -1330,7 +1330,7 @@ const Toolbar: React.FC<{
                 {items.map(({ text, iconId, value }) => (
                   <Option
                     key={value}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       setContext((ctx) => {
                         const d = getFlowdata(ctx);
                         if (d == null) return;
@@ -1343,7 +1343,7 @@ const Toolbar: React.FC<{
                         );
                       });
                       setOpen(false);
-                    }}
+                    })}
                   >
                     <div className="fortune-toolbar-menu-line">
                       {text}
@@ -1396,7 +1396,7 @@ const Toolbar: React.FC<{
                 {items.map(({ text, iconId, value }) => (
                   <Option
                     key={value}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       setContext((ctx) => {
                         const d = getFlowdata(ctx);
                         if (d == null) return;
@@ -1409,7 +1409,7 @@ const Toolbar: React.FC<{
                         );
                       });
                       setOpen(false);
-                    }}
+                    })}
                   >
                     <div className="fortune-toolbar-menu-line">
                       {text}
