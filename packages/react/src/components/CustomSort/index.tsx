@@ -19,6 +19,16 @@ import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 
 type RadioChangeEvent = React.ChangeEvent<HTMLInputElement>;
 
+/**
+ * Id of the heading that names this dialog. Exported so the context menu can
+ * pass it to `showDialog`'s `labelledBy` without repeating the literal.
+ */
+export const SORT_DIALOG_TITLE_ID = "fortune-sort-title";
+
+const ASC_RADIO_ID = "fortune-sort-order-asc";
+const DESC_RADIO_ID = "fortune-sort-order-desc";
+const HAS_HEADER_CHECKBOX_ID = "fortune-sort-haveheader";
+
 const CustomSort: React.FC<{}> = () => {
   const [rangeColChar, setRangeColChar] = useState<string[]>([]);
   const [ascOrDesc, setAscOrDesc] = useState(true);
@@ -98,7 +108,7 @@ const CustomSort: React.FC<{}> = () => {
   return (
     <div className="fortune-sort">
       <div className="fortune-sort-title">
-        <span id="fortune-sort-title">
+        <span id={SORT_DIALOG_TITLE_ID}>
           <span>{sort.sortRangeTitle}</span>
           <span className="fortune-sort-title-range">{startCell}</span>
           <span>{sort.sortRangeTitleTo}</span>
@@ -108,13 +118,20 @@ const CustomSort: React.FC<{}> = () => {
 
       <div>
         <div className="fortune-sort-modal">
+          {/*
+            The text beside each control was a bare <span>, so none of this
+            dialog's three inputs had an accessible name (WCAG 4.1.2) — a screen
+            reader announced "checkbox" and "radio button" and nothing else. A
+            real <label> rather than aria-label, because the text is already on
+            screen: associating it also makes the words a click target.
+          */}
           <div>
             <input
               type="checkbox"
-              id="fortune-sort-haveheader"
+              id={HAS_HEADER_CHECKBOX_ID}
               onChange={handleTitleChange}
             />
-            <span>{sort.hasTitle}</span>
+            <label htmlFor={HAS_HEADER_CHECKBOX_ID}>{sort.hasTitle}</label>
           </div>
 
           <div className="fortune-sort-tablec">
@@ -144,21 +161,23 @@ const CustomSort: React.FC<{}> = () => {
                     <div>
                       <input
                         type="radio"
+                        id={ASC_RADIO_ID}
                         value="asc"
                         defaultChecked
                         name="sort_0"
                         onChange={handleRadioChange}
                       />
-                      <span>{sort.asc}</span>
+                      <label htmlFor={ASC_RADIO_ID}>{sort.asc}</label>
                     </div>
                     <div>
                       <input
                         type="radio"
+                        id={DESC_RADIO_ID}
                         value="desc"
                         name="sort_0"
                         onChange={handleRadioChange}
                       />
-                      <span>{sort.desc}</span>
+                      <label htmlFor={DESC_RADIO_ID}>{sort.desc}</label>
                     </div>
                   </td>
                 </tr>

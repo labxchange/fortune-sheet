@@ -1,4 +1,5 @@
 import {
+  Context,
   locale,
   handleCopy,
   handlePasteByClick,
@@ -30,7 +31,13 @@ import { filterUnchanged } from "../../utils/filterDom";
 import Divider from "./Divider";
 import "./index.css";
 import Menu from "./Menu";
-import CustomSort from "../CustomSort";
+import CustomSort, { SORT_DIALOG_TITLE_ID } from "../CustomSort";
+import { announce } from "../../hooks/useContextMenuAnnouncements";
+
+/** Singular and plural are separate keys so no reader ever hears "1 rows". */
+function countKey(count: number, singular: string, plural: string) {
+  return count === 1 ? singular : plural;
+}
 
 const ContextMenu: React.FC = () => {
   const { showDialog } = useDialog();
@@ -49,6 +56,63 @@ const ContextMenu: React.FC = () => {
       draftCtx.contextMenu = {};
     });
   }, [setContext]);
+
+  /*
+   * Where focus belongs once a context-menu action has committed (WCAG 2.4.3).
+   *
+   * Closing the menu used to strand focus on `<body>`: `useEscapeToClose`
+   * restores focus on unmount, but only to whatever held it when the menu
+   * opened, and a right-click on the grid lands on nothing focusable — so the
+   * "restore" was `<body>` focusing `<body>`. Only the `filter` row had been
+   * fixed; every other row inherited the bug.
+   *
+   * `commitAndSettle` covers rows that rewrite the selection and leave the menu
+   * as the last thing on screen (nearly all of them); `focusGridBeforeHandoff`
+   * covers `sort`, `image` and `link`, which hand focus to a dialog or chooser.
+   */
+
+  /**
+   * Commit a menu action, then settle focus back on the grid — but only if the
+   * action actually did something.
+   *
+   * "Did it act?" cannot be a flag set inside the recipe: `setContext` hands the
+   * recipe to React as a functional updater, so it runs during reconcile and
+   * anything read straight afterwards is still pre-commit. The check is deferred
+   * alongside the focus call and reads the *committed* context via `contextRef`.
+   *
+   * The signal is the announcement `seq`: every success path calls `announce`
+   * and every bail-out (multi-selection, read-only, over-limit, invalid input)
+   * does not, so one check keeps the status region and the focus move in
+   * agreement. That matters most on the alert paths — `showAlert` opens a
+   * dialog, and pulling focus to the grid underneath it would be worse than the
+   * bug being fixed.
+   */
+  const commitAndSettle = useCallback(
+    (recipe: (draftCtx: Context) => void, options?: SetContextOptions) => {
+      const seqBefore = contextRef.current.contextMenuAnnouncement?.seq ?? 0;
+      setContext(recipe, options);
+      focusAfterCommit(() =>
+        (contextRef.current.contextMenuAnnouncement?.seq ?? 0) > seqBefore
+          ? refs.cellInput.current
+          : null
+      );
+    },
+    [refs.cellInput, setContext]
+  );
+
+  /**
+   * Synchronous, and called before the dialog opens — deferring would be too
+   * late. `Dialog` captures `document.activeElement` in its mount effect to know
+   * where to return focus on close, and React runs unmount cleanups before mount
+   * effects, so the menu's own restore to `<body>` would get there first.
+   *
+   * Focusing inline also fires `focusin` outside the menu, which flips
+   * `useEscapeToClose`'s `focusInsideContainer` false and makes it skip its
+   * restore — so the two never fight over the same frame.
+   */
+  const focusGridBeforeHandoff = useCallback(() => {
+    refs.cellInput.current?.focus();
+  }, [refs.cellInput]);
   useEscapeToClose({
     open: !_.isEmpty(contextMenu),
     onClose: closeContextMenu,
@@ -71,13 +135,14 @@ const ContextMenu: React.FC = () => {
             key={name}
             role="button"
             onClick={() => {
-              setContext((draftCtx) => {
+              commitAndSettle((draftCtx) => {
                 if (draftCtx.luckysheet_select_save?.length! > 1) {
                   showAlert(rightclick.noMulti, "ok");
                   draftCtx.contextMenu = {};
                   return;
                 }
                 handleCopy(draftCtx);
+                announce(draftCtx, "rightclick.announceCopied");
                 draftCtx.contextMenu = {};
               });
             }}
@@ -106,8 +171,9 @@ const ContextMenu: React.FC = () => {
 
               const finalText = clipboardText || sessionClipboardText;
 
-              setContext((draftCtx) => {
+              commitAndSettle((draftCtx) => {
                 handlePasteByClick(draftCtx, finalText);
+                announce(draftCtx, "rightclick.announcePasted");
                 draftCtx.contextMenu = {};
               });
             }}
@@ -138,10 +204,26 @@ const ContextMenu: React.FC = () => {
                     direction,
                     id: context.currentSheetId,
                   };
-                  setContext(
+                  commitAndSettle(
                     (draftCtx) => {
                       try {
                         insertRowCol(draftCtx, insertRowColOp);
+                        // Inside the try, after the insert: an over-limit or
+                        // read-only throw leaves the region silent and focus
+                        // untouched.
+                        announce(
+                          draftCtx,
+                          countKey(
+                            count,
+                            `rightclick.announceColumnInserted${
+                              dir === "left" ? "Left" : "Right"
+                            }`,
+                            `rightclick.announceColumnsInserted${
+                              dir === "left" ? "Left" : "Right"
+                            }`
+                          ),
+                          { count }
+                        );
                         draftCtx.contextMenu = {};
                       } catch (err: any) {
                         if (err.message === "maxExceeded")
@@ -170,12 +252,23 @@ const ContextMenu: React.FC = () => {
                     </>
                   )}
                   {`${rightclick.insert}  `}
+                  {/*
+                    aria-label rather than a visible <label>: the input sits mid
+                    phrase ("Insert [1] column left"), so there is no contiguous
+                    text to wrap. `placeholder`, which is what this shipped with,
+                    is only a last-resort fallback for the accessible name and is
+                    reported by axe (WCAG 3.3.2, 4.1.2). The direction is
+                    appended because both rows render at once.
+                  */}
                   <input
                     onClick={(e) => e.stopPropagation()}
                     onKeyDown={(e) => e.stopPropagation()}
                     tabIndex={0}
                     type="text"
                     className="luckysheet-mousedown-cancel"
+                    aria-label={`${rightclick.insertColumnCountLabel} ${
+                      (rightclick as any)[dir]
+                    }`}
                     placeholder={rightclick.number}
                     defaultValue="1"
                   />
@@ -213,10 +306,23 @@ const ContextMenu: React.FC = () => {
                     direction,
                     id: context.currentSheetId,
                   };
-                  setContext(
+                  commitAndSettle(
                     (draftCtx) => {
                       try {
                         insertRowCol(draftCtx, insertRowColOp);
+                        announce(
+                          draftCtx,
+                          countKey(
+                            count,
+                            `rightclick.announceRowInserted${
+                              dir === "top" ? "Above" : "Below"
+                            }`,
+                            `rightclick.announceRowsInserted${
+                              dir === "top" ? "Above" : "Below"
+                            }`
+                          ),
+                          { count }
+                        );
                         draftCtx.contextMenu = {};
                       } catch (err: any) {
                         if (err.message === "maxExceeded")
@@ -240,12 +346,16 @@ const ContextMenu: React.FC = () => {
                     </>
                   )}
                   {`${rightclick.insert}  `}
+                  {/* Same reasoning as insert-column above. */}
                   <input
                     onClick={(e) => e.stopPropagation()}
                     onKeyDown={(e) => e.stopPropagation()}
                     tabIndex={0}
                     type="text"
                     className="luckysheet-mousedown-cancel"
+                    aria-label={`${rightclick.insertRowCountLabel} ${
+                      (rightclick as any)[dir]
+                    }`}
                     placeholder={rightclick.number}
                     defaultValue="1"
                   />
@@ -276,7 +386,7 @@ const ContextMenu: React.FC = () => {
                   end: ed_index,
                   id: context.currentSheetId,
                 };
-                setContext(
+                commitAndSettle(
                   (draftCtx) => {
                     if (draftCtx.luckysheet_select_save?.length! > 1) {
                       showAlert(rightclick.noMulti, "ok");
@@ -298,6 +408,15 @@ const ContextMenu: React.FC = () => {
                     }
                     try {
                       deleteRowCol(draftCtx, deleteRowColOp);
+                      announce(
+                        draftCtx,
+                        countKey(
+                          slen,
+                          "rightclick.announceColumnDeleted",
+                          "rightclick.announceColumnsDeleted"
+                        ),
+                        { count: slen }
+                      );
                     } catch (e: any) {
                       if (e.message === "readOnly") {
                         showAlert(rightclick.cannotDeleteColumnReadOnly, "ok");
@@ -330,7 +449,7 @@ const ContextMenu: React.FC = () => {
                   end: ed_index,
                   id: context.currentSheetId,
                 };
-                setContext(
+                commitAndSettle(
                   (draftCtx) => {
                     if (draftCtx.luckysheet_select_save?.length! > 1) {
                       showAlert(rightclick.noMulti, "ok");
@@ -349,6 +468,15 @@ const ContextMenu: React.FC = () => {
                     }
                     try {
                       deleteRowCol(draftCtx, deleteRowColOp);
+                      announce(
+                        draftCtx,
+                        countKey(
+                          slen,
+                          "rightclick.announceRowDeleted",
+                          "rightclick.announceRowsDeleted"
+                        ),
+                        { count: slen }
+                      );
                     } catch (e: any) {
                       if (e.message === "readOnly") {
                         showAlert(rightclick.cannotDeleteRowReadOnly, "ok");
@@ -374,8 +502,14 @@ const ContextMenu: React.FC = () => {
               key={item}
               role="button"
               onClick={() => {
-                setContext((draftCtx) => {
+                commitAndSettle((draftCtx) => {
                   let msg = "";
+                  const count = _.reduce(
+                    draftCtx.luckysheet_select_save,
+                    (total, section) =>
+                      total + (section.row[1] - section.row[0] + 1),
+                    0
+                  );
                   if (item === "hideSelected") {
                     msg = hideSelected(draftCtx, "row");
                   } else if (item === "showHide") {
@@ -383,6 +517,20 @@ const ContextMenu: React.FC = () => {
                   }
                   if (msg === "noMulti") {
                     showDialog(drag.noMulti);
+                  } else if (item === "hideSelected") {
+                    announce(
+                      draftCtx,
+                      countKey(
+                        count,
+                        "rightclick.announceRowHidden",
+                        "rightclick.announceRowsHidden"
+                      ),
+                      { count }
+                    );
+                  } else {
+                    // No count: showSelected reports nothing back about how much
+                    // it unhid.
+                    announce(draftCtx, "rightclick.announceRowsShown");
                   }
                   draftCtx.contextMenu = {};
                 });
@@ -401,8 +549,14 @@ const ContextMenu: React.FC = () => {
               key={item}
               role="button"
               onClick={() => {
-                setContext((draftCtx) => {
+                commitAndSettle((draftCtx) => {
                   let msg = "";
+                  const count = _.reduce(
+                    draftCtx.luckysheet_select_save,
+                    (total, section) =>
+                      total + (section.column[1] - section.column[0] + 1),
+                    0
+                  );
                   if (item === "hideSelected") {
                     msg = hideSelected(draftCtx, "column");
                   } else if (item === "showHide") {
@@ -410,6 +564,18 @@ const ContextMenu: React.FC = () => {
                   }
                   if (msg === "noMulti") {
                     showDialog(drag.noMulti);
+                  } else if (item === "hideSelected") {
+                    announce(
+                      draftCtx,
+                      countKey(
+                        count,
+                        "rightclick.announceColumnHidden",
+                        "rightclick.announceColumnsHidden"
+                      ),
+                      { count }
+                    );
+                  } else {
+                    announce(draftCtx, "rightclick.announceColumnsShown");
                   }
                   draftCtx.contextMenu = {};
                 });
@@ -436,7 +602,7 @@ const ContextMenu: React.FC = () => {
             key="set-row-height"
             onClick={(e, container) => {
               const targetRowHeight = container.querySelector("input")?.value;
-              setContext((draftCtx) => {
+              commitAndSettle((draftCtx) => {
                 if (
                   _.isUndefined(targetRowHeight) ||
                   targetRowHeight === "" ||
@@ -459,12 +625,20 @@ const ContextMenu: React.FC = () => {
                   }
                 });
                 api.setRowHeight(draftCtx, rowHeightList, {}, true);
+                announce(draftCtx, "rightclick.announceRowHeightSet", {
+                  value: numRowHeight,
+                });
                 draftCtx.contextMenu = {};
               });
             }}
           >
             {rightclick.row}
             {rightclick.height}
+            {/*
+              `{row}{height}` renders as two adjacent words with no separator
+              and does not read as a phrase, so the name comes from a locale key
+              stating the unit instead of being assembled from the fragments.
+            */}
             <input
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
@@ -473,6 +647,7 @@ const ContextMenu: React.FC = () => {
               min={1}
               max={545}
               className="luckysheet-mousedown-cancel"
+              aria-label={rightclick.rowHeightLabel}
               placeholder={rightclick.number}
               defaultValue={shownRowHeight}
               style={{ width: "40px" }}
@@ -497,7 +672,7 @@ const ContextMenu: React.FC = () => {
             key="set-column-width"
             onClick={(e, container) => {
               const targetColWidth = container.querySelector("input")?.value;
-              setContext((draftCtx) => {
+              commitAndSettle((draftCtx) => {
                 if (
                   _.isUndefined(targetColWidth) ||
                   targetColWidth === "" ||
@@ -520,12 +695,16 @@ const ContextMenu: React.FC = () => {
                   }
                 });
                 api.setColumnWidth(draftCtx, colWidthList, {}, true);
+                announce(draftCtx, "rightclick.announceColumnWidthSet", {
+                  value: numColWidth,
+                });
                 draftCtx.contextMenu = {};
               });
             }}
           >
             {rightclick.column}
             {rightclick.width}
+            {/* Same reasoning as set-row-height above. */}
             <input
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
@@ -534,6 +713,7 @@ const ContextMenu: React.FC = () => {
               min={1}
               max={545}
               className="luckysheet-mousedown-cancel"
+              aria-label={rightclick.columnWidthLabel}
               placeholder={rightclick.number}
               defaultValue={shownColWidth}
               style={{ width: "40px" }}
@@ -548,11 +728,12 @@ const ContextMenu: React.FC = () => {
             key={name}
             role="button"
             onClick={() => {
-              setContext((draftCtx) => {
+              commitAndSettle((draftCtx) => {
                 const allowEdit = isAllowEdit(draftCtx);
                 if (!allowEdit) return;
                 if (draftCtx.activeImg != null) {
                   removeActiveImage(draftCtx);
+                  announce(draftCtx, "rightclick.announceCleared");
                 } else {
                   const msg = deleteSelectedCellText(draftCtx);
                   if (msg === "partMC") {
@@ -561,6 +742,10 @@ const ContextMenu: React.FC = () => {
                     showDialog(generalDialog.readOnlyError, "ok");
                   } else if (msg === "dataNullError") {
                     showDialog(generalDialog.dataNullError, "ok");
+                  } else {
+                    // Only the path that actually cleared something — the three
+                    // above open a dialog and must not lose focus to the grid.
+                    announce(draftCtx, "rightclick.announceCleared");
                   }
                 }
                 draftCtx.contextMenu = {};
@@ -578,8 +763,9 @@ const ContextMenu: React.FC = () => {
             key={name}
             role="button"
             onClick={() => {
-              setContext((draftCtx) => {
+              commitAndSettle((draftCtx) => {
                 sortSelection(draftCtx, true);
+                announce(draftCtx, "rightclick.announceSortedAsc");
                 draftCtx.contextMenu = {};
               });
             }}
@@ -594,8 +780,9 @@ const ContextMenu: React.FC = () => {
             key={name}
             role="button"
             onClick={() => {
-              setContext((draftCtx) => {
+              commitAndSettle((draftCtx) => {
                 sortSelection(draftCtx, false);
+                announce(draftCtx, "rightclick.announceSortedDesc");
                 draftCtx.contextMenu = {};
               });
             }}
@@ -610,8 +797,15 @@ const ContextMenu: React.FC = () => {
             key={name}
             role="button"
             onClick={() => {
+              // No announcement: the dialog opening, and being named, is the
+              // feedback.
+              focusGridBeforeHandoff();
               setContext((draftCtx) => {
-                showDialog(<CustomSort />);
+                // Named from CustomSort's own heading ("Sort range from A1 to
+                // D20") — more use than a generic "Sort", and no new locale key.
+                showDialog(<CustomSort />, {
+                  labelledBy: SORT_DIALOG_TITLE_ID,
+                });
                 draftCtx.contextMenu = {};
               });
             }}
@@ -621,6 +815,14 @@ const ContextMenu: React.FC = () => {
         );
       }
       if (name === "filter") {
+        // `createFilter` is a toggle — it clears an existing filter and creates
+        // one otherwise — but the row said "Filter" either way, so the user
+        // could not tell which was about to happen (WCAG 4.1.2). Derived from
+        // the same value the handler reads as `filterBefore`, so label and
+        // behaviour cannot drift. The visible text *is* the accessible name; a
+        // separate aria-label would be a second thing to keep in sync and could
+        // disagree with what is announced (WCAG 2.5.3).
+        const filterApplied = _.size(context.luckysheet_filter_save) > 0;
         return (
           <Menu
             key={name}
@@ -628,7 +830,19 @@ const ContextMenu: React.FC = () => {
             onClick={() => {
               const filterBefore = contextRef.current.luckysheet_filter_save;
               setContext((draftCtx) => {
+                const had = _.size(draftCtx.luckysheet_filter_save) > 0;
                 createFilter(draftCtx);
+                const has = _.size(draftCtx.luckysheet_filter_save) > 0;
+                // Only when the toggle flipped: createFilter declines on a
+                // multi-range selection and on a pivot table.
+                if (had !== has) {
+                  announce(
+                    draftCtx,
+                    has
+                      ? "rightclick.announceFilterCreated"
+                      : "rightclick.announceFilterRemoved"
+                  );
+                }
                 draftCtx.contextMenu = {};
               });
               // Same target as the toolbar's create-filter: the cell the filter
@@ -644,7 +858,7 @@ const ContextMenu: React.FC = () => {
               );
             }}
           >
-            {rightclick.filterSelection}
+            {filterApplied ? rightclick.removeFilter : rightclick.createFilter}
           </Menu>
         );
       }
@@ -654,6 +868,7 @@ const ContextMenu: React.FC = () => {
             key={name}
             role="button"
             onClick={() => {
+              focusGridBeforeHandoff();
               setContext((draftCtx) => {
                 showImgChooser();
                 draftCtx.contextMenu = {};
@@ -670,6 +885,7 @@ const ContextMenu: React.FC = () => {
             key={name}
             role="button"
             onClick={() => {
+              focusGridBeforeHandoff();
               setContext((draftCtx) => {
                 handleLink(draftCtx);
                 draftCtx.contextMenu = {};
@@ -686,6 +902,9 @@ const ContextMenu: React.FC = () => {
       context.currentSheetId,
       context.lang,
       context.luckysheet_select_save,
+      // The filter row's label is derived from this, so it has to re-render when
+      // the filter is created or removed.
+      context.luckysheet_filter_save,
       context.defaultrowlen,
       context.defaultcollen,
       rightclick,
@@ -696,6 +915,8 @@ const ContextMenu: React.FC = () => {
       drag,
       generalDialog,
       refs.cellInput,
+      commitAndSettle,
+      focusGridBeforeHandoff,
     ]
   );
 

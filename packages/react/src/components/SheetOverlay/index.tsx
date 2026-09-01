@@ -55,6 +55,7 @@ import { useFilterAnnouncements } from "../../hooks/useFilterAnnouncements";
 import { useSelectionModeAnnouncement } from "../../hooks/useSelectionModeAnnouncement";
 import { useSelectAllAnnouncement } from "../../hooks/useSelectAllAnnouncement";
 import { useNameBoxClampAnnouncement } from "../../hooks/useNameBoxClampAnnouncement";
+import { useContextMenuAnnouncements } from "../../hooks/useContextMenuAnnouncements";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
@@ -565,6 +566,7 @@ const SheetOverlay: React.FC = () => {
   const selectionModeAnnouncement = useSelectionModeAnnouncement(context);
   const selectAllAnnouncement = useSelectAllAnnouncement(context);
   const clampAnnouncement = useNameBoxClampAnnouncement(context, info);
+  const contextMenuAnnouncement = useContextMenuAnnouncements(context);
   const cellAreaId = useId();
   const { cellAnnouncement: filterCellAnnouncement, regionAnnouncement } =
     useFilterAnnouncements(context, info);
@@ -1061,6 +1063,25 @@ const SheetOverlay: React.FC = () => {
           Polite, for the same reason as above. */}
       <div id="sr-selectAll" className="sr-only" role="status">
         {selectAllAnnouncement}
+      </div>
+      {/* Context-menu actions were silent: the grid rearranges and `#sr-selection`
+          reports the new cell, but nothing says what the action did — "3 columns
+          inserted" is not recoverable from the after-state.
+
+          Assertive, unlike the polite regions above, and deliberately: these
+          actions also move focus to the cell input, and VoiceOver *discards* a
+          polite message queued alongside the focus utterance rather than
+          speaking it after. Assertive interrupts instead of being dropped. The
+          trade is clipping the focus utterance, which is the lesser loss — the
+          user knows where they are; they do not know what changed. */}
+      <div
+        id="sr-contextMenuRegion"
+        className="sr-only"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+      >
+        {contextMenuAnnouncement}
       </div>
     </main>
   );

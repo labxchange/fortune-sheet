@@ -31,8 +31,16 @@ import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
 import { markAsRepeat } from "../../utils/liveRegion";
-import { focusAfterCommit } from "../../utils/keyboardActivation";
+import { focusAfterCommit, onActivate } from "../../utils/keyboardActivation";
+import { announce } from "../../hooks/useContextMenuAnnouncements";
 import { FILTER_MENU_ID, findFilterFunnel } from "../../utils/filterDom";
+
+/**
+ * The Filter-by-colour submenu, so the row that opens it can point at it with
+ * `aria-controls`. Only one filter menu is ever on screen (it is gated on
+ * `filterContextMenu`), so a module constant cannot collide with itself.
+ */
+const BY_COLOR_SUBMENU_ID = "fortune-filter-bycolor-submenu";
 
 type BulkActionName = "selectAll" | "clearAll" | "inverse";
 
@@ -249,6 +257,12 @@ const FilterMenu: React.FC = () => {
   }>({ text: "", col: null });
   const { showAlert } = useAlert();
   const mouseHoverSubMenu = useRef<boolean>(false);
+  /**
+   * Whether the colour submenu's current open came from Enter/Space rather than
+   * the pointer. Set by `openColorSubMenu` on every open, and read once when the
+   * submenu's Escape layer mounts, to decide whether focus follows.
+   */
+  const keyboardOpenRef = useRef<boolean>(false);
   contextRef.current = context;
 
   // 点击其他区域的时候关闭FilterMenu
@@ -284,6 +298,28 @@ const FilterMenu: React.FC = () => {
     open: filterContextMenu != null,
     onClose: close,
     containerRef,
+  });
+  /**
+   * The colour submenu's own Escape layer, and what puts focus into it on open
+   * (WCAG 2.1.1) — activating "Filter by color" used to leave focus on the
+   * trigger, so a keyboard user could see the options and not reach them.
+   *
+   * A second `useEscapeToClose` rather than inline focus handling: it focuses the
+   * first item *after* the submenu mounts (it does not exist in the DOM when the
+   * open handler runs), the shared instance stack makes this the innermost
+   * Escape layer so only the submenu closes, and it restores focus to the
+   * trigger. `autoFocus` is gated on a keyboard open — pulling focus out from
+   * under the pointer would fight a mouse user.
+   */
+  useEscapeToClose({
+    open: showSubMenu,
+    onClose: () => setShowSubMenu(false),
+    containerRef: subMenuRef,
+    autoFocus: keyboardOpenRef.current,
+    // The default selector wants role="button"/tabindex="0"; the colour rows are
+    // role="checkbox" and the footer controls are real <button>s. Document order
+    // picks the first colour row, or the footer button when there is none.
+    autoFocusSelector: '[role="checkbox"], button',
   });
   useRovingFocus({
     containerRef,
@@ -416,7 +452,18 @@ const FilterMenu: React.FC = () => {
           col,
           asc
         );
-        if (errMsg != null) showAlert(errMsg);
+        if (errMsg != null) {
+          showAlert(errMsg);
+          return;
+        }
+        // Sorting from this menu was silent: it closes the menu and moves focus
+        // to the grid, so the only thing spoken was the cell reference — never
+        // that a sort happened (WCAG 4.1.3). Success only, so a refused sort
+        // stays quiet. Reuses the cell menu's own sort results.
+        announce(
+          draftCtx,
+          asc ? "rightclick.announceSortedAsc" : "rightclick.announceSortedDesc"
+        );
       });
     },
     [col, setContext, startRow, startCol, endRow, endCol, showAlert]
@@ -639,33 +686,40 @@ const FilterMenu: React.FC = () => {
             );
           }
           if (name === "filter-by-color") {
-            const openColorSubMenu = () => {
+            // `fromKeyboard` is recorded on every open, not only the keyboard
+            // one: leaving a stale `true` behind meant a later hover-open pulled
+            // focus into the submenu under the pointer.
+            const openColorSubMenu = (fromKeyboard = false) => {
               if (!containerRef.current || !filterContextMenu) {
                 return;
               }
+              keyboardOpenRef.current = fromKeyboard;
               setShowSubMenu(true);
               const rect = byColorMenuRef.current?.getBoundingClientRect();
               if (rect == null) return;
               setSubMenuPos({ top: rect.top - 5, left: rect.right });
             };
             return (
+              // The Escape handler that used to sit here is gone: it was a
+              // bubble-phase handler, and useEscapeToClose listens on `document`
+              // in the capture phase, so the filter menu's own instance always
+              // saw the key first and closed the whole popup.
               <div
                 key={name}
                 ref={byColorMenuRef}
-                onMouseEnter={openColorSubMenu}
+                onMouseEnter={() => openColorSubMenu()}
                 onMouseLeave={delayHideSubMenu}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape" && showSubMenu) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setShowSubMenu(false);
-                  }
-                }}
               >
                 <Menu
                   role="button"
                   expanded={showSubMenu}
-                  onClick={openColorSubMenu}
+                  controls={BY_COLOR_SUBMENU_ID}
+                  // Enter/Space rather than a forwarded click, so the open can be
+                  // marked keyboard-initiated — that is what decides whether
+                  // focus follows. `onActivate` keeps the same
+                  // target === currentTarget and repeat guards as the default.
+                  onKeyDown={onActivate(() => openColorSubMenu(true))}
+                  onClick={() => openColorSubMenu()}
                 >
                   <div className="filter-bycolor-container">
                     {filter.filterByColor}
@@ -893,6 +947,9 @@ const FilterMenu: React.FC = () => {
                   endCol
                 );
                 hiddenRows.current = [];
+                // Applying closes this menu and takes its own announcement
+                // region with it, so the result goes to the persistent one.
+                announce(draftCtx, "filter.announceFilterApplied");
                 draftCtx.filterContextMenu = undefined;
               });
               restoreFocusToFunnel();
@@ -918,6 +975,7 @@ const FilterMenu: React.FC = () => {
             onClick={() => {
               setContext((draftCtx) => {
                 clearFilter(draftCtx);
+                announce(draftCtx, "rightclick.announceFilterRemoved");
               });
               restoreFocusToGrid();
             }}
@@ -927,8 +985,18 @@ const FilterMenu: React.FC = () => {
         </div>
       </div>
       {showSubMenu && (
+        // role="group", not "menu": the colour rows are role="checkbox" (colour
+        // filtering is multi-select), and role="menu" requires menuitem*
+        // children — it would trade this ticket's 2.1.1 failure for an
+        // aria-required-children one. A named group is what this is, and
+        // aria-expanded + aria-controls on the trigger is the canonical
+        // disclosure pattern. aria-haspopup is omitted for the same reason:
+        // "true" is defined as equivalent to "menu".
         <div
           ref={subMenuRef}
+          id={BY_COLOR_SUBMENU_ID}
+          role="group"
+          aria-label={filter.filterByColor}
           className="luckysheet-filter-bycolor-submenu"
           style={subMenuPos}
           onMouseEnter={() => {
@@ -991,6 +1059,7 @@ const FilterMenu: React.FC = () => {
                       endCol
                     );
                     hiddenRows.current = [];
+                    announce(draftCtx, "filter.announceFilteredByColor");
                     draftCtx.filterContextMenu = undefined;
                   });
                   restoreFocusToFunnel();
