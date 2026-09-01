@@ -20,12 +20,15 @@ const openFromToolbar = (getByRole: any) => {
   return opener;
 };
 
+// Mirrors useDialogFocus's own selector, both halves of it: this package
+// spells "disabled" as `aria-disabled` on the `<div role="button">` controls it
+// builds almost all of its chrome from, and as the attribute on native ones.
 const focusablesIn = (dialog: HTMLElement) =>
   Array.from(
     dialog.querySelectorAll<HTMLElement>(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     )
-  ).filter((el) => !el.hasAttribute("disabled"));
+  ).filter((el) => !el.matches('[disabled], [aria-disabled="true"]'));
 
 // The dialog carries two controls named "Close" — the icon in the corner and
 // the footer button — so a query for that name has to say which one it means.
@@ -92,6 +95,26 @@ describe("Find and Replace dialog focus", () => {
     expect(document.activeElement).toBe(last);
   });
 
+  it("skips a control that is disabled the way this package spells it", async () => {
+    // Almost every control here is a `<div role="button">`, which cannot carry
+    // the native attribute — `aria-disabled` is how disabled is written, and
+    // the package's three other focusable selectors already exclude it. A trap
+    // that only knew the attribute would wrap onto a control that announces
+    // "dimmed" and does nothing.
+    const { getByRole } = renderWorkbook();
+    openFromToolbar(getByRole);
+    const dialog = await waitFor(() => getByRole("dialog"));
+
+    const focusable = focusablesIn(dialog);
+    const disabled = focusable[focusable.length - 1];
+    disabled.setAttribute("aria-disabled", "true");
+    const last = focusable[focusable.length - 2];
+
+    last.focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(document.activeElement).toBe(focusable[0]);
+  });
+
   it("leaves a Tab in the middle of the dialog to the browser", async () => {
     // Only the edges are redirected; preventing default everywhere would break
     // normal forward movement through the controls.
@@ -141,8 +164,10 @@ describe("Find and Replace dialog focus", () => {
   });
 
   it("does not send focus to the body when the opener is gone", async () => {
-    // Focusing a detached node silently focuses <body> — the exact failure the
-    // restore exists to prevent — so a vanished opener must be left alone.
+    // Focusing a detached node is a no-op — focus stays put — so restoring to
+    // a removed opener would leave focus on the dialog's own control, which
+    // then unmounts, and *that* is what drops focus to <body>. Hence the
+    // fallback: the opener is skipped and the cell input takes focus instead.
     const { getByRole, queryByRole } = renderWorkbook();
     const opener = openFromToolbar(getByRole);
     const dialog = await waitFor(() => getByRole("dialog"));

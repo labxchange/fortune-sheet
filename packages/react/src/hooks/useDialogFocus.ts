@@ -3,6 +3,17 @@ import { useEffect, RefObject } from "react";
 const FOCUSABLE =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
+/* Both spellings of disabled, because this package uses both: native controls
+   carry the attribute, and the `<div role="button">` controls almost every
+   piece of chrome is built from can only say `aria-disabled`. The other three
+   focusable-selector definitions here — useEscapeToClose, useRovingFocus and
+   Workbook's — already exclude `aria-disabled`; this one is shared behaviour
+   now, so it excludes what they exclude. Nothing `aria-disabled` renders
+   inside a dialog today, so this is a guard rather than a fix: the failure it
+   forecloses is initial focus landing on a control that announces "dimmed"
+   and does nothing, and jsdom would not see it. */
+const DISABLED = '[disabled], [aria-disabled="true"]';
+
 /**
  * Focus behaviour for a dialog: cycle Tab inside it, land focus somewhere
  * sensible on open, and give focus back to whatever opened it on close.
@@ -43,7 +54,7 @@ export function useDialogFocus(
 
     const focusableNow = () =>
       Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-        (el) => !el.hasAttribute("disabled")
+        (el) => !el.matches(DISABLED)
       );
 
     const trapFocus = (e: KeyboardEvent) => {
