@@ -1,3 +1,5 @@
+import { readFileSync } from "fs";
+import { join } from "path";
 import {
   render,
   fireEvent,
@@ -241,6 +243,54 @@ describe("replaceAll's own message", () => {
       expect(
         getByRole("alertdialog", { name: "The content was not found" })
       ).toBeTruthy()
+    );
+  });
+});
+
+describe("Alert stacking", () => {
+  // jsdom applies no stylesheet, so this reads the rules as text — the same
+  // approach the contrast and overscroll guards take. The bug it pins: the
+  // modal container inherited z-index 1003 from .fortune-popover-backdrop
+  // while SearchReplace was raised to 1004 to clear the grid's scrollbars, so
+  // Replace All's own alert opened behind the dialog that raised it.
+  const zIndexOf = (css: string, selector: string) => {
+    const at = css.indexOf(`${selector} {`);
+    expect(at).toBeGreaterThan(-1);
+    const rule = css.slice(at, css.indexOf("}", at));
+    const match = rule.match(/z-index:\s*(\d+)/);
+    expect(match).toBeTruthy();
+    return Number(match![1]);
+  };
+
+  it("puts a modal above the dialog that raised it", () => {
+    const workbookCss = readFileSync(
+      join(__dirname, "../src/components/Workbook/index.css"),
+      "utf-8"
+    );
+    const searchCss = readFileSync(
+      join(__dirname, "../src/components/SearchReplace/index.css"),
+      "utf-8"
+    );
+
+    expect(zIndexOf(workbookCss, ".fortune-modal-container")).toBeGreaterThan(
+      zIndexOf(searchCss, "#fortune-search-replace")
+    );
+  });
+
+  it("leaves the plain popover backdrop below the context menu", () => {
+    // The modal rises on its own class; the shared backdrop must not, or the
+    // Workbook popover it also covers would start painting over the menus.
+    const workbookCss = readFileSync(
+      join(__dirname, "../src/components/Workbook/index.css"),
+      "utf-8"
+    );
+    const menuCss = readFileSync(
+      join(__dirname, "../src/components/ContextMenu/index.css"),
+      "utf-8"
+    );
+
+    expect(zIndexOf(workbookCss, ".fortune-popover-backdrop")).toBeLessThan(
+      zIndexOf(menuCss, ".fortune-context-menu")
     );
   });
 });

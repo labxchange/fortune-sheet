@@ -31,6 +31,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Above the floating-chrome tier (1004: ContextMenu, ZoomControl, Toolbar
+     dropdowns, ConditionFormat, SearchReplace), not level with the grid popups
+     the backdrop above sits with. A modal is the topmost layer by definition —
+     it is the thing the user has to answer before anything else — and it was
+     inheriting 1003 from .fortune-popover-backdrop, so Replace All's own
+     "Occurrences replaced" alert opened *behind* the Find and Replace dialog
+     that raised it. Only the modal rises: .fortune-popover-backdrop keeps 1003
+     because Workbook's plain popover backdrop is deliberately below the
+     context menu. */
+  z-index: 1006;
 }
 
 html::-webkit-scrollbar-button {
