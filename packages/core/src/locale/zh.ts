@@ -11056,6 +11056,34 @@ export default {
     tipColumnWidthLimit: "列宽必须在0 ~ 2038之间",
     pageInfoFull: "共${total}条，${totalPage}页，已显示全部数据",
 
+    // Toolbar action feedback. A toolbar button changes the sheet without
+    // moving the selection, so nothing else reaches a live region: the result
+    // is conveyed purely by the canvas repainting, which a screen-reader user
+    // never sees. Each phrase describes the state the action produced, not the
+    // action requested — the handlers have many silent no-op paths (a
+    // non-numeric cell, a read-only sheet, no selection) and announcing intent
+    // would report changes that never happened.
+    toolbarBoldOn: "已开启加粗。",
+    toolbarBoldOff: "已关闭加粗。",
+    toolbarItalicOn: "已开启斜体。",
+    toolbarItalicOff: "已关闭斜体。",
+    toolbarUnderlineOn: "已开启下划线。",
+    toolbarUnderlineOff: "已关闭下划线。",
+    toolbarStrikethroughOn: "已开启删除线。",
+    toolbarStrikethroughOff: "已关闭删除线。",
+    toolbarFormatPainterOn: "已开启格式刷。",
+    toolbarFormatPainterOff: "已关闭格式刷。",
+    toolbarFormatCleared: "已清除格式。",
+    toolbarDecimalIncreased: "已增加小数位数。",
+    toolbarDecimalDecreased: "已减少小数位数。",
+    toolbarUndone: "已撤销。",
+    toolbarRedone: "已重做。",
+    toolbarCellsMerged: "已合并单元格。",
+    toolbarCellsUnmerged: "已取消合并单元格。",
+    toolbarTextWrapSet: "文本换行：${mode}。",
+    toolbarFilterOn: "已开启筛选。",
+    toolbarFilterOff: "已关闭筛选。",
+
     sheetSrIntro: "使用方向键在单元格之间移动。",
     cellHasFilterDropdown: "有筛选下拉菜单。",
     cellFilterActive: "筛选器已启用。",

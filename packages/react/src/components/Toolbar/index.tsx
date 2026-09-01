@@ -35,7 +35,11 @@ import {
   createFilter,
   clearFilter,
   applyLocation,
+  shortcutKeysForPlatform,
+  OPEN_SHORTCUTS_KEYS,
+  replaceHtml,
 } from "@fortune-sheet/core";
+import type { Context } from "@fortune-sheet/core";
 import _ from "lodash";
 import WorkbookContext from "../../context";
 import "./index.css";
@@ -49,6 +53,7 @@ import { useAdjacentSubmenuPosition } from "../../hooks/useAdjacentSubmenuPositi
 import { useDialog } from "../../hooks/useDialog";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
+import { useToolbarAnnouncements } from "../../hooks/useToolbarAnnouncements";
 import {
   activateOnEnterOrSpace,
   focusAfterCommit,
@@ -196,6 +201,7 @@ const Toolbar: React.FC<{
   const cell =
     flowdata && row != null && col != null ? flowdata?.[row]?.[col] : undefined;
   const {
+    info,
     toolbar,
     merge,
     border,
@@ -214,6 +220,53 @@ const Toolbar: React.FC<{
     fontarray,
   } = locale(context);
   const toolbarFormat = locale(context).format;
+  const { announcement, announceAfterCommit, announceNow } =
+    useToolbarAnnouncements(contextRef);
+
+  /**
+   * How a toolbar action describes itself once it has landed. Evaluated
+   * against the committed context, so a toggle reports the value it produced
+   * rather than the one it was asked to produce; an action with nothing to say
+   * returns "" and is not announced.
+   */
+  const toolbarActionPhrase = useCallback(
+    (name: string, ctx: Context): string => {
+      const selection = ctx.luckysheet_select_save?.[0];
+      const data = getFlowdata(ctx);
+      const r = selection?.row_focus;
+      const c = selection?.column_focus;
+      const target = data && r != null && c != null ? data[r]?.[c] : undefined;
+      switch (name) {
+        case "bold":
+          return target?.bl === 1 ? info.toolbarBoldOn : info.toolbarBoldOff;
+        case "italic":
+          return target?.it === 1
+            ? info.toolbarItalicOn
+            : info.toolbarItalicOff;
+        case "underline":
+          return target?.un === 1
+            ? info.toolbarUnderlineOn
+            : info.toolbarUnderlineOff;
+        case "strike-through":
+          return target?.cl === 1
+            ? info.toolbarStrikethroughOn
+            : info.toolbarStrikethroughOff;
+        case "clear-format":
+          return info.toolbarFormatCleared;
+        case "format-painter":
+          return ctx.luckysheetPaintModelOn
+            ? info.toolbarFormatPainterOn
+            : info.toolbarFormatPainterOff;
+        case "number-increase":
+          return info.toolbarDecimalIncreased;
+        case "number-decrease":
+          return info.toolbarDecimalDecreased;
+        default:
+          return "";
+      }
+    },
+    [info]
+  );
   const sheetWidth = context.luckysheetTableContentHW[0];
   const { currency } = settings;
   const defaultFormat = defaultFmt(currency);
@@ -598,14 +651,30 @@ const Toolbar: React.FC<{
         return (
           <Button
             iconId={name}
-            tooltip={tooltip}
+            // The one shortcut the dialog cannot teach, since reaching the
+            // dialog is what it is for. The glyphs stay out of the locale
+            // files on purpose (see ShortcutKeys) so a translation can never
+            // drift from the binding the code listens for.
+            tooltip={`${tooltip} (${shortcutKeysForPlatform(
+              OPEN_SHORTCUTS_KEYS
+            )})`}
             key={name}
             onClick={() =>
               setContext((draftCtx) => {
                 draftCtx.showShortcutsDialog = true;
               })
             }
-          />
+          >
+            {/* On the button face, not only in the hover tooltip: a tooltip
+                needs a pointer and a deliberate hover to appear at all, so a
+                shortcut that only lives there is not discoverable by the
+                people most likely to want it. Hidden from AT because the
+                accessible name above already ends in the same keys, and the
+                same <kbd> the dialog uses so the two read as one thing. */}
+            <kbd className="fortune-toolbar-shortcut-hint" aria-hidden="true">
+              {shortcutKeysForPlatform(OPEN_SHORTCUTS_KEYS)}
+            </kbd>
+          </Button>
         );
       }
       if (name === "undo") {
@@ -615,7 +684,10 @@ const Toolbar: React.FC<{
             tooltip={tooltip}
             key={name}
             disabled={refs.globalCache.undoList.length === 0}
-            onClick={() => handleUndo()}
+            onClick={() => {
+              handleUndo();
+              announceNow(info.toolbarUndone);
+            }}
           />
         );
       }
@@ -626,7 +698,10 @@ const Toolbar: React.FC<{
             tooltip={tooltip}
             key={name}
             disabled={refs.globalCache.redoList.length === 0}
-            onClick={() => handleRedo()}
+            onClick={() => {
+              handleRedo();
+              announceNow(info.toolbarRedone);
+            }}
           />
         );
       }
@@ -1089,11 +1164,12 @@ const Toolbar: React.FC<{
             iconId="merge-all"
             key={name}
             tooltip={tooltip}
-            onClick={() =>
+            onClick={() => {
+              announceAfterCommit(() => info.toolbarCellsMerged);
               setContext((ctx) => {
                 handleMerge(ctx, "merge-all");
-              })
-            }
+              });
+            }}
           >
             {(setOpen) => (
               <Select>
@@ -1101,6 +1177,11 @@ const Toolbar: React.FC<{
                   <Option
                     key={value}
                     onClick={() => {
+                      announceAfterCommit(() =>
+                        value === "merge-cancel"
+                          ? info.toolbarCellsUnmerged
+                          : info.toolbarCellsMerged
+                      );
                       setContext((ctx) => {
                         handleMerge(ctx, value);
                       });
@@ -1296,6 +1377,12 @@ const Toolbar: React.FC<{
                   <Option
                     key={value}
                     onClick={() => {
+                      // The chosen mode's own label, rather than reading `tb`
+                      // back off the cell: the label is already localised and
+                      // is exactly what the user picked.
+                      announceAfterCommit(() =>
+                        replaceHtml(info.toolbarTextWrapSet, { mode: text })
+                      );
                       setContext((ctx) => {
                         const d = getFlowdata(ctx);
                         if (d == null) return;
@@ -1417,6 +1504,7 @@ const Toolbar: React.FC<{
             text: filter.filter,
             onClick: () => {
               const filterBefore = contextRef.current.luckysheet_filter_save;
+              announceAfterCommit(() => info.toolbarFilterOn);
               setContext((draftCtx) => {
                 createFilter(draftCtx);
               });
@@ -1440,6 +1528,7 @@ const Toolbar: React.FC<{
             text: filter.clearFilter,
             onClick: () => {
               const filterBefore = contextRef.current.luckysheet_filter_save;
+              announceAfterCommit(() => info.toolbarFilterOff);
               setContext((draftCtx) => {
                 clearFilter(draftCtx);
               });
@@ -1484,20 +1573,28 @@ const Toolbar: React.FC<{
           tooltip={tooltip}
           key={name}
           selected={toolbarItemSelectedFunc(name)?.(cell)}
-          onClick={() =>
+          onClick={() => {
+            // Queued before the commit so the hook can snapshot the state this
+            // action is about to change; it reports the result afterwards, and
+            // says nothing for the items with no phrase of their own.
+            announceAfterCommit((ctx) => toolbarActionPhrase(name, ctx));
             setContext((draftCtx) => {
               toolbarItemClickHandler(name)?.(
                 draftCtx,
                 refs.cellInput.current!,
                 refs.globalCache
               );
-            })
-          }
+            });
+          }}
         />
       );
     },
     [
       toolbar,
+      info,
+      announceAfterCommit,
+      announceNow,
+      toolbarActionPhrase,
       cell,
       setContext,
       refs.cellInput,
@@ -1585,6 +1682,13 @@ const Toolbar: React.FC<{
             }}
           />
         ) : null}
+      </div>
+      {/* Confirmation for the toolbar actions whose only other feedback is the
+          canvas repainting. Polite rather than assertive: it follows a
+          deliberate press, so it can wait its turn behind whatever the grid is
+          already saying. */}
+      <div id="sr-toolbar" className="sr-only" role="status">
+        {announcement}
       </div>
     </header>
   );

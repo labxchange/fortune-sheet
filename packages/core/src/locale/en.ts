@@ -11078,6 +11078,34 @@ export default {
     tipColumnWidthLimit: "The column width must be between 0 ~ 2038",
     pageInfoFull: "Total ${total}，${totalPage} page，All data displayed",
 
+    // Toolbar action feedback. A toolbar button changes the sheet without
+    // moving the selection, so nothing else reaches a live region: the result
+    // is conveyed purely by the canvas repainting, which a screen-reader user
+    // never sees. Each phrase describes the state the action produced, not the
+    // action requested — the handlers have many silent no-op paths (a
+    // non-numeric cell, a read-only sheet, no selection) and announcing intent
+    // would report changes that never happened.
+    toolbarBoldOn: "Bold on.",
+    toolbarBoldOff: "Bold off.",
+    toolbarItalicOn: "Italic on.",
+    toolbarItalicOff: "Italic off.",
+    toolbarUnderlineOn: "Underline on.",
+    toolbarUnderlineOff: "Underline off.",
+    toolbarStrikethroughOn: "Strikethrough on.",
+    toolbarStrikethroughOff: "Strikethrough off.",
+    toolbarFormatPainterOn: "Format painter on.",
+    toolbarFormatPainterOff: "Format painter off.",
+    toolbarFormatCleared: "Formatting cleared.",
+    toolbarDecimalIncreased: "Decimal places increased.",
+    toolbarDecimalDecreased: "Decimal places decreased.",
+    toolbarUndone: "Undone.",
+    toolbarRedone: "Redone.",
+    toolbarCellsMerged: "Cells merged.",
+    toolbarCellsUnmerged: "Cells unmerged.",
+    toolbarTextWrapSet: "Text wrap: ${mode}.",
+    toolbarFilterOn: "Filter on.",
+    toolbarFilterOff: "Filter off.",
+
     sheetSrIntro: "Use the arrow keys to move between cells.",
     cellHasFilterDropdown: "Has filter dropdown.",
     cellFilterActive: "Filter active.",

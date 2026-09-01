@@ -70,6 +70,13 @@ const Button: React.FC<Props> = ({
       data-tips={tooltip}
       role="button"
       aria-label={tooltip}
+      // `selected` is the toggle state of bold, italic, underline and
+      // strikethrough, and until now it reached the user as a background colour
+      // and nothing else — a screen reader was told these were plain buttons
+      // and could not report whether the attribute was on. Left undefined for
+      // the buttons that are not toggles, so they stay plain buttons rather
+      // than claiming a state they do not have.
+      aria-pressed={selected}
       aria-disabled={disabled || undefined}
       // Only on the buttons that actually disclose something, so the ordinary
       // toolbar buttons are not announced as having a popup they do not have.
@@ -82,7 +89,15 @@ const Button: React.FC<Props> = ({
       style={selected ? { backgroundColor: "#E7E5EB" } : {}}
     >
       <SVGIcon name={iconId} style={disabled ? { opacity: 0.3 } : {}} />
-      {tooltip && <div className="fortune-tooltip">{tooltip}</div>}
+      {tooltip && (
+        // Hidden from AT: this is the visual-only hover tooltip, and its text
+        // is the same string already carried as the control's aria-label. Left
+        // exposed it lands in the accessibility tree as a second, static copy
+        // of the name beside the button that owns it.
+        <div className="fortune-tooltip" aria-hidden="true">
+          {tooltip}
+        </div>
+      )}
       {children}
     </div>
   );
