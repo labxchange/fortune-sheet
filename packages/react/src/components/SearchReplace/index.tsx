@@ -33,7 +33,6 @@ const SearchReplace: React.FC<{
   const [replaceText, setReplaceText] = useState("");
   const [showReplace, setShowReplace] = useState(context.showReplace);
   const [searchResult, setSearchResult] = useState<SearchResult[]>([]);
-  const [selectedCell, setSelectedCell] = useState<{ r: number; c: number }>();
   const { showAlert } = useAlert();
   const [checkMode, checkModeReplace] = useState({
     regCheck: false,
@@ -254,7 +253,6 @@ const SearchReplace: React.FC<{
                   className="fortune-message-box-button button-default"
                   onClick={() => {
                     setContext((draftCtx) => {
-                      setSelectedCell(undefined);
                       const alertMsg = replaceAll(
                         draftCtx,
                         searchText,
@@ -275,7 +273,6 @@ const SearchReplace: React.FC<{
                   className="fortune-message-box-button button-default"
                   onClick={() =>
                     setContext((draftCtx) => {
-                      setSelectedCell(undefined);
                       const alertMsg = replace(
                         draftCtx,
                         searchText,
@@ -313,7 +310,6 @@ const SearchReplace: React.FC<{
               className="fortune-message-box-button button-default"
               onClick={() =>
                 setContext((draftCtx) => {
-                  setSelectedCell(undefined);
                   if (!searchText) return;
                   const res = searchAll(draftCtx, searchText, checkMode);
                   setSearchResult(res);
@@ -368,10 +364,17 @@ const SearchReplace: React.FC<{
         {/*
           Polite, and deliberately narrow. Every other outcome in this dialog
           already speaks for itself: Replace All, an empty Find All and each
-          failure path open a MessageBox that takes focus, and Find Next and a
+          failure path open a MessageBox, which is an alertdialog named by its
+          own message and so announces that message on entry; Find Next and a
           result-row activation move the selection, which SheetOverlay's
           assertive #sr-selection announces. Adding those here would make the
           screen reader say each of them twice.
+
+          Replace All's count depends on that MessageBox naming: it is the only
+          place the number is reported, and before the alertdialog change the
+          dialog was unnamed, so whether the sentence was read on entry was up
+          to the reader. Routing it through this region instead would not have
+          worked — the MessageBox is aria-modal, and this region is outside it.
 
           Both of those fallbacks sit outside this dialog, which is the other
           half of why the root element does not claim aria-modal — see the
@@ -399,12 +402,9 @@ const SearchReplace: React.FC<{
                     // No role="button" here: a row that overrides its role
                     // stops being a row, which would undo the table semantics
                     // this markup exists for. It stays a row, focusable and
-                    // activatable — what it is *called*, and where activating
-                    // it sends focus, is the next commit.
+                    // activatable.
                     <tr
-                      className={`boxItem ${
-                        _.isEqual(selectedCell, { r: v.r, c: v.c }) ? "on" : ""
-                      }`}
+                      className="boxItem"
                       key={v.cellPosition}
                       onClick={() => {
                         setContext((draftCtx) => {
@@ -419,13 +419,22 @@ const SearchReplace: React.FC<{
                           );
                           scrollToHighlightCell(draftCtx, v.r, v.c);
                         });
-                        setSelectedCell({ r: v.r, c: v.c });
+                        // Activating a result is a go-to, and it is finished
+                        // once the user is on the cell: the dialog has nothing
+                        // further to offer about a result already reached, and
+                        // leaving it up parks it over the grid it just scrolled
+                        // into view, out of the tab ring and holding a stale
+                        // list. Closing is also what makes the focus move below
+                        // coherent — an open dialog whose focus sits outside it
+                        // is the half-state a keyboard user cannot read.
+                        closeDialog();
                         // Selecting the cell is not the same as going to it:
-                        // the grid's keyboard handling only runs while the
-                        // cell input holds focus, so without this the row
-                        // moved the selection and left the arrow keys dead in
-                        // a dialog the user then had to tab out of. Deferred,
-                        // because the commit above rebuilds the grid.
+                        // the grid's keyboard handling only runs while the cell
+                        // input holds focus, so without this the row moved the
+                        // selection and left the arrow keys dead. Deferred by a
+                        // task, which is also what sequences it after the close:
+                        // useDialogFocus's unmount cleanup restores focus to
+                        // whatever opened the dialog, and that runs first.
                         focusAfterCommit(() => refs.cellInput.current);
                       }}
                       onKeyDown={activateOnEnterOrSpace}

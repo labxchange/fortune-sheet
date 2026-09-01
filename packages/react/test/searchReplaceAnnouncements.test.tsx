@@ -198,4 +198,49 @@ describe("replaceAll's own message", () => {
     );
     expect(document.body.textContent).not.toContain("2 items found");
   });
+
+  it("announces the count by naming its alert dialog with it", async () => {
+    // Replace All is the only place the number is reported, and it reports it
+    // through a MessageBox rather than the dialog's live region — the box is
+    // aria-modal, so a region outside it is exactly what a reader is entitled
+    // to ignore. That only works if the box itself announces the sentence, and
+    // as an unnamed role="dialog" it did not: focus landed on the close button
+    // and whether the body text was read on entry was up to the reader.
+    //
+    // Asserting it through the accessible name is the point — `textContent`
+    // above passes just as well when the text is an unassociated <div> that
+    // nothing announces.
+    const { getByRole } = renderWorkbook();
+    const dialog = await openDialog(getByRole);
+
+    fireEvent.click(byId(dialog, "replaceTab"));
+    typeFind(dialog, "alpha");
+    fireEvent.change(within(dialog).getByLabelText("Replace Content"), {
+      target: { value: "gamma" },
+    });
+    fireEvent.click(byId(dialog, "replaceAllBtn"));
+
+    await waitFor(() =>
+      expect(
+        getByRole("alertdialog", { name: "Occurrences replaced: 2" })
+      ).toBeTruthy()
+    );
+  });
+
+  it("reports a failure through the same named alert dialog", async () => {
+    // The count is not a special case: every showAlert in the package renders
+    // through this one MessageBox, so naming it fixes all 24 call sites at
+    // once. An empty Find All is the cheapest of them to reach from here.
+    const { getByRole } = renderWorkbook();
+    const dialog = await openDialog(getByRole);
+
+    typeFind(dialog, "nothing-matches-this");
+    fireEvent.click(byId(dialog, "searchAllBtn"));
+
+    await waitFor(() =>
+      expect(
+        getByRole("alertdialog", { name: "The content was not found" })
+      ).toBeTruthy()
+    );
+  });
 });

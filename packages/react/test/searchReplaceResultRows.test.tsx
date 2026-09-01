@@ -107,17 +107,24 @@ describe("Find All result rows", () => {
     });
   });
 
-  it("moves focus to the grid when a row is activated by keyboard", async () => {
+  it("moves focus to the grid and closes when a row is activated by keyboard", async () => {
     jest.useFakeTimers();
     try {
       const { getByRole, container } = renderWorkbook();
       const dialog = await findAll(getByRole, "convinient");
 
+      // While the dialog is up it is deliberately not modal: the grid stays
+      // live underneath, and SheetOverlay's #sr-selection — which announces
+      // the jump — is a sibling rather than a descendant.
+      expect(dialog.getAttribute("aria-modal")).toBeNull();
+
       const [first] = resultRows(dialog);
       first.focus();
       fireEvent.keyDown(first, { key: "Enter" });
 
-      // focusAfterCommit defers by a task so the grid has rebuilt first.
+      // focusAfterCommit defers by a task so the grid has rebuilt first. That
+      // deferral is also what sequences it after useDialogFocus's unmount
+      // cleanup, which restores focus to whatever opened the dialog.
       act(() => {
         jest.runAllTimers();
       });
@@ -128,21 +135,18 @@ describe("Find All result rows", () => {
       expect(cellInput).toBeTruthy();
       expect(document.activeElement).toBe(cellInput);
 
-      // The dialog stays open with focus outside it, and that is the intended
-      // end state: the point of activating a row is to reach the cell, and the
-      // grid's keyboard handling only runs while the cell input holds focus.
-      // It is also why the dialog must not be aria-modal — focus would then be
-      // parked on a node the dialog declares inert, and the Tab cycle, whose
-      // listener is on the dialog element, would stop seeing keydowns while
-      // still claiming to hold the user.
-      expect(dialog.isConnected).toBe(true);
-      expect(dialog.getAttribute("aria-modal")).toBeNull();
+      // Activating a result is a go-to and it is finished once the user is on
+      // the cell. Leaving the dialog up would park it over the grid it just
+      // scrolled into view, out of the tab ring, holding a stale list — and it
+      // would leave focus sitting outside an open dialog, which is the
+      // half-state a keyboard user cannot read.
+      expect(dialog.isConnected).toBe(false);
     } finally {
       jest.useRealTimers();
     }
   });
 
-  it("moves focus to the grid when a row is activated by mouse", async () => {
+  it("moves focus to the grid and closes when a row is activated by mouse", async () => {
     jest.useFakeTimers();
     try {
       const { getByRole, container } = renderWorkbook();
@@ -156,19 +160,49 @@ describe("Find All result rows", () => {
       expect(document.activeElement).toBe(
         container.querySelector<HTMLElement>(".luckysheet-cell-input")
       );
+      expect(dialog.isConnected).toBe(false);
     } finally {
       jest.useRealTimers();
     }
   });
 
-  it("still marks the activated row as the selected one", async () => {
-    // The pre-existing behaviour, which the focus move must not displace.
+  it("reopens with an empty result list rather than a stale one", async () => {
+    // The corollary of closing on activation: the next open must not show the
+    // previous search's rows, which would be a list the grid has moved on from.
     const { getByRole } = renderWorkbook();
     const dialog = await findAll(getByRole, "convinient");
 
     fireEvent.click(resultRows(dialog)[0]);
-    await waitFor(() =>
-      expect(resultRows(dialog)[0].className).toContain("on")
+    await waitFor(() => expect(dialog.isConnected).toBe(false));
+
+    fireEvent.click(getByRole("button", { name: /find and replace/i }));
+    const reopened = await waitFor(() => getByRole("dialog"));
+    expect(within(reopened).queryByRole("table")).toBeNull();
+  });
+
+  it("highlights the row the user is on, keyed to focus", async () => {
+    // The highlight has to follow focus rather than activation: activating a
+    // row unmounts the table, so a highlight keyed to the activated row could
+    // only ever paint on a row that is going away. jsdom loads no stylesheet
+    // (identity-obj-proxy), so the rule is read as text; the contrast of this
+    // pair is asserted in searchReplaceContrast.test.tsx.
+    const { getByRole } = renderWorkbook();
+    const dialog = await findAll(getByRole, "convinient");
+
+    const [first] = resultRows(dialog);
+    first.focus();
+    expect(document.activeElement).toBe(first);
+
+    const css = readFileSync(
+      join(__dirname, "../src/components/SearchReplace/index.css"),
+      "utf-8"
+    );
+    const at = css.indexOf(
+      "#fortune-search-replace #searchAllbox .boxMain .boxItem:focus {"
+    );
+    expect(at).toBeGreaterThan(-1);
+    expect(css.slice(at, css.indexOf("}", at))).toContain(
+      "background-color: #5b57d1"
     );
   });
 });

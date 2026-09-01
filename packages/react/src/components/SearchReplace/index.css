@@ -182,9 +182,12 @@
   box-sizing: border-box;
 }
 
-/* Same colour, same failure, same fix — the selected result row carried white
- * text on #8c89fe too, so one value was behind both bullets of the ticket. */
-#fortune-search-replace #searchAllbox .boxMain .boxItem.on {
+/* The highlight marks the row the user is *on*, which is the row that has
+ * focus: activating a row closes the dialog, so a highlight keyed to the
+ * activated row would only ever paint on a table that is being unmounted.
+ * Same colour pair as before — white on #5b57d1, which is the value the
+ * contrast ticket landed on; only what puts the row into this state changed. */
+#fortune-search-replace #searchAllbox .boxMain .boxItem:focus {
   background-color: #5b57d1;
   color: #fff;
 }

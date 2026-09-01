@@ -67,7 +67,7 @@ const renderWorkbook = () => {
   act(() => {
     ref.current!.setSelection([{ row: [0, 0], column: [0, 0] }]);
   });
-  return view;
+  return { ...view, ref };
 };
 
 describe("Find All results table", () => {
@@ -131,21 +131,34 @@ describe("Find All results table", () => {
     expect(within(table).queryAllByRole("button")).toHaveLength(0);
   });
 
-  it("still selects the matched cell when a row is activated", async () => {
+  it("selects the matched cell and closes when a row is clicked", async () => {
     // Behaviour preserved across the markup change: the row was clickable
-    // before and is clickable now, by mouse and by Enter.
-    const { getByRole } = renderWorkbook();
+    // before and is clickable now. What it asserts changed with the dialog
+    // closing on activation — the row that used to carry a "selected" class is
+    // unmounted by the time the click settles, so the selection is read from
+    // the sheet instead, which is what the class was standing in for anyway.
+    const { getByRole, ref } = renderWorkbook();
     const dialog = await findAll(getByRole, "alpha");
     const table = within(dialog).getByRole("table");
     const [firstResult] = within(table).getAllByRole("row").slice(1);
 
     fireEvent.click(firstResult);
-    await waitFor(() => expect(firstResult.className).toContain("on"));
 
+    await waitFor(() => expect(dialog.isConnected).toBe(false));
+    expect(ref.current!.getSelectionCoordinates()[0]).toMatch(/A1$/);
+  });
+
+  it("selects the matched cell and closes when a row is activated by Enter", async () => {
+    const { getByRole, ref } = renderWorkbook();
+    const dialog = await findAll(getByRole, "alpha");
+    const table = within(dialog).getByRole("table");
     const [, secondResult] = within(table).getAllByRole("row").slice(1);
+
     secondResult.focus();
     fireEvent.keyDown(secondResult, { key: "Enter" });
-    await waitFor(() => expect(secondResult.className).toContain("on"));
+
+    await waitFor(() => expect(dialog.isConnected).toBe(false));
+    expect(ref.current!.getSelectionCoordinates()[0]).toMatch(/A2$/);
   });
 
   it("renders no table at all before a search is run", async () => {

@@ -24,6 +24,15 @@ type Props = {
   /** Id of the element naming this dialog, usually its heading. */
   labelledBy?: string;
   /**
+   * `alertdialog` for a dialog that exists to deliver an outcome the user has
+   * to acknowledge, rather than one they came to do work in. The difference is
+   * not decorative: assistive tech treats an alertdialog's arrival as
+   * interrupting and reads its name on entry, where a plain `dialog` leaves
+   * whether the body text is read up to the reader. Defaults to `dialog`, so
+   * every existing caller keeps the role it had.
+   */
+  role?: "dialog" | "alertdialog";
+  /**
    * Escape handler, when it should differ from the close button's. Lets a
    * dialog spend the first Escape undoing something inside itself — clearing a
    * search box, say — instead of discarding the whole dialog. Defaults to
@@ -53,6 +62,7 @@ const Dialog: React.FC<Props> = ({
   contentStyle,
   contentRegionLabel,
   labelledBy,
+  role = "dialog",
   onEscape,
   initialFocusRef,
 }) => {
@@ -93,7 +103,7 @@ const Dialog: React.FC<Props> = ({
       className="fortune-dialog"
       style={containerStyle}
       ref={dialogRef}
-      role="dialog"
+      role={role}
       aria-modal="true"
       // Callers that own a heading pass its id — the `labelledBy` prop the
       // comment here used to defer to, now that a caller (ShortcutsDialog)
