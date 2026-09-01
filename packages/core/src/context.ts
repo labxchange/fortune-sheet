@@ -149,6 +149,23 @@ export type Context = {
   // the React layer has, so core records the request and `FilterOption`
   // fulfils it and clears this back to null.
   openFilterMenuForColumn: number | null;
+  // Result of the last completed context-menu action, for the status region to
+  // announce (WCAG 4.1.3). Follows `openFilterMenuForColumn` above: core records
+  // the request, the React layer fulfils it.
+  //
+  // A key plus params rather than a finished sentence, so core stays free of
+  // locale lookups and the message resolves at render time in the workbook's
+  // language. It cannot be derived by diffing state the way the filter and
+  // selection-mode regions are — "3 columns inserted" needs the count the
+  // handler had, and the selection has moved on by render time.
+  //
+  // `seq` increments per action so two identical results both speak; identical
+  // text is otherwise a silent re-render.
+  contextMenuAnnouncement?: {
+    key: string;
+    params?: Record<string, string | number>;
+    seq: number;
+  };
   luckysheet_select_save: Sheet["luckysheet_select_save"];
   luckysheet_selection_range: Sheet["luckysheet_selection_range"];
   formulaRangeHighlight: ({
@@ -457,6 +474,10 @@ export function defaultContext(refs: RefValues): Context {
     selectionModeActive: false,
     selectAllCount: 0,
     nameBoxClampCount: 0,
+    // Initialised as well as declared, like every other optional field here: an
+    // absent key behaves differently from an undefined one under immer's
+    // structural sharing and under anything that clones a known key set.
+    contextMenuAnnouncement: undefined,
     openFilterMenuForColumn: null,
     luckysheet_select_save: undefined,
     luckysheet_selection_range: [],

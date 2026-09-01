@@ -29,3 +29,21 @@
   margin-top: 10px;
   margin-bottom: 25px;
 }
+
+/*
+ * The global `.button-basic:focus-visible` (Toolbar/index.css) draws the ring at
+ * `outline-offset: 0`, so here it lands flush on the button's own
+ * `.button-primary` fill: #0063c3 on #0188fb is 1.66:1 and fails WCAG 1.4.11.
+ * 2px out puts it on the white dialog panel instead, at 5.88:1 — same value and
+ * reasoning as the filter menu's buttons in ContextMenu/index.css.
+ *
+ * Scoped to this dialog rather than fixed globally: `.button-basic` is shared
+ * with the Toolbar, ChangeColor, DataVerification and four others, several of
+ * which sit in containers that clip an outset ring. An inset ring is not an
+ * option here — at `padding: 6px 12px` a 3px inset sits back on the blue fill.
+ */
+.fortune-sort-button .button-basic:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+  outline-offset: 2px;
+}

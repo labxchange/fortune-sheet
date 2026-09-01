@@ -155,8 +155,10 @@ describe("focus after creating a filter from the context menu", () => {
         .dispatchEvent(rightClick);
     });
 
+    // "Create filter", not "Filter": the action is a toggle, and the row now
+    // states which half it will do (WCAG 4.1.2). Nothing is filtered here.
     const filterItem = screen
-      .getByText("Filter")
+      .getByText("Create filter")
       .closest('[role="button"]') as HTMLElement;
     act(() => {
       filterItem.focus();

@@ -20,7 +20,11 @@ type AriaProps =
       role: "button";
       expanded?: boolean;
       hasPopup?: "menu";
-      /** id of the role="menu" element this row's submenu renders, if any. */
+      /**
+       * id of the container this row discloses, if any. Not necessarily a
+       * role="menu" — the Filter-by-colour submenu is a role="group", since
+       * role="menu" would require menuitem* children.
+       */
       controls?: string;
     };
 
