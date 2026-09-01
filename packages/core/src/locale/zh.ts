@@ -11795,7 +11795,8 @@ export default {
     space: "空格",
   },
   findAndReplace: {
-    resultRowLabel: "${sheet}，${cell}，${value}。激活以跳转到单元格 ${cell}",
+    resultRowLabel:
+      "工作表 ${sheet}，单元格 ${cell}，值 ${value}。激活以跳转到单元格 ${cell}",
     resultsTableName: "搜索结果",
     matchesFoundTip: "找到 ${xlength} 处匹配",
     replacedTip: "已替换 ${xlength} 处",

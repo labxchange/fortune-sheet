@@ -11790,7 +11790,7 @@ export default {
   },
   findAndReplace: {
     resultRowLabel:
-      "${sheet}, ${cell}, ${value}. Activate to navigate to cell ${cell}",
+      "Sheet ${sheet}, cell ${cell}, value ${value}. Activate to navigate to cell ${cell}",
     resultsTableName: "Search results",
     // Label first, count second, on purpose. Count first reads "1 matches
     // found" and "1 occurrences replaced", and both of these are spoken by a

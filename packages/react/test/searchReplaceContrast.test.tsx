@@ -63,9 +63,9 @@ describe("Find and Replace colour contrast", () => {
     expect(contrast("#ffffff", background)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("gives the focused result row's text 4.5:1 against its own background", () => {
+  it("gives the selected result option's text 4.5:1 against its own background", () => {
     const rule = ruleFor(
-      "#fortune-search-replace #searchAllbox .boxMain .boxItem:focus"
+      '#fortune-search-replace #searchAllbox .boxItem[aria-selected="true"]'
     );
     const background = declaration(rule, "background-color");
     expect(rule).toContain("color: #fff");
@@ -88,7 +88,9 @@ describe("Find and Replace colour contrast", () => {
       "background-color"
     );
     const row = declaration(
-      ruleFor("#fortune-search-replace #searchAllbox .boxMain .boxItem:focus"),
+      ruleFor(
+        '#fortune-search-replace #searchAllbox .boxItem[aria-selected="true"]'
+      ),
       "background-color"
     );
     expect(tab).toBe(row);

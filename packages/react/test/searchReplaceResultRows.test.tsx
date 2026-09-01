@@ -50,12 +50,12 @@ const findAll = async (getByRole: any, term: string) => {
     target: { value: term },
   });
   fireEvent.click(byId(dialog, "searchAllBtn"));
-  await waitFor(() => within(dialog).getByRole("table"));
+  await waitFor(() => within(dialog).getByRole("listbox"));
   return dialog;
 };
 
 const resultRows = (dialog: HTMLElement) =>
-  within(within(dialog).getByRole("table")).getAllByRole("row").slice(1);
+  within(within(dialog).getByRole("listbox")).getAllByRole("option");
 
 // A sheet that has never been clicked still carries the placeholder selection
 // SheetOverlay installs on mount, `{ row: [0], column: [0] }` — open-ended, and
@@ -177,28 +177,29 @@ describe("Find All result rows", () => {
 
     fireEvent.click(getByRole("button", { name: /find and replace/i }));
     const reopened = await waitFor(() => getByRole("dialog"));
-    expect(within(reopened).queryByRole("table")).toBeNull();
+    expect(within(reopened).queryByRole("listbox")).toBeNull();
   });
 
-  it("highlights the row the user is on, keyed to focus", async () => {
-    // The highlight has to follow focus rather than activation: activating a
-    // row unmounts the table, so a highlight keyed to the activated row could
-    // only ever paint on a row that is going away. jsdom loads no stylesheet
-    // (identity-obj-proxy), so the rule is read as text; the contrast of this
-    // pair is asserted in searchReplaceContrast.test.tsx.
+  it("highlights the option the user is on, keyed to aria-selected", async () => {
+    // A listbox has somewhere to put this that a table did not: the active
+    // option is the selected one, so keying the highlight to aria-selected
+    // means the painted state and the announced state are the same state and
+    // cannot drift. jsdom loads no stylesheet (identity-obj-proxy), so the rule
+    // is read as text; the contrast of the pair is asserted in
+    // searchReplaceContrast.test.tsx.
     const { getByRole } = renderWorkbook();
     const dialog = await findAll(getByRole, "convinient");
 
     const [first] = resultRows(dialog);
     first.focus();
-    expect(document.activeElement).toBe(first);
+    expect(first.getAttribute("aria-selected")).toBe("true");
 
     const css = readFileSync(
       join(__dirname, "../src/components/SearchReplace/index.css"),
       "utf-8"
     );
     const at = css.indexOf(
-      "#fortune-search-replace #searchAllbox .boxMain .boxItem:focus {"
+      '#fortune-search-replace #searchAllbox .boxItem[aria-selected="true"] {'
     );
     expect(at).toBeGreaterThan(-1);
     expect(css.slice(at, css.indexOf("}", at))).toContain(

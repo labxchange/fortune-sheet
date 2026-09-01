@@ -21,6 +21,7 @@ import {
   focusAfterCommit,
 } from "../../utils/keyboardActivation";
 import { useDialogFocus } from "../../hooks/useDialogFocus";
+import { useRovingFocus } from "../../hooks/useRovingFocus";
 import { markAsRepeat } from "../../utils/liveRegion";
 import "./index.css";
 
@@ -41,6 +42,8 @@ const SearchReplace: React.FC<{
   });
   const dialogRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const [activeRow, setActiveRow] = useState(0);
   const [announcement, setAnnouncement] = useState("");
 
   // Searching for the same term twice, or replacing one occurrence after
@@ -63,6 +66,22 @@ const SearchReplace: React.FC<{
   // it is where the grid's own keyboard handling runs from, so it is both a
   // real focus target and the one a spreadsheet user expects to be left on.
   useDialogFocus(dialogRef, searchInputRef, refs.cellInput);
+
+  // A listbox is a single tab stop whose options are reached with the arrows,
+  // and that contract is the whole reason this is a listbox: forty matches
+  // used to be forty tab stops inside a dialog that traps Tab, and the arrows
+  // did nothing at all — they fell through to the workbook container, which
+  // reads them as sheet moves.
+  //
+  // That fall-through is why the hook's stopPropagation matters more here than
+  // at its other call sites: without it an arrow spent choosing a result would
+  // also slide the selection under the dialog.
+  useRovingFocus({
+    containerRef: resultsRef,
+    orientation: "vertical",
+    itemSelector: '[role="option"]',
+    enabled: searchResult.length > 0,
+  });
 
   const closeDialog = useCallback(() => {
     _.set(refs.globalCache, "searchDialog.mouseEnter", false);
@@ -313,6 +332,9 @@ const SearchReplace: React.FC<{
                   if (!searchText) return;
                   const res = searchAll(draftCtx, searchText, checkMode);
                   setSearchResult(res);
+                  // A new list starts at its first option, or the roving tab
+                  // stop points past the end of a shorter one.
+                  setActiveRow(0);
                   if (_.isEmpty(res)) {
                     showAlert(findAndReplace.noFindTip);
                   } else {
@@ -385,74 +407,105 @@ const SearchReplace: React.FC<{
         </div>
         {searchResult.length > 0 && (
           <div id="searchAllbox">
-            <table className="searchResultsTable">
-              <caption className="sr-only">
-                {findAndReplace.resultsTableName}
-              </caption>
-              <thead>
-                <tr className="boxTitle">
-                  <th scope="col">{findAndReplace.searchTargetSheet}</th>
-                  <th scope="col">{findAndReplace.searchTargetCell}</th>
-                  <th scope="col">{findAndReplace.searchTargetValue}</th>
-                </tr>
-              </thead>
-              <tbody className="boxMain">
-                {searchResult.map((v) => {
-                  return (
-                    // No role="button" here: a row that overrides its role
-                    // stops being a row, which would undo the table semantics
-                    // this markup exists for. It stays a row, focusable and
-                    // activatable.
-                    <tr
-                      className="boxItem"
-                      key={v.cellPosition}
-                      onClick={() => {
-                        setContext((draftCtx) => {
-                          draftCtx.luckysheet_select_save = normalizeSelection(
-                            draftCtx,
-                            [
-                              {
-                                row: [v.r, v.r],
-                                column: [v.c, v.c],
-                              },
-                            ]
-                          );
-                          scrollToHighlightCell(draftCtx, v.r, v.c);
-                        });
-                        // Activating a result is a go-to, and it is finished
-                        // once the user is on the cell: the dialog has nothing
-                        // further to offer about a result already reached, and
-                        // leaving it up parks it over the grid it just scrolled
-                        // into view, out of the tab ring and holding a stale
-                        // list. Closing is also what makes the focus move below
-                        // coherent — an open dialog whose focus sits outside it
-                        // is the half-state a keyboard user cannot read.
-                        closeDialog();
-                        // Selecting the cell is not the same as going to it:
-                        // the grid's keyboard handling only runs while the cell
-                        // input holds focus, so without this the row moved the
-                        // selection and left the arrow keys dead. Deferred by a
-                        // task, which is also what sequences it after the close:
-                        // useDialogFocus's unmount cleanup restores focus to
-                        // whatever opened the dialog, and that runs first.
-                        focusAfterCommit(() => refs.cellInput.current);
-                      }}
-                      onKeyDown={activateOnEnterOrSpace}
-                      tabIndex={0}
-                      aria-label={replaceHtml(findAndReplace.resultRowLabel, {
-                        sheet: v.sheetName,
-                        cell: v.cellPosition,
-                        value: v.value,
-                      })}
-                    >
-                      <td>{v.sheetName}</td>
-                      <td>{v.cellPosition}</td>
-                      <td>{v.value}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div
+              className="searchResultsTable"
+              ref={resultsRef}
+              role="listbox"
+              aria-label={findAndReplace.resultsTableName}
+            >
+              {/*
+                Decorative, and hidden from assistive tech on purpose. These
+                are column captions for a list that is no longer a table: an
+                option's name comes from its own label, which names each field
+                inline ("Sheet Sheet1, cell A1, ..."), so exposing these too
+                would have a reader announce the headings once at the top and
+                then never again in a way that lines up with anything.
+              */}
+              <div className="boxTitle" aria-hidden="true">
+                <span>{findAndReplace.searchTargetSheet}</span>
+                <span>{findAndReplace.searchTargetCell}</span>
+                <span>{findAndReplace.searchTargetValue}</span>
+              </div>
+              {/*
+                No wrapper element between the listbox and its options: ARIA
+                requires a listbox to *own* its options, and a plain div in
+                that position is a generic node that breaks the relationship —
+                assistive tech then exposes a listbox with nothing in it, so
+                there is nothing to arrow between. The caption row above is a
+                non-option child too, which is legal only because aria-hidden
+                takes it out of the tree entirely.
+              */}
+              {searchResult.map((v, i) => {
+                return (
+                  // An option, not a row, and not the plain `role="button"`
+                  // an earlier revision of this file refused. That refusal
+                  // was right while the results were a table — a row that
+                  // overrides its role stops being a row — and stopped
+                  // applying the moment they were not.
+                  //
+                  // The role has to be one whose name is computed from its
+                  // contents, because those are the roles assistive tech
+                  // flattens into a single stop: `gridcell` is not one, which
+                  // is why a `role="grid"` attempt still read cell by cell in
+                  // VoiceOver, and `option` is. `option` also carries the
+                  // selection this list actually expresses — the user is
+                  // picking one result to travel to.
+                  <div
+                    className="boxItem"
+                    key={v.cellPosition}
+                    role="option"
+                    aria-selected={i === activeRow}
+                    onClick={() => {
+                      setContext((draftCtx) => {
+                        draftCtx.luckysheet_select_save = normalizeSelection(
+                          draftCtx,
+                          [
+                            {
+                              row: [v.r, v.r],
+                              column: [v.c, v.c],
+                            },
+                          ]
+                        );
+                        scrollToHighlightCell(draftCtx, v.r, v.c);
+                      });
+                      // Activating a result is a go-to, and it is finished
+                      // once the user is on the cell: the dialog has nothing
+                      // further to offer about a result already reached, and
+                      // leaving it up parks it over the grid it just scrolled
+                      // into view, out of the tab ring and holding a stale
+                      // list. Closing is also what makes the focus move below
+                      // coherent — an open dialog whose focus sits outside it
+                      // is the half-state a keyboard user cannot read.
+                      closeDialog();
+                      // Selecting the cell is not the same as going to it:
+                      // the grid's keyboard handling only runs while the cell
+                      // input holds focus, so without this the row moved the
+                      // selection and left the arrow keys dead. Deferred by a
+                      // task, which is also what sequences it after the close:
+                      // useDialogFocus's unmount cleanup restores focus to
+                      // whatever opened the dialog, and that runs first.
+                      focusAfterCommit(() => refs.cellInput.current);
+                    }}
+                    onKeyDown={activateOnEnterOrSpace}
+                    onFocus={() => setActiveRow(i)}
+                    // Roving: one tab stop for the whole list, with the
+                    // arrows moving inside it. Tracking focus rather than
+                    // driving it means useRovingFocus's own .focus() keeps
+                    // this in step without the two knowing about each other.
+                    tabIndex={i === activeRow ? 0 : -1}
+                    aria-label={replaceHtml(findAndReplace.resultRowLabel, {
+                      sheet: v.sheetName,
+                      cell: v.cellPosition,
+                      value: v.value,
+                    })}
+                  >
+                    <span>{v.sheetName}</span>
+                    <span>{v.cellPosition}</span>
+                    <span>{v.value}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

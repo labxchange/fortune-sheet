@@ -50,7 +50,7 @@ const findAll = async (getByRole: any, term: string) => {
     target: { value: term },
   });
   fireEvent.click(byId(dialog, "searchAllBtn"));
-  await waitFor(() => within(dialog).getByRole("table"));
+  await waitFor(() => within(dialog).getByRole("listbox"));
   return dialog;
 };
 
@@ -70,102 +70,179 @@ const renderWorkbook = () => {
   return { ...view, ref };
 };
 
-describe("Find All results table", () => {
-  it("is exposed as a table", async () => {
+describe("Find All results list", () => {
+  const options = (dialog: HTMLElement) =>
+    within(within(dialog).getByRole("listbox")).getAllByRole("option");
+
+  it("is exposed as a listbox", async () => {
+    // Not a table, and not a grid. Assistive tech collapses a row into one
+    // stop only when the row's role takes its name from its contents;
+    // `gridcell` does not, which is why a grid attempt still read cell by cell
+    // in VoiceOver, and `option` does.
     const { getByRole } = renderWorkbook();
     const dialog = await findAll(getByRole, "alpha");
-    expect(within(dialog).getByRole("table")).toBeTruthy();
+    expect(within(dialog).getByRole("listbox")).toBeTruthy();
+    expect(within(dialog).queryByRole("table")).toBeNull();
+    expect(within(dialog).queryByRole("grid")).toBeNull();
   });
 
-  it("names the table, so it can be found and matches what was announced", async () => {
+  it("names the list, so it can be found and matches what was announced", async () => {
     const { getByRole } = renderWorkbook();
     const dialog = await findAll(getByRole, "alpha");
     expect(
-      within(dialog).getByRole("table", { name: "Search results" })
+      within(dialog).getByRole("listbox", { name: "Search results" })
     ).toBeTruthy();
   });
 
-  it("marks the three headings as column headers", async () => {
+  it("gives every match one option, named field by field", async () => {
+    // The column captions are decorative now, so the field names have to live
+    // in the option's own name — otherwise a reader hears three bare values
+    // and has to infer which is the sheet and which is the cell.
     const { getByRole } = renderWorkbook();
     const dialog = await findAll(getByRole, "alpha");
-    const table = within(dialog).getByRole("table");
 
-    const headers = within(table).getAllByRole("columnheader");
-    expect(headers.map((h) => h.textContent)).toEqual([
-      "Sheet",
-      "Cell",
-      "Value",
+    const opts = options(dialog);
+    expect(opts).toHaveLength(2);
+    expect(opts[0].getAttribute("aria-label")).toBe(
+      "Sheet Sheet1, cell A1, value alpha. Activate to navigate to cell A1"
+    );
+  });
+
+  it("hides the decorative column captions from assistive tech", async () => {
+    const { getByRole } = renderWorkbook();
+    const dialog = await findAll(getByRole, "alpha");
+    const listbox = within(dialog).getByRole("listbox");
+
+    expect(within(listbox).queryAllByRole("columnheader")).toHaveLength(0);
+    expect(
+      listbox.querySelector(".boxTitle")!.getAttribute("aria-hidden")
+    ).toBe("true");
+    // Still on screen, for the sighted reader they were put there for.
+    expect(listbox.querySelector(".boxTitle")!.textContent).toBe(
+      "SheetCellValue"
+    );
+  });
+
+  it("still shows the three values in each option", async () => {
+    const { getByRole } = renderWorkbook();
+    const dialog = await findAll(getByRole, "alpha");
+
+    const cells = within(options(dialog)[0]).getAllByText(/.+/);
+    expect(cells.map((c) => c.textContent)).toEqual(["Sheet1", "A1", "alpha"]);
+  });
+
+  it("marks the active option selected, and only that one", async () => {
+    // aria-selected is what the highlight is keyed to, so the visual state and
+    // the announced state cannot drift apart.
+    const { getByRole } = renderWorkbook();
+    const dialog = await findAll(getByRole, "alpha");
+
+    expect(options(dialog).map((o) => o.getAttribute("aria-selected"))).toEqual(
+      ["true", "false"]
+    );
+  });
+
+  it("is a single tab stop, with the arrows moving inside it", async () => {
+    const { getByRole } = renderWorkbook();
+    const dialog = await findAll(getByRole, "alpha");
+    const opts = options(dialog);
+
+    expect(opts.map((o) => o.getAttribute("tabindex"))).toEqual(["0", "-1"]);
+
+    opts[0].focus();
+    fireEvent.keyDown(opts[0], { key: "ArrowDown" });
+    expect(document.activeElement).toBe(opts[1]);
+
+    await waitFor(() =>
+      expect(
+        options(dialog).map((o) => o.getAttribute("aria-selected"))
+      ).toEqual(["false", "true"])
+    );
+    expect(options(dialog).map((o) => o.getAttribute("tabindex"))).toEqual([
+      "-1",
+      "0",
     ]);
-    headers.forEach((h) => expect(h.getAttribute("scope")).toBe("col"));
   });
 
-  it("gives every match a row of three data cells", async () => {
+  it("jumps to the first and last option on Home and End", async () => {
     const { getByRole } = renderWorkbook();
     const dialog = await findAll(getByRole, "alpha");
-    const table = within(dialog).getByRole("table");
+    const opts = options(dialog);
 
-    // Two matches, plus the header row.
-    const rows = within(table).getAllByRole("row");
-    expect(rows).toHaveLength(3);
+    opts[0].focus();
+    fireEvent.keyDown(opts[0], { key: "End" });
+    expect(document.activeElement).toBe(opts[opts.length - 1]);
 
-    const [firstResult] = within(table).getAllByRole("row").slice(1);
-    const cells = within(firstResult).getAllByRole("cell");
-    expect(cells).toHaveLength(3);
-    expect(cells[0].textContent).toBe("Sheet1");
-    expect(cells[2].textContent).toBe("alpha");
+    fireEvent.keyDown(document.activeElement!, { key: "Home" });
+    expect(document.activeElement).toBe(opts[0]);
   });
 
-  it("keeps result rows as rows rather than re-roling them as buttons", async () => {
-    // role="button" on a <tr> removes it from the table's structure, which is
-    // the whole point of this markup. The row stays focusable and activatable
-    // without the override.
-    const { getByRole } = renderWorkbook();
-    const dialog = await findAll(getByRole, "alpha");
-    const table = within(dialog).getByRole("table");
-
-    const resultRows = within(table).getAllByRole("row").slice(1);
-    resultRows.forEach((row) => {
-      expect(row.getAttribute("role")).toBeNull();
-      expect(row.getAttribute("tabindex")).toBe("0");
-    });
-    expect(within(table).queryAllByRole("button")).toHaveLength(0);
-  });
-
-  it("selects the matched cell and closes when a row is clicked", async () => {
-    // Behaviour preserved across the markup change: the row was clickable
-    // before and is clickable now. What it asserts changed with the dialog
-    // closing on activation — the row that used to carry a "selected" class is
-    // unmounted by the time the click settles, so the selection is read from
-    // the sheet instead, which is what the class was standing in for anyway.
+  it("keeps the arrow keys away from the sheet underneath", async () => {
+    // The dialog renders inside the workbook container, whose keydown reads
+    // arrows as selection moves. An arrow spent choosing a result must not
+    // also slide the selection under the dialog.
     const { getByRole, ref } = renderWorkbook();
     const dialog = await findAll(getByRole, "alpha");
-    const table = within(dialog).getByRole("table");
-    const [firstResult] = within(table).getAllByRole("row").slice(1);
+    const opts = options(dialog);
+    const before = ref.current!.getSelectionCoordinates()[0];
 
-    fireEvent.click(firstResult);
+    opts[0].focus();
+    fireEvent.keyDown(opts[0], { key: "ArrowDown" });
+
+    expect(ref.current!.getSelectionCoordinates()[0]).toBe(before);
+  });
+
+  it("resets the tab stop to the first option when a new search replaces the list", async () => {
+    const { getByRole } = renderWorkbook();
+    const dialog = await findAll(getByRole, "alpha");
+
+    options(dialog)[0].focus();
+    fireEvent.keyDown(options(dialog)[0], { key: "ArrowDown" });
+    await waitFor(() =>
+      expect(options(dialog)[1].getAttribute("tabindex")).toBe("0")
+    );
+
+    // "beta" matches one cell, so a stop left on the second option would point
+    // past the end of the new list.
+    fireEvent.change(within(dialog).getByLabelText("Find Content"), {
+      target: { value: "beta" },
+    });
+    fireEvent.click(byId(dialog, "searchAllBtn"));
+
+    await waitFor(() =>
+      expect(options(dialog).map((o) => o.getAttribute("tabindex"))).toEqual([
+        "0",
+      ])
+    );
+  });
+
+  it("selects the matched cell and closes when an option is clicked", async () => {
+    const { getByRole, ref } = renderWorkbook();
+    const dialog = await findAll(getByRole, "alpha");
+
+    fireEvent.click(options(dialog)[0]);
 
     await waitFor(() => expect(dialog.isConnected).toBe(false));
     expect(ref.current!.getSelectionCoordinates()[0]).toMatch(/A1$/);
   });
 
-  it("selects the matched cell and closes when a row is activated by Enter", async () => {
+  it("selects the matched cell and closes when an option is activated by Enter", async () => {
     const { getByRole, ref } = renderWorkbook();
     const dialog = await findAll(getByRole, "alpha");
-    const table = within(dialog).getByRole("table");
-    const [, secondResult] = within(table).getAllByRole("row").slice(1);
+    const second = options(dialog)[1];
 
-    secondResult.focus();
-    fireEvent.keyDown(secondResult, { key: "Enter" });
+    second.focus();
+    fireEvent.keyDown(second, { key: "Enter" });
 
     await waitFor(() => expect(dialog.isConnected).toBe(false));
     expect(ref.current!.getSelectionCoordinates()[0]).toMatch(/A2$/);
   });
 
-  it("renders no table at all before a search is run", async () => {
+  it("renders no list at all before a search is run", async () => {
     const { getByRole, queryByRole } = renderWorkbook();
     fireEvent.click(getByRole("button", { name: /find and replace/i }));
     const dialog = await waitFor(() => getByRole("dialog"));
-    expect(within(dialog).queryByRole("table")).toBeNull();
-    expect(queryByRole("table", { name: "Search results" })).toBeNull();
+    expect(within(dialog).queryByRole("listbox")).toBeNull();
+    expect(queryByRole("listbox", { name: "Search results" })).toBeNull();
   });
 });

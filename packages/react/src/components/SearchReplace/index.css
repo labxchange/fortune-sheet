@@ -137,68 +137,50 @@
 
 #fortune-search-replace #searchAllbox .searchResultsTable {
   width: 100%;
-  border-collapse: collapse;
-  /* Fixed, so the three column widths below are honoured rather than being
-     renegotiated by content — the old markup sized floated spans by
-     percentage and a long cell value must not widen its column. */
-  table-layout: fixed;
 }
 
-#fortune-search-replace #searchAllbox .boxTitle th {
+/* The three columns are declared once, on the row, and both the caption row
+   and every option inherit them. The old markup was a fixed-layout table for
+   the same reason this is a grid with explicit tracks: a long cell value must
+   not be allowed to renegotiate a column's width. */
+#fortune-search-replace #searchAllbox .boxTitle,
+#fortune-search-replace #searchAllbox .boxItem {
+  display: grid;
+  grid-template-columns: 25% 25% 50%;
   height: 30px;
   line-height: 29px;
-  padding: 0 5px;
-  background-color: #fff;
   border-bottom: 1px solid #d4d4d4;
   box-sizing: border-box;
-  text-align: center;
-  font-weight: normal;
-  /* The header used to be a sticky block; on a table it is the cells that
-     stick, since a sticky <tr> is not honoured across browsers. */
+}
+
+#fortune-search-replace #searchAllbox .boxTitle {
+  background-color: #fff;
+  /* A grid row can be sticky as a whole, where a <tr> could not — that was the
+     reason the caption's stickiness used to live on its cells. */
   position: sticky;
   top: 0;
   z-index: 1;
 }
 
-#fortune-search-replace #searchAllbox .boxTitle th:nth-of-type(1),
-#fortune-search-replace #searchAllbox .boxMain .boxItem td:nth-of-type(1) {
-  width: 25%;
-}
-
-#fortune-search-replace #searchAllbox .boxTitle th:nth-of-type(2),
-#fortune-search-replace #searchAllbox .boxMain .boxItem td:nth-of-type(2) {
-  width: 25%;
-}
-
-#fortune-search-replace #searchAllbox .boxTitle th:nth-of-type(3),
-#fortune-search-replace #searchAllbox .boxMain .boxItem td:nth-of-type(3) {
-  width: 50%;
-}
-
-#fortune-search-replace #searchAllbox .boxMain .boxItem {
-  height: 30px;
-  line-height: 29px;
-  border-bottom: 1px solid #d4d4d4;
-  box-sizing: border-box;
-}
-
-/* The highlight marks the row the user is *on*, which is the row that has
- * focus: activating a row closes the dialog, so a highlight keyed to the
- * activated row would only ever paint on a table that is being unmounted.
- * Same colour pair as before — white on #5b57d1, which is the value the
- * contrast ticket landed on; only what puts the row into this state changed. */
-#fortune-search-replace #searchAllbox .boxMain .boxItem:focus {
+/* The highlight marks the option the user is on. It is keyed to selection
+ * rather than to focus because a listbox has somewhere to put that: the active
+ * option is the selected one, and aria-selected already says so to a screen
+ * reader, so the visual and the announced state cannot drift apart. Same
+ * colour pair throughout — white on #5b57d1, the value the contrast ticket
+ * landed on; only what puts an option into the state has changed. */
+#fortune-search-replace #searchAllbox .boxItem[aria-selected="true"] {
   background-color: #5b57d1;
   color: #fff;
 }
 
-#fortune-search-replace #searchAllbox .boxMain .boxItem:focus-visible {
+#fortune-search-replace #searchAllbox .boxItem:focus-visible {
   outline: var(--border_focus_outer, 3px) solid
     var(--color_border_focus_outer, #0063c3);
   outline-offset: -2px;
 }
 
-#fortune-search-replace #searchAllbox .boxMain .boxItem td {
+#fortune-search-replace #searchAllbox .boxTitle span,
+#fortune-search-replace #searchAllbox .boxItem span {
   padding: 0 5px;
   text-align: center;
   overflow: hidden;

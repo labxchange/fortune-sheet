@@ -11740,7 +11740,7 @@ export default {
   },
   findAndReplace: {
     resultRowLabel:
-      "${sheet}, ${cell}, ${value}. Active para ir a la celda ${cell}",
+      "Hoja ${sheet}, celda ${cell}, valor ${value}. Active para ir a la celda ${cell}",
     resultsTableName: "Resultados de la búsqueda",
     matchesFoundTip: "Coincidencias encontradas: ${xlength}",
     replacedTip: "Apariciones reemplazadas: ${xlength}",
