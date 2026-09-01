@@ -12951,6 +12951,34 @@ export default {
     tipRowHeightLimit: "Высота строки должна быть от 0 до 545",
     tipColumnWidthLimit: "Ширина столбца должна быть от 0 до 2038",
     pageInfoFull: "Всего ${total}, ${totalPage} страниц, все данные отображены",
+    // Toolbar action feedback. A toolbar button changes the sheet without
+    // moving the selection, so nothing else reaches a live region: the result
+    // is conveyed purely by the canvas repainting, which a screen-reader user
+    // never sees. Each phrase describes the state the action produced, not the
+    // action requested — the handlers have many silent no-op paths (a
+    // non-numeric cell, a read-only sheet, no selection) and announcing intent
+    // would report changes that never happened.
+    toolbarBoldOn: "Полужирный включён.",
+    toolbarBoldOff: "Полужирный выключен.",
+    toolbarItalicOn: "Курсив включён.",
+    toolbarItalicOff: "Курсив выключен.",
+    toolbarUnderlineOn: "Подчёркивание включено.",
+    toolbarUnderlineOff: "Подчёркивание выключено.",
+    toolbarStrikethroughOn: "Зачёркивание включено.",
+    toolbarStrikethroughOff: "Зачёркивание выключено.",
+    toolbarFormatPainterOn: "Формат по образцу включён.",
+    toolbarFormatPainterOff: "Формат по образцу выключен.",
+    toolbarFormatCleared: "Форматирование очищено.",
+    toolbarDecimalIncreased: "Число десятичных знаков увеличено.",
+    toolbarDecimalDecreased: "Число десятичных знаков уменьшено.",
+    toolbarUndone: "Отменено.",
+    toolbarRedone: "Возвращено.",
+    toolbarCellsMerged: "Ячейки объединены.",
+    toolbarCellsUnmerged: "Объединение ячеек отменено.",
+    toolbarTextWrapSet: "Перенос текста: ${mode}.",
+    toolbarFilterOn: "Фильтр включён.",
+    toolbarFilterOff: "Фильтр выключен.",
+
     sheetSrIntro:
       "Используйте клавиши со стрелками для перемещения между ячейками.",
     cellHasFilterDropdown: "Есть раскрывающийся список фильтра.",

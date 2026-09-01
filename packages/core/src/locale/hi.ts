@@ -11075,6 +11075,34 @@ export default {
     tipColumnWidthLimit: "कॉलम की चौड़ाई 0 ~ 2038 के बीच होनी चाहिए",
     pageInfoFull: "कुल ${total}，${totalPage} पृष्ठ，सभी डेटा प्रदर्शित",
 
+    // Toolbar action feedback. A toolbar button changes the sheet without
+    // moving the selection, so nothing else reaches a live region: the result
+    // is conveyed purely by the canvas repainting, which a screen-reader user
+    // never sees. Each phrase describes the state the action produced, not the
+    // action requested — the handlers have many silent no-op paths (a
+    // non-numeric cell, a read-only sheet, no selection) and announcing intent
+    // would report changes that never happened.
+    toolbarBoldOn: "बोल्ड चालू।",
+    toolbarBoldOff: "बोल्ड बंद।",
+    toolbarItalicOn: "इटैलिक चालू।",
+    toolbarItalicOff: "इटैलिक बंद।",
+    toolbarUnderlineOn: "रेखांकन चालू।",
+    toolbarUnderlineOff: "रेखांकन बंद।",
+    toolbarStrikethroughOn: "स्ट्राइकथ्रू चालू।",
+    toolbarStrikethroughOff: "स्ट्राइकथ्रू बंद।",
+    toolbarFormatPainterOn: "फ़ॉर्मैट पेंटर चालू।",
+    toolbarFormatPainterOff: "फ़ॉर्मैट पेंटर बंद।",
+    toolbarFormatCleared: "फ़ॉर्मैटिंग हटाई गई।",
+    toolbarDecimalIncreased: "दशमलव स्थान बढ़ाए गए।",
+    toolbarDecimalDecreased: "दशमलव स्थान घटाए गए।",
+    toolbarUndone: "पूर्ववत किया गया।",
+    toolbarRedone: "फिर से किया गया।",
+    toolbarCellsMerged: "कक्ष मर्ज किए गए।",
+    toolbarCellsUnmerged: "कक्ष अलग किए गए।",
+    toolbarTextWrapSet: "टेक्स्ट रैप: ${mode}।",
+    toolbarFilterOn: "फ़िल्टर चालू।",
+    toolbarFilterOff: "फ़िल्टर बंद।",
+
     sheetSrIntro: "कक्षों के बीच जाने के लिए तीर कुंजियों का उपयोग करें।",
     cellHasFilterDropdown: "फ़िल्टर ड्रॉपडाउन है।",
     cellFilterActive: "फ़िल्टर सक्रिय है।",
