@@ -11855,6 +11855,10 @@ export default {
     chooseText: "Confirmar color",
     focus: "Enfocar",
 
+    sheetNameInputLabel: "Nombre de la hoja",
+    announceSheetRenamed: "Hoja renombrada a ${name}.",
+    announceSheetRenameCancelled: "Cambio de nombre cancelado.",
+
     tipNameRepeat:
       "¡El nombre de la página de la pestaña no se puede repetir! Revísalo",
     noMoreSheet:

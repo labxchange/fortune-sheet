@@ -17,7 +17,8 @@ const SheetList: React.FC = () => {
     });
   }, [setContext]);
   useOutsideClick(containerRef, close, [close]);
-  useEscapeToClose({ onClose: close, containerRef });
+  // closeOnFocusOut: WCAG 2.4.11, as for every other popup here.
+  useEscapeToClose({ onClose: close, containerRef, closeOnFocusOut: true });
   useRovingFocus({
     containerRef,
     orientation: "vertical",

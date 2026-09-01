@@ -11911,6 +11911,10 @@ export default {
     chooseText: "确定颜色",
     focus: "聚焦",
 
+    sheetNameInputLabel: "工作表名称",
+    announceSheetRenamed: "工作表已重命名为 ${name}。",
+    announceSheetRenameCancelled: "已取消重命名。",
+
     tipNameRepeat: "标签页的名称不能重复！请重新修改",
     noMoreSheet:
       "工作薄内至少含有一张可视工作表。若需删除选定的工作表，请先插入一张新工作表或显示一张隐藏的工作表。",

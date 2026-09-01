@@ -18,6 +18,8 @@ const MoreItemsContaier: React.FC<{
   useEscapeToClose({
     onClose: () => onClose?.(),
     containerRef,
+    // WCAG 2.4.11.
+    closeOnFocusOut: true,
   });
   useRovingFocus({ containerRef, orientation: "vertical" });
 

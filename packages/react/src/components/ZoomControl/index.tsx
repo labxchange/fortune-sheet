@@ -74,6 +74,8 @@ const ZoomControl: React.FC = () => {
     open: radioMenuOpen,
     onClose: () => setRadioMenuOpen(false),
     containerRef: menuRef,
+    // WCAG 2.4.11.
+    closeOnFocusOut: true,
   });
   useRovingFocus({
     containerRef: menuRef,

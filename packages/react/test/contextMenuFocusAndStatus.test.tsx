@@ -264,20 +264,20 @@ describe("context-menu action status announcements", () => {
     });
   });
 
-  it("publishes after the focus move rather than in the same commit", async () => {
+  it("has the text in place before focus moves, for the description to carry", async () => {
+    // This assertion is the inverse of what it used to be, and the inversion is
+    // the fix. Deferring the text past the focus move meant the cell input's
+    // `aria-describedby` target was still empty when VoiceOver composed the focus
+    // utterance, so the result was never part of it — and a live-region message
+    // queued alongside a focus change is discarded rather than spoken after it.
     const { container, ref } = renderSheet();
-    act(() => {
-      ref.current?.setSelection([{ row: [0, 0], column: [0, 0] }]);
-    });
-    openContextMenu(container);
 
-    activateRow("Clear content");
-    // Before flush(): the commit that closes the menu has landed, but neither
-    // deferred task has run. Populating the region here would put it in the same
-    // frame as the focus move's own announcement, and one of the two gets lost.
-    expect(statusRegion(container)!.textContent).toBe("");
+    await runAction(container, ref, "Clear content");
 
-    await flush();
     expect(statusRegion(container)!.textContent).toMatch(/Contents cleared/);
+    // And the cell input points at it, so the focus announcement includes it.
+    expect(cellInput(container)?.getAttribute("aria-describedby")).toBe(
+      "sr-contextMenuRegion"
+    );
   });
 });

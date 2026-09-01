@@ -149,4 +149,37 @@ describe("structural a11y audit", () => {
     // over the whole body rather than the workbook subtree.
     expect(await runAxe(document.body)).toEqual([]);
   });
+
+  it("finds no violations in a sheet tab being renamed", async () => {
+    const { container } = render(<Workbook lang="en" data={plainData} />);
+    const caret = container.querySelector<HTMLElement>(
+      ".luckysheet-sheets-item-function"
+    )!;
+    act(() => {
+      caret.focus();
+      fireEvent.keyDown(caret, { key: "Enter" });
+    });
+    await waitFor(() => screen.getByText("Rename"));
+    const renameRow = screen.getByText("Rename").closest('[role="button"]')!;
+    act(() => {
+      (renameRow as HTMLElement).focus();
+      fireEvent.keyDown(renameRow, { key: "Enter" });
+    });
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+
+    // The rename field is a role="textbox" nested inside a role="tab", which is
+    // a children-presentational role. `aria-allowed-role` and the name rules are
+    // what would catch that being expressed wrongly; whether a *reader* still
+    // exposes it is a separate question, answered in sr-virtual.test.tsx.
+    expect(
+      container
+        .querySelector(".luckysheet-sheets-item-name")
+        ?.getAttribute("role")
+    ).toBe("textbox");
+    expect(await runAxe(container)).toEqual([]);
+  });
 });

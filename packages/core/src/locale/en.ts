@@ -11932,6 +11932,14 @@ export default {
     chooseText: "Confirm color",
     focus: "Focus",
 
+    // Names the tab's editable name while it is being renamed. Deliberately not
+    // the sheet's own name, which is already the tab's accessible name — a
+    // screen reader would otherwise announce the same words twice and give no
+    // indication that the thing now has an edit field in it.
+    sheetNameInputLabel: "Sheet name",
+    announceSheetRenamed: "Sheet renamed to ${name}.",
+    announceSheetRenameCancelled: "Rename cancelled.",
+
     tipNameRepeat: "The name of the tab page cannot be repeated! Please revise",
     noMoreSheet:
       "The workbook contains at least one visual worksheet. To delete the selected worksheet, please insert a new worksheet or show a hidden worksheet.",

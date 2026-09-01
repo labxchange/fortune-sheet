@@ -14446,6 +14446,10 @@ export default {
     cancelText: "Отмена",
     chooseText: "Подтвердить цвет",
     focus: "Фокус",
+
+    sheetNameInputLabel: "Имя листа",
+    announceSheetRenamed: "Лист переименован в ${name}.",
+    announceSheetRenameCancelled: "Переименование отменено.",
     tipNameRepeat: "Имя вкладки не может повторяться! Пожалуйста, измените",
     noMoreSheet:
       "Рабочая книга должна содержать как минимум один видимый лист. Чтобы удалить выбранный лист, вставьте новый лист или покажите скрытый лист.",

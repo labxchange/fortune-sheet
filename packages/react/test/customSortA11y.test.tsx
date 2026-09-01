@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import React, { useEffect, useMemo } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { defaultContext, defaultSettings, Context } from "@fortune-sheet/core";
 import WorkbookContext from "../src/context";
 import { ModalProvider } from "../src/context/modal";
@@ -134,6 +134,31 @@ describe("Sort modal accessible name", () => {
     expect(heading!.textContent).toMatch(/Sort range/);
   });
 
+  it("separates the words in the computed name", () => {
+    // The heading was four adjacent inline spans whose visible gaps came from a
+    // CSS margin. Name computation concatenates descendant text and ignores CSS,
+    // so the name resolved to "Sort range fromA1toB3" and VoiceOver read it as
+    // one word. Asserting on textContent rather than on the markup, because the
+    // markup is free to change as long as the spoken result has the spaces.
+    render(
+      <Harness>
+        <CustomSort />
+      </Harness>
+    );
+    const name = document
+      .getElementById(SORT_DIALOG_TITLE_ID)!
+      .textContent!.trim();
+
+    expect(name).toMatch(/^Sort range from \w+ to \w+$/);
+    // The specific regression: no letter or digit ever butts against another
+    // word without a separator.
+    expect(name).not.toMatch(/from\S/);
+    expect(name).not.toMatch(/\Sto\S/);
+    // And no run of collapsed whitespace, which is what keeping the margin as
+    // well as the spaces would have produced.
+    expect(name).not.toMatch(/ {2}/);
+  });
+
   it("leaves a dialog that passes no name without a dangling reference", async () => {
     render(
       <Harness>
@@ -145,6 +170,48 @@ describe("Sort modal accessible name", () => {
     // Absent, not pointing at a missing element. Both are unnamed; only one
     // makes the next reader think naming was attempted and works.
     expect(dialog.hasAttribute("aria-labelledby")).toBe(false);
+  });
+});
+
+describe("Sort modal announces the sort it performed", () => {
+  // Ticket 1217673938351666, reported as "Context Menu -> Sort -> No status
+  // message". The menu's own sort rows announced; this dialog did not. Opening it
+  // announces the dialog and closing it returns focus to the grid, but nothing
+  // ever said the data had been reordered — the one thing that changed.
+  const confirmSort = (descending: boolean) => {
+    const ctx: any = makeContext();
+    const setContext = (recipe: (c: any) => void) => recipe(ctx);
+    render(
+      <WorkbookContext.Provider
+        value={
+          {
+            context: ctx,
+            setContext,
+            settings: defaultSettings,
+            refs: makeRefs() as any,
+            handleUndo: () => {},
+            handleRedo: () => {},
+          } as any
+        }
+      >
+        <ModalProvider>
+          <CustomSort />
+        </ModalProvider>
+      </WorkbookContext.Provider>
+    );
+    if (descending) {
+      fireEvent.click(screen.getByRole("radio", { name: /Descending/ }));
+    }
+    fireEvent.click(screen.getByRole("button", { name: /Sort/ }));
+    return ctx.contextMenuAnnouncement;
+  };
+
+  it("announces an ascending sort", () => {
+    expect(confirmSort(false)?.key).toBe("rightclick.announceSortedAsc");
+  });
+
+  it("announces a descending sort", () => {
+    expect(confirmSort(true)?.key).toBe("rightclick.announceSortedDesc");
   });
 });
 

@@ -55,7 +55,10 @@ import { useFilterAnnouncements } from "../../hooks/useFilterAnnouncements";
 import { useSelectionModeAnnouncement } from "../../hooks/useSelectionModeAnnouncement";
 import { useSelectAllAnnouncement } from "../../hooks/useSelectAllAnnouncement";
 import { useNameBoxClampAnnouncement } from "../../hooks/useNameBoxClampAnnouncement";
-import { useContextMenuAnnouncements } from "../../hooks/useContextMenuAnnouncements";
+import {
+  useContextMenuAnnouncements,
+  CONTEXT_MENU_REGION_ID,
+} from "../../hooks/useContextMenuAnnouncements";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
@@ -566,7 +569,10 @@ const SheetOverlay: React.FC = () => {
   const selectionModeAnnouncement = useSelectionModeAnnouncement(context);
   const selectAllAnnouncement = useSelectAllAnnouncement(context);
   const clampAnnouncement = useNameBoxClampAnnouncement(context, info);
-  const contextMenuAnnouncement = useContextMenuAnnouncements(context);
+  const contextMenuAnnouncement = useContextMenuAnnouncements(
+    context,
+    refs.cellInput
+  );
   const cellAreaId = useId();
   const { cellAnnouncement: filterCellAnnouncement, regionAnnouncement } =
     useFilterAnnouncements(context, info);
@@ -1068,14 +1074,18 @@ const SheetOverlay: React.FC = () => {
           reports the new cell, but nothing says what the action did — "3 columns
           inserted" is not recoverable from the after-state.
 
-          Assertive, unlike the polite regions above, and deliberately: these
-          actions also move focus to the cell input, and VoiceOver *discards* a
-          polite message queued alongside the focus utterance rather than
-          speaking it after. Assertive interrupts instead of being dropped. The
-          trade is clipping the focus utterance, which is the lesser loss — the
-          user knows where they are; they do not know what changed. */}
+          This element is both a polite live region and the target of the cell
+          input's `aria-describedby`. Almost every one of these actions also moves
+          focus to the cell input, VoiceOver announces the newly focused element,
+          and that utterance discards a live-region message queued in the same
+          moment — assertive did not survive it either. So the text is delivered
+          as part of the focus announcement through the description, and the
+          description reaches the actions where it does not. It stays assertive because
+          the sheet-rename announcement shares this region and `sr-virtual.test.tsx`
+          asserts it survives a focus move that way. The full reasoning is in
+          useContextMenuAnnouncements. */}
       <div
-        id="sr-contextMenuRegion"
+        id={CONTEXT_MENU_REGION_ID}
         className="sr-only"
         role="alert"
         aria-live="assertive"
