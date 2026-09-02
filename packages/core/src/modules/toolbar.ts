@@ -1,7 +1,7 @@
 import _ from "lodash";
 import { mergeCells } from "./merge";
 import { Context, getFlowdata } from "../context";
-// import { locale } from "../locale";
+import { locale } from "../locale";
 import { Cell, CellMatrix, GlobalCache } from "../types";
 import { getSheetIndex, isAllowEdit } from "../utils";
 import {
@@ -527,6 +527,9 @@ function singleFormulaInput(
 
   let isNull = true;
   let isNum = false;
+  // The last cell in the range holding anything at all, so a range that runs
+  // past the end of its own data can be trimmed back to it below.
+  let lastFilled = st_m - 1;
 
   for (let c = st_m; c <= ed_m; c += 1) {
     let cell = null;
@@ -540,8 +543,10 @@ function singleFormulaInput(
     if (checkNoNullValue(cell)) {
       isNull = false;
       isNum = true;
+      lastFilled = c;
     } else if (checkNoNullValueAll(cell)) {
       isNull = false;
+      lastFilled = c;
     }
   }
 
@@ -642,22 +647,52 @@ function singleFormulaInput(
     return false;
   }
   if (isNum && noNum) {
+    // The result goes in the cell just past the end of the range, so there has
+    // to be one. Selecting a whole column runs the range to the last row and
+    // leaves nowhere to put it: d[ed_m + 1] is then undefined and indexing it
+    // threw, taking the sheet down with it (Asana 1217814380695668). The walk
+    // below already stops at this same bound; only this first step did not.
+    //
+    // Along a row the read is merely undefined rather than a throw, but the
+    // write that follows would extend that one row past every other and place
+    // a formula in a column that does not exist, so both are guarded.
+    const limit = type === "c" ? d.length : d[0].length;
+
+    // Selecting a whole column is an ordinary thing to do, and it is exactly
+    // what runs the range off the end. There is no shortage of room in that
+    // case, only a shortage where this looked: the range is mostly the empty
+    // cells below the data. So trim it back to its own last filled cell and
+    // put the result immediately after that, which is where a spreadsheet is
+    // expected to put it. Only a range filled right to the final row has
+    // genuinely nowhere to go.
+    let end = ed_m;
+    if (end + 1 >= limit && lastFilled >= st_m && lastFilled < ed_m) {
+      end = lastFilled;
+    }
+
+    if (end + 1 >= limit) {
+      // Say why nothing happened. autoSelectionFormula withdraws this again if
+      // the other direction did find room, so a partial success stays quiet.
+      ctx.warnDialog = locale(ctx).generalDialog.noRoomForResultError;
+      return false;
+    }
+
     let cell = null;
 
     if (type === "c") {
-      cell = d[ed_m + 1][fix];
+      cell = d[end + 1][fix];
     } else {
-      cell = d[fix][ed_m + 1];
+      cell = d[fix][end + 1];
     }
 
     /* 备注：在搜寻的时候排除自己以解决单元格函数引用自己的问题 */
     if (cell != null && cell.v != null && cell.v.toString().length > 0) {
-      let c = ed_m + 1;
+      let c = end + 1;
 
       if (type === "c") {
-        cell = d[ed_m + 1][fix];
+        cell = d[end + 1][fix];
       } else {
-        cell = d[fix][ed_m + 1];
+        cell = d[fix][end + 1];
       }
 
       while (cell != null && cell.v != null && cell.v.toString().length > 0) {
@@ -671,6 +706,11 @@ function singleFormulaInput(
         }
 
         if (c >= len) {
+          // Same refusal as the guard above, reached the other way: the cell
+          // past the range was occupied, so the walk climbed looking for a free
+          // one and ran out of sheet instead. It used to bail in silence, which
+          // is the very thing the guard above was added to stop.
+          ctx.warnDialog = locale(ctx).generalDialog.noRoomForResultError;
           return false;
         }
 
@@ -682,17 +722,17 @@ function singleFormulaInput(
       }
 
       if (type === "c") {
-        backFormulaInput(d, c, fix, [st_m, ed_m], [fix, fix], formula, ctx);
+        backFormulaInput(d, c, fix, [st_m, end], [fix, fix], formula, ctx);
       } else {
-        backFormulaInput(d, fix, c, [fix, fix], [st_m, ed_m], formula, ctx);
+        backFormulaInput(d, fix, c, [fix, fix], [st_m, end], formula, ctx);
       }
     } else {
       if (type === "c") {
         backFormulaInput(
           d,
-          ed_m + 1,
+          end + 1,
           fix,
-          [st_m, ed_m],
+          [st_m, end],
           [fix, fix],
           formula,
           ctx
@@ -701,9 +741,9 @@ function singleFormulaInput(
         backFormulaInput(
           d,
           fix,
-          ed_m + 1,
+          end + 1,
           [fix, fix],
-          [st_m, ed_m],
+          [st_m, end],
           formula,
           ctx
         );
@@ -711,6 +751,16 @@ function singleFormulaInput(
     }
     return false;
   }
+
+  // The range holds something, but none of it is a number — a column of labels,
+  // say. Neither branch above applies, and falling out silently is
+  // indistinguishable from the button being broken, so say why. As with the
+  // no-room case, autoSelectionFormula takes this back if another pass over the
+  // same selection did find numbers to total.
+  if (!isNull && !isNum) {
+    ctx.warnDialog = locale(ctx).generalDialog.noNumericDataError;
+  }
+
   return true;
 }
 
@@ -796,6 +846,14 @@ export function autoSelectionFormula(
   if (!ctx.luckysheet_select_save) return;
 
   _.forEach(ctx.luckysheet_select_save, (selection) => {
+    // Each selection answers for itself. A 2D range is totalled in two
+    // independent passes and only one of them may be short of room, so a pass
+    // that gives up is taken back if its partner delivered — but a *different*
+    // range in the same ctrl-click is not a partner, and must still be able to
+    // say it was refused. Snapshotting per selection instead of once around the
+    // whole loop is what keeps those two cases apart.
+    const priorWarnDialog = ctx.warnDialog;
+    const writtenBefore = ctx.formulaCache.execFunctionExist?.length ?? 0;
     const [st_r, ed_r] = selection.row;
     const [st_c, ed_c] = selection.column;
     const row_index = selection.row_focus;
@@ -898,6 +956,18 @@ export function autoSelectionFormula(
     }
 
     isfalse = isfalse && isfalse;
+
+    // execFunctionExist gains one entry per formula actually written, so a
+    // longer list than we started this selection with means the user got
+    // something here and does not need telling that one of the two directions
+    // was full. Only the corner sub-path of the single-cell branch (A1, with no
+    // neighbour above or to the left) returns before reaching this; its
+    // siblings fall through to here. Either way it is harmless, because none of
+    // those paths goes through `singleFormulaInput` and so none writes a
+    // warning for this to withdraw.
+    if ((ctx.formulaCache.execFunctionExist?.length ?? 0) > writtenBefore) {
+      ctx.warnDialog = priorWarnDialog;
+    }
   });
 
   if (!isfalse) {

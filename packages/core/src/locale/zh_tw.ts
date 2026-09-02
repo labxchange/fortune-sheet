@@ -5,6 +5,8 @@ export default {
     dataNullError: "無法對不存在的數據執行此操作",
     noSeletionError: "還未進行選區操作",
     cannotSelectMultiple: "無法選擇多選區",
+    noRoomForResultError: "無法對到達工作表邊緣的選區執行此操作",
+    noNumericDataError: "無法對不包含數字的選區執行此操作",
   },
   functionlist: [
     {

@@ -5,6 +5,16 @@ export default {
     dataNullError: "Cannot perform this operation on data that does not exist",
     noSeletionError: "The selection operation has not been performed yet",
     cannotSelectMultiple: "Cannot select multiple selections",
+    // Raised when an auto formula has nowhere to put its result, because
+    // the selection runs to the last row or column. Phrased as the reason
+    // rather than the remedy, matching the other keys in this block.
+    noRoomForResultError:
+      "Cannot perform this operation on a selection that reaches the edge of the sheet",
+    // Raised when an auto formula is applied to a range that has content but
+    // nothing numeric in it — a column of labels, say. Doing nothing at all
+    // is indistinguishable from the button being broken.
+    noNumericDataError:
+      "Cannot perform this operation on a selection that contains no numbers",
   },
   functionlist: [
     {
