@@ -11084,6 +11084,7 @@ export default {
     enteredFilteredRegion: "Entered filtered region: ${start} through ${end}.",
     leftFilteredRegion: "Left filtered region.",
     currentCellInput: "Current cell input",
+    formulaReferenceSelected: "Reference ${range}.",
     newSheet: "New sheet",
     sheetOptions: "Sheet options",
     allSheets: "All sheets",

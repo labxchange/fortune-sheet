@@ -11082,6 +11082,7 @@ export default {
       "फ़िल्टर किए गए क्षेत्र में प्रवेश किया: ${start} से ${end} तक।",
     leftFilteredRegion: "फ़िल्टर किए गए क्षेत्र से बाहर निकले।",
     currentCellInput: "वर्तमान सेल इनपुट",
+    formulaReferenceSelected: "संदर्भ ${range}।",
     newSheet: "नई शीट",
     sheetOptions: "शीट विकल्प",
     allSheets: "सभी शीट",

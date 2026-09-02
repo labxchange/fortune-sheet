@@ -53,6 +53,7 @@ import RangeDialog from "../DataVerification/RangeDialog";
 import { useDialog } from "../../hooks/useDialog";
 import { useFilterAnnouncements } from "../../hooks/useFilterAnnouncements";
 import { useSelectionModeAnnouncement } from "../../hooks/useSelectionModeAnnouncement";
+import { useFormulaRangeAnnouncement } from "../../hooks/useFormulaRangeAnnouncement";
 import { useSelectAllAnnouncement } from "../../hooks/useSelectAllAnnouncement";
 import { useNameBoxClampAnnouncement } from "../../hooks/useNameBoxClampAnnouncement";
 import { useContextMenuAnnouncements } from "../../hooks/useContextMenuAnnouncements";
@@ -565,6 +566,7 @@ const SheetOverlay: React.FC = () => {
 
   const selectionModeAnnouncement = useSelectionModeAnnouncement(context);
   const selectAllAnnouncement = useSelectAllAnnouncement(context);
+  const formulaRangeAnnouncement = useFormulaRangeAnnouncement(context);
   const clampAnnouncement = useNameBoxClampAnnouncement(context, info);
   // The id comes back from the hook rather than being a module constant: this
   // fork is embedded once per sim section, and a fixed id made every instance's
@@ -1094,6 +1096,12 @@ const SheetOverlay: React.FC = () => {
         aria-atomic="true"
       >
         {contextMenuAnnouncement}
+      </div>
+      {/* Picking a cell reference during formula entry moves an overlay
+          rectangle and rewrites text inside a contenteditable — both invisible
+          to a screen reader. Polite, for the same reason as above. */}
+      <div id="sr-formulaRange" className="sr-only" role="status">
+        {formulaRangeAnnouncement}
       </div>
     </main>
   );
