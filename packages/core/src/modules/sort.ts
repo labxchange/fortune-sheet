@@ -115,16 +115,28 @@ export function sortDataRange(
   jfrefreshgrid(ctx, sheetData, [{ row: [str, edr], column: [stc, edc] }]);
 }
 
+/**
+ * Sort the current selection. Returns whether the data was actually reordered.
+ *
+ * The boolean exists because every one of the bail-outs below is silent — no
+ * throw, no alert (the originals are commented out above each `return`). A
+ * caller had no way to tell a completed sort from a refused one, so the UI layer
+ * announced "Sorted in ascending order." and moved focus to the grid for sorts
+ * that never happened; a multi-range selection reproduced it in two clicks.
+ *
+ * These preconditions are properties of this function, not of any one caller,
+ * so they are reported from here rather than re-derived at each call site.
+ */
 export function sortSelection(
   ctx: Context,
   isAsc: boolean,
   colIndex: number = 0
-) {
+): boolean {
   // if (!checkProtectionAuthorityNormal(ctx.currentSheetIndex, "sort")) {
   //   return;
   // }
-  if (ctx.allowEdit === false) return;
-  if (ctx.luckysheet_select_save == null) return;
+  if (ctx.allowEdit === false) return false;
+  if (ctx.luckysheet_select_save == null) return false;
   if (ctx.luckysheet_select_save.length > 1) {
     // if (isEditMode()) {
     //   alert("不能对多重选择区域执行此操作，请选择单个区域，然后再试");
@@ -135,7 +147,7 @@ export function sortSelection(
     //   );
     // }
 
-    return;
+    return false;
   }
 
   if (isAsc == null) {
@@ -144,7 +156,7 @@ export function sortSelection(
   // const d = editor.deepCopyFlowData(Store.flowdata);
   const flowdata = getFlowdata(ctx);
   const d = flowdata;
-  if (d == null) return;
+  if (d == null) return false;
 
   const r1 = ctx.luckysheet_select_save[0].row[0];
   const r2 = ctx.luckysheet_select_save[0].row[1];
@@ -157,7 +169,7 @@ export function sortSelection(
   for (let r = r1; r <= r2; r += 1) {
     if (d[r] != null && d[r][c1] != null) {
       const cell = d[r][c1];
-      if (cell == null) return; //
+      if (cell == null) return false; //
       if (cell.mc != null || isRealNull(cell.v)) {
         continue;
       }
@@ -176,12 +188,12 @@ export function sortSelection(
   }
 
   if (str == null || str > r2) {
-    return;
+    return false;
   }
 
   let hasMc = false; // 排序选区是否有合并单元格
   const data: CellMatrix = [];
-  if (edr == null) return;
+  if (edr == null) return false;
   for (let r = str; r <= edr; r += 1) {
     const data_row = [];
     for (let c = c1; c <= c2; c += 1) {
@@ -203,8 +215,9 @@ export function sortSelection(
     //   tooltip.info("选区有合并单元格，无法执行此操作！", "");
     // }
 
-    return;
+    return false;
   }
 
   sortDataRange(ctx, d, data, colIndex, isAsc, str, edr, c1, c2);
+  return true;
 }

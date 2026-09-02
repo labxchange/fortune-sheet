@@ -1,22 +1,6 @@
 import React from "react";
 
 /**
- * Whether a node belongs to a popup — counting the satellites that are not DOM
- * descendants of it.
- *
- * Two popups here render a submenu as a *sibling* of the menu container rather
- * than a child (`FilterMenu`'s Filter-by-color group), while others nest it
- * normally (`SheetTab`'s Change-color menu). A plain `container.contains(node)`
- * is therefore wrong for half of them, in the same way for both dismissal
- * routes: by pointer it makes a press on a colour row read as a click outside
- * and unmounts the whole popup, and by keyboard it makes focus entering the
- * submenu read as focus leaving.
- *
- * Both routes ask the same question, so they ask it here. Refs are read at call
- * time, never captured, because a conditionally-rendered submenu's ref is still
- * null while the popup is open and the submenu is not.
- */
-/**
  * Whether the node is (or sits inside) the control that opens this popup.
  *
  * A popup and the button that discloses it are one widget, so focus reaching
@@ -61,6 +45,22 @@ export function isWithinPopupContent(
   return !!withinRefs?.some((ref) => ref.current?.contains(node));
 }
 
+/**
+ * Whether a node belongs to a popup — counting the satellites that are not DOM
+ * descendants of it.
+ *
+ * Two popups here render a submenu as a *sibling* of the menu container rather
+ * than a child (`FilterMenu`'s Filter-by-color group), while others nest it
+ * normally (`SheetTab`'s Change-color menu). A plain `container.contains(node)`
+ * is therefore wrong for half of them, in the same way for both dismissal
+ * routes: by pointer it makes a press on a colour row read as a click outside
+ * and unmounts the whole popup, and by keyboard it makes focus entering the
+ * submenu read as focus leaving.
+ *
+ * Both routes ask the same question, so they ask it here. Refs are read at call
+ * time, never captured, because a conditionally-rendered submenu's ref is still
+ * null while the popup is open and the submenu is not.
+ */
 export function isWithinPopup(
   node: Node | null | undefined,
   containerRef: React.RefObject<HTMLElement | null>,

@@ -81,12 +81,20 @@ const ContextMenu: React.FC = () => {
    * anything read straight afterwards is still pre-commit. The check is deferred
    * alongside the focus call and reads the *committed* context via `contextRef`.
    *
-   * The signal is the announcement `seq`: every success path calls `announce`
-   * and every bail-out (multi-selection, read-only, over-limit, invalid input)
-   * does not, so one check keeps the status region and the focus move in
-   * agreement. That matters most on the alert paths — `showAlert` opens a
-   * dialog, and pulling focus to the grid underneath it would be worse than the
-   * bug being fixed.
+   * The signal is the announcement `seq`, so one check keeps the status region
+   * and the focus move in agreement. That matters most on the alert paths —
+   * `showAlert` opens a dialog, and pulling focus to the grid underneath it
+   * would be worse than the bug being fixed.
+   *
+   * Note what `seq` does and does not prove: it says the handler reached its
+   * `announce` call, not that the operation changed anything. Those are only the
+   * same claim because each handler asks its operation. The core routines behind
+   * these rows (`sortSelection`, `handleCopy`, `handlePasteByClick`) refuse
+   * silently on preconditions the caller cannot see — read-only, empty or
+   * multi-range selection, a partially-merged cell, a host app's `beforePaste`
+   * veto — so each now returns whether it acted, and its row announces only on
+   * `true`. A row that skips that check gets the invariant wrong again, and the
+   * failure is not visible in this function.
    */
   const commitAndSettle = useCallback(
     (recipe: (draftCtx: Context) => void, options?: SetContextOptions) => {
@@ -99,6 +107,42 @@ const ContextMenu: React.FC = () => {
       );
     },
     [refs.cellInput, setContext]
+  );
+
+  /**
+   * The two sort rows, which differ only in direction.
+   *
+   * `sortSelection` refuses silently on several preconditions, so both the
+   * announcement and — through `commitAndSettle`'s `seq` check — the focus move
+   * are gated on its return value rather than on having reached the line after
+   * it. Selecting two ranges and sorting reproduced the old behaviour in two
+   * clicks: nothing was reordered, "Sorted in ascending order." was announced,
+   * and focus moved to the grid on the strength of it.
+   *
+   * The multi-range case also gets the `noMulti` alert the Copy row already
+   * gives it. It was previously the worst of both: silent for sighted users,
+   * and actively wrong for screen-reader users.
+   */
+  const sortAndSettle = useCallback(
+    (isAsc: boolean) => {
+      commitAndSettle((draftCtx) => {
+        if (draftCtx.luckysheet_select_save?.length! > 1) {
+          showAlert(rightclick.noMulti, "ok");
+          draftCtx.contextMenu = {};
+          return;
+        }
+        const sorted = sortSelection(draftCtx, isAsc);
+        draftCtx.contextMenu = {};
+        if (!sorted) return;
+        announce(
+          draftCtx,
+          isAsc
+            ? "rightclick.announceSortedAsc"
+            : "rightclick.announceSortedDesc"
+        );
+      });
+    },
+    [commitAndSettle, rightclick.noMulti, showAlert]
   );
 
   /**
@@ -150,9 +194,15 @@ const ContextMenu: React.FC = () => {
                   draftCtx.contextMenu = {};
                   return;
                 }
-                handleCopy(draftCtx);
-                announce(draftCtx, "rightclick.announceCopied");
+                // The row-level guard above only catches multi-selection.
+                // `handleCopy` declines silently on an empty selection and on a
+                // selection that cuts a partially-merged cell — the latter is
+                // easy to hit in a real sheet — so success comes from its own
+                // return value rather than from having reached this line.
+                const copied = handleCopy(draftCtx);
                 draftCtx.contextMenu = {};
+                if (!copied) return;
+                announce(draftCtx, "rightclick.announceCopied");
               });
             }}
           >
@@ -181,9 +231,14 @@ const ContextMenu: React.FC = () => {
               const finalText = clipboardText || sessionClipboardText;
 
               commitAndSettle((draftCtx) => {
-                handlePasteByClick(draftCtx, finalText);
-                announce(draftCtx, "rightclick.announcePasted");
+                // `handlePasteByClick` declines on read-only, on empty clipboard
+                // data and on a `beforePaste` veto. That last one is a host-app
+                // integration point, so announcing unconditionally would tell an
+                // embedding app's users a blocked paste had gone through.
+                const pasted = handlePasteByClick(draftCtx, finalText);
                 draftCtx.contextMenu = {};
+                if (!pasted) return;
+                announce(draftCtx, "rightclick.announcePasted");
               });
             }}
           >
@@ -768,34 +823,14 @@ const ContextMenu: React.FC = () => {
       }
       if (name === "orderAZ") {
         return (
-          <Menu
-            key={name}
-            role="button"
-            onClick={() => {
-              commitAndSettle((draftCtx) => {
-                sortSelection(draftCtx, true);
-                announce(draftCtx, "rightclick.announceSortedAsc");
-                draftCtx.contextMenu = {};
-              });
-            }}
-          >
+          <Menu key={name} role="button" onClick={() => sortAndSettle(true)}>
             {rightclick.orderAZ}
           </Menu>
         );
       }
       if (name === "orderZA") {
         return (
-          <Menu
-            key={name}
-            role="button"
-            onClick={() => {
-              commitAndSettle((draftCtx) => {
-                sortSelection(draftCtx, false);
-                announce(draftCtx, "rightclick.announceSortedDesc");
-                draftCtx.contextMenu = {};
-              });
-            }}
-          >
+          <Menu key={name} role="button" onClick={() => sortAndSettle(false)}>
             {rightclick.orderZA}
           </Menu>
         );
@@ -925,6 +960,7 @@ const ContextMenu: React.FC = () => {
       generalDialog,
       refs.cellInput,
       commitAndSettle,
+      sortAndSettle,
       focusGridBeforeHandoff,
     ]
   );

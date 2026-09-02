@@ -222,6 +222,65 @@ describe("Sort modal announces the sort it performed", () => {
   it("announces a descending sort", () => {
     expect(confirmSort(true)?.key).toBe("rightclick.announceSortedDesc");
   });
+
+  // The `sort` row that opens this dialog does not gate on a multi-range
+  // selection the way the two direct sort rows do, so the dialog is reachable in
+  // a state where `sortSelection` will refuse. It then closed, returned focus
+  // and announced success for a confirm that reordered nothing.
+  const confirmSortWith = (tweak: (ctx: any) => void) => {
+    const ctx: any = makeContext();
+    tweak(ctx);
+    const setContext = (recipe: (c: any) => void) => recipe(ctx);
+    render(
+      <WorkbookContext.Provider
+        value={
+          {
+            context: ctx,
+            setContext,
+            settings: defaultSettings,
+            refs: makeRefs() as any,
+            handleUndo: () => {},
+            handleRedo: () => {},
+          } as any
+        }
+      >
+        <ModalProvider>
+          <CustomSort />
+        </ModalProvider>
+      </WorkbookContext.Provider>
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Sort/ }));
+    return ctx.contextMenuAnnouncement;
+  };
+
+  it("says nothing when the selection spans multiple ranges", () => {
+    expect(
+      confirmSortWith((ctx) => {
+        ctx.luckysheet_select_save = [
+          { row: [0, 2], column: [0, 1] },
+          { row: [4, 5], column: [0, 1] },
+        ];
+      })
+    ).toBeUndefined();
+  });
+
+  it("says nothing when editing is not allowed", () => {
+    expect(
+      confirmSortWith((ctx) => {
+        ctx.allowEdit = false;
+      })
+    ).toBeUndefined();
+  });
+
+  it("says nothing when the sheet has no data to sort", () => {
+    expect(
+      confirmSortWith((ctx) => {
+        ctx.luckysheetfile = [
+          { id: "sheet-1", name: "Sheet1", data: null },
+        ] as any;
+      })
+    ).toBeUndefined();
+  });
 });
 
 describe("the Sort modal's announcement reaches the focus it hands back", () => {

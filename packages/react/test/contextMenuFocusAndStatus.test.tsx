@@ -267,6 +267,95 @@ describe("context-menu action status announcements", () => {
     });
   });
 
+  // The case above covers Copy's *row-level* multi-selection guard, which the
+  // handler checks itself. These cover the bails that live inside the core
+  // routines — invisible to the row, and the reason `sortSelection`,
+  // `handleCopy` and `handlePasteByClick` now report whether they acted.
+  describe("stays silent when the core operation refuses", () => {
+    it("does not announce a sort of a multi-range selection", async () => {
+      const { container, ref } = renderSheet();
+      act(() => {
+        ref.current?.setSelection([
+          { row: [0, 0], column: [0, 0] },
+          { row: [2, 2], column: [0, 0] },
+        ]);
+      });
+      openContextMenu(container);
+      activateRow("Ascending sort");
+      await flush();
+
+      // `sortSelection` returns on `length > 1` with no throw and no alert of
+      // its own, so this previously said "Sorted in ascending order." for a
+      // sheet that had not moved.
+      expect(statusRegion(container)!.textContent).toBe("");
+    });
+
+    it("does not move focus to the grid for a refused sort", async () => {
+      const { container, ref } = renderSheet();
+      act(() => {
+        ref.current?.setSelection([
+          { row: [0, 0], column: [0, 0] },
+          { row: [2, 2], column: [0, 0] },
+        ]);
+      });
+      openContextMenu(container);
+      activateRow("Ascending sort");
+      await flush();
+
+      // `commitAndSettle` gates the focus move on the announcement, so the two
+      // agree by construction — the point of asserting it separately is that a
+      // regression in either one shows up here.
+      expect(document.activeElement).not.toBe(cellInput(container));
+    });
+
+    it("tells sighted users why the sort was refused", async () => {
+      const { container, ref } = renderSheet();
+      act(() => {
+        ref.current?.setSelection([
+          { row: [0, 0], column: [0, 0] },
+          { row: [2, 2], column: [0, 0] },
+        ]);
+      });
+      openContextMenu(container);
+      activateRow("Ascending sort");
+      await flush();
+
+      // Previously the worst of both: silent for sighted users, and actively
+      // wrong for screen-reader users. Copy's row already alerted here.
+      expect(screen.queryByText(/multiple selection areas/)).not.toBeNull();
+    });
+
+    it("does not announce a paste a host app vetoed", async () => {
+      const beforePaste = jest.fn(() => false);
+      const ref = React.createRef<WorkbookInstance>();
+      const { container } = render(
+        <Workbook
+          ref={ref}
+          lang="en"
+          hooks={{ beforePaste } as any}
+          data={[{ name: "Sheet1", id: "s1", celldata, row: 10, column: 6 }]}
+        />
+      );
+      // The clipboard read the row does before committing; jsdom has no
+      // clipboard, and the row already falls back to sessionStorage.
+      sessionStorage.setItem("localClipboard", "pasted");
+      document.body.insertAdjacentHTML(
+        "beforeend",
+        '<div id="fortune-copy-content">pasted</div>'
+      );
+
+      await runAction(container, ref, "Paste");
+
+      // `beforePaste` is a host-app integration point, so this is the bail most
+      // likely to be hit in production by an embedding app that blocks a paste.
+      expect(beforePaste).toHaveBeenCalled();
+      expect(statusRegion(container)!.textContent).toBe("");
+
+      sessionStorage.removeItem("localClipboard");
+      document.getElementById("fortune-copy-content")?.remove();
+    });
+  });
+
   it("has the text in place before focus moves, for the description to carry", async () => {
     // This assertion is the inverse of what it used to be, and the inversion is
     // the fix. Deferring the text past the focus move meant the cell input's

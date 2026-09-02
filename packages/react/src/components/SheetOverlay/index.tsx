@@ -1075,16 +1075,17 @@ const SheetOverlay: React.FC = () => {
           reports the new cell, but nothing says what the action did — "3 columns
           inserted" is not recoverable from the after-state.
 
-          This element is both a polite live region and the target of the cell
+          This element is both an assertive live region and the target of the cell
           input's `aria-describedby`. Almost every one of these actions also moves
           focus to the cell input, VoiceOver announces the newly focused element,
-          and that utterance discards a live-region message queued in the same
-          moment — assertive did not survive it either. So the text is delivered
-          as part of the focus announcement through the description, and the
-          description reaches the actions where it does not. It stays assertive because
-          the sheet-rename announcement shares this region and `sr-virtual.test.tsx`
-          asserts it survives a focus move that way. The full reasoning is in
-          useContextMenuAnnouncements. */}
+          and that utterance discards a *polite* message queued in the same
+          moment — which is why this is not polite. So the text is delivered as
+          part of the focus announcement through the description, and the region
+          reaches the actions that do not move focus. Assertive specifically
+          because the sheet-rename announcement shares this region and
+          `sr-virtual.test.tsx` asserts it survives a focus move that way. The
+          full reasoning, including the double-speak question the two mechanisms
+          raise together, is in useContextMenuAnnouncements. */}
       <div
         id={contextMenuRegionId}
         className="sr-only"

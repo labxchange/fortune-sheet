@@ -162,8 +162,12 @@ describe("context menu filter row label", () => {
   });
 
   it("no longer labels the row with the state-blind string", () => {
-    // `rightclick.filterSelection` stays in the locale files — the toolbar still
-    // uses it — so the guard is that this row stopped rendering it.
+    // This row was `rightclick.filterSelection`'s only reader, so the key is now
+    // unused in `packages/` — the toolbar's filter button renders `filter.filter`
+    // (`Toolbar/index.tsx`), not this one. It stays in the six locale files
+    // regardless: they are the fork's public string table, a consumer may read
+    // it, and deleting a translated key to save six lines is not worth the
+    // breakage. The guard is that this row stopped rendering it.
     renderMenu({ items: ["filter"] });
     expect(screen.queryByText("Filter")).toBeNull();
   });

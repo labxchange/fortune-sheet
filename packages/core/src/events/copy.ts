@@ -4,7 +4,16 @@ import { Context } from "../context";
 import { copy, selectIsOverlap } from "../modules/selection";
 import { hasPartMC } from "../modules/validation";
 
-export function handleCopy(ctx: Context) {
+/**
+ * Copy the current selection. Returns whether anything was actually copied.
+ *
+ * Every refusal below is silent — the `alert`/`tooltip` calls that once reported
+ * them are commented out — so a caller could not distinguish a copy from a
+ * decline. The partially-merged-cell case is the one that bites in a real sheet:
+ * it returns with no user-visible signal at all, and the UI layer was announcing
+ * "Selection copied." over it. See the docblock on `sortSelection`.
+ */
+export function handleCopy(ctx: Context): boolean {
   // if (imageCtrl.currentImgId != null) {
   //   imageCtrl.copyImgItem(event);
   //   return;
@@ -17,7 +26,7 @@ export function handleCopy(ctx: Context) {
 
   const selection = ctx.luckysheet_select_save;
   if (!selection || _.isEmpty(selection)) {
-    return;
+    return false;
   }
 
   // 复制范围内包含部分合并单元格，提示
@@ -43,7 +52,7 @@ export function handleCopy(ctx: Context) {
       // } else {
       //   tooltip.info(locale_drag.noMerge, "");
       // }
-      return;
+      return false;
     }
   }
 
@@ -90,7 +99,7 @@ export function handleCopy(ctx: Context) {
       // } else {
       //   tooltip.info(locale_drag.noMulti, "");
       // }
-      return;
+      return false;
     }
   }
 
@@ -121,11 +130,12 @@ export function handleCopy(ctx: Context) {
       // } else {
       //   tooltip.info(locale_drag.noMulti, "");
       // }
-      return;
+      return false;
     }
   }
 
   copy(ctx);
 
   ctx.luckysheet_paste_iscut = false;
+  return true;
 }

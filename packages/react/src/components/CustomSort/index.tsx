@@ -41,18 +41,30 @@ const CustomSort: React.FC<{}> = () => {
 
   const handleSortConfirm = useCallback(() => {
     setContext((draftCtx: Context) => {
-      sortSelection(draftCtx, ascOrDesc, parseInt(selectedValue, 10));
       // The sort itself was silent. Opening this dialog announces the dialog,
       // and closing it returns focus to the grid — but nothing ever said the
       // data had been reordered, which is the one thing that actually changed
       // (WCAG 4.1.3). Reuses the results the menu's own sort rows announce.
+      //
+      // Gated on `sortSelection`'s return for the same reason those rows are:
+      // it refuses silently on read-only, a null or multi-range selection, an
+      // empty column and merged cells in the range. The `sort` row that opens
+      // this dialog does not itself gate on multi-range, so an unguarded
+      // announce here gave the full success choreography — message, dialog
+      // close, focus restore — to a confirm that reordered nothing.
+      const sorted = sortSelection(
+        draftCtx,
+        ascOrDesc,
+        parseInt(selectedValue, 10)
+      );
+      draftCtx.contextMenu = {};
+      if (!sorted) return;
       announce(
         draftCtx,
         ascOrDesc
           ? "rightclick.announceSortedAsc"
           : "rightclick.announceSortedDesc"
       );
-      draftCtx.contextMenu = {};
     });
     hideDialog();
   }, [ascOrDesc, hideDialog, selectedValue, setContext]);

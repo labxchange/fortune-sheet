@@ -79,11 +79,22 @@ export function announce(
  * 3 columns inserted to the left." — one utterance that cannot be dropped in
  * favour of another.
  *
- * The element stays a polite live region as well, for the few actions that do
- * not move focus (the filter dropdown's rows, before its own close moves focus).
- * Polite is correct now rather than a compromise: when focus *does* move, the
- * description already carries the text and the queued region message being
- * dropped is exactly what should happen — the alternative is hearing it twice.
+ * The element is also a live region in its own right, for the few actions that
+ * do not move focus (the filter dropdown's rows, before its own close moves
+ * focus). It ships **assertive** — `role="alert" aria-live="assertive"` in
+ * `SheetOverlay` — and that is load-bearing, not a preference: polite shipped
+ * first and a VoiceOver pass found the messages silently dropped, because a
+ * polite message queued alongside a focus utterance is discarded rather than
+ * spoken after it. Assertive interrupts instead.
+ *
+ * That leaves two mechanisms pointed at the same text, and they can overlap:
+ * assertive is not dropped, so on an action that moves focus the result may be
+ * spoken twice — once as the interrupt, once inside the focus utterance. The
+ * layering is deliberate (either one alone has a case where it is silent), but
+ * which of the two wins per screen reader is not something the automated tests
+ * can settle. It is the specific question the VoiceOver + Safari and
+ * NVDA + Firefox passes need to answer; if double-speak turns out to be real,
+ * the fix is to drop `aria-live` here and rely on the description alone.
  *
  * Both the text and the `aria-describedby` are cleared after a few seconds, or a
  * later visit to the same cell would read a stale result as its description.
