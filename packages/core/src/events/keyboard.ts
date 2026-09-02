@@ -750,6 +750,39 @@ function stepToVisibleIndex(
 }
 
 /**
+ * Whether an arrow key should pick a cell reference rather than move the caret.
+ *
+ * Exported because the two drivers reach point mode by different routes and
+ * must agree. handleGlobalKeyDown filters modifiers long before its arrow
+ * branch — Ctrl/Meta leave through handleWithCtrlOrMetaKey, Shift+Arrow through
+ * handleShiftWithArrowKey, Alt+Up/Down through the sheet switch — so the grid
+ * only ever offers a plain arrow. The formula bar has no such filter: its
+ * onKeyDown switches on `key` alone. Putting the modifier test here rather than
+ * at either call site is what stops Shift+Left selecting text in the cell and
+ * writing a reference in the formula bar.
+ *
+ * The formula bar also calls this *outside* its setContext producer, on
+ * purpose: israngeseleciton reads the live DOM caret through
+ * window.getSelection(), and the producer may not run until React renders, by
+ * which time the browser has moved it. Calling here is safe — formulaCache is a
+ * class instance, so immer passes it through undrafted and the rangeSetValueTo
+ * it records is the same object the producer will read.
+ */
+export function canEnterPointMode(ctx: Context, e: KeyboardEvent) {
+  if (e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return false;
+  if (ctx.luckysheetCellUpdate.length === 0) return false;
+  // Point mode may only *start* where a reference is allowed to go: directly
+  // after "(", ",", "=", "&" or an operator. Anywhere else the arrows keep
+  // moving the caret, which is what leaves ordinary formula editing alone.
+  // Once it is running the caret sits inside the reference just written, where
+  // that no longer holds — so rangestart short-circuits the test rather than
+  // letting it be re-asked.
+  // israngeseleciton is called for its side effect as well: it records
+  // rangeSetValueTo, the node rangeSetValue inserts after.
+  return !!ctx.formulaCache.rangestart || israngeseleciton(ctx);
+}
+
+/**
  * Point mode: while a formula is being edited, the arrow keys pick a cell
  * reference instead of walking the caret through the text. It is the keyboard's
  * half of the gesture that already exists for the pointer — clicking a cell
@@ -765,7 +798,7 @@ export function handleFormulaArrowKey(
   fxInput: HTMLDivElement | null | undefined,
   e: KeyboardEvent
 ) {
-  if (ctx.luckysheetCellUpdate.length === 0) return false;
+  if (!canEnterPointMode(ctx, e)) return false;
 
   const flowdata = getFlowdata(ctx);
   if (!flowdata) return false;
@@ -774,15 +807,6 @@ export function handleFormulaArrowKey(
   if (rowCount === 0 || colCount === 0) return false;
 
   const inPointMode = !!ctx.formulaCache.rangestart;
-
-  // Point mode may only *start* where a reference is allowed to go: directly
-  // after "(", ",", "=", "&" or an operator. Anywhere else the arrows keep
-  // moving the caret, which is what leaves ordinary formula editing alone.
-  // Once it is running the caret sits inside the reference just written, where
-  // this no longer holds — so it must not be re-checked.
-  // Called for its side effect as well: it records `rangeSetValueTo`, the node
-  // `rangeSetValue` inserts after.
-  if (!inPointMode && !israngeseleciton(ctx)) return false;
 
   // Where the step starts from: the reference already written, or — for the
   // first arrow — the cell being edited. Stepping off it rather than landing on
@@ -796,9 +820,15 @@ export function handleFormulaArrowKey(
   if (inPointMode && picked) {
     [startRow, endRow] = picked.row;
     [startCol, endCol] = picked.column;
-    // A whole-row or whole-column reference, which only the row/column headers
-    // can produce, carries nulls on the other axis. Stepping from one is out of
-    // scope; leave the arrows alone.
+    // Defensive, and currently unreachable: nulls on one axis mean a whole-row
+    // or whole-column reference, which only the row/column-header mousedown
+    // handlers produce — and both of those end in rangedrag_row_start /
+    // rangedrag_column_start with rangestart false, so they never satisfy the
+    // check above. Every writer of rangestart = true (applyPointModeSelection,
+    // and AutoSum's activeFormulaInput) writes both axes. Kept because the
+    // Selection type says number[] while those handlers write null at runtime,
+    // so the guarantee is a convention rather than something the compiler
+    // holds.
     if (
       _.isNil(startRow) ||
       _.isNil(endRow) ||
@@ -838,9 +868,14 @@ export function handleFormulaArrowKey(
       ctx.config.colhidden ?? {}
     );
     targetCol = next ?? startCol;
-  } else {
+  } else if (e.key === "ArrowRight") {
     next = stepToVisibleIndex(endCol, 1, colCount, ctx.config.colhidden ?? {});
     targetCol = next ?? startCol;
+  } else {
+    // Both in-repo call sites pre-filter to the four arrows, but this is
+    // re-exported from the core barrel, so any other key must decline rather
+    // than fall through to "right".
+    return false;
   }
   if (next == null) {
     // Nowhere to go. Once point mode is running the key still belongs to it —
