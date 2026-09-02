@@ -37,10 +37,35 @@ const DATA = [
   },
 ];
 
-const renderWorkbook = () => {
+// The same sheet with a filter over A1:B2, so the funnel buttons render and a
+// filter menu can actually be opened. Needed by the filter case at the bottom:
+// `filterContextMenu` is the other half of the scroll guard, and the half
+// whose cancel behaviour is easiest to widen by accident.
+const DATA_WITH_FILTER = [
+  {
+    name: "Sheet1",
+    celldata: [
+      {
+        r: 0,
+        c: 0,
+        v: { v: "Name", m: "Name", ct: { fa: "General", t: "s" } },
+      },
+      {
+        r: 0,
+        c: 1,
+        v: { v: "Size", m: "Size", ct: { fa: "General", t: "s" } },
+      },
+      { r: 1, c: 0, v: { v: "a", m: "a", ct: { fa: "General", t: "s" } } },
+      { r: 1, c: 1, v: { v: "1", m: "1", ct: { fa: "General", t: "n" } } },
+    ],
+    filter_select: { row: [0, 1], column: [0, 1] },
+  },
+];
+
+const renderWorkbook = (data: any = DATA) => {
   const ref = React.createRef<WorkbookInstance>();
   const view = render(
-    <Workbook ref={ref} data={DATA as any} toolbarItems={["search"]} />
+    <Workbook ref={ref} data={data} toolbarItems={["search"]} />
   );
   act(() => {
     ref.current!.setSelection([{ row: [0, 0], column: [0, 0] }]);
@@ -108,6 +133,41 @@ describe("Grid wheel cancellation", () => {
     fireEvent.mouseEnter(dialog);
 
     expect(wheelOver(gridContainer(container))).toBe(false);
+  });
+
+  it("still cancels while a filter menu is open", async () => {
+    // The grid declines to *scroll* while a menu is open, and that is not the
+    // same as declining to cancel: unifying the two predicates made an open
+    // menu suppress both, so a wheel anywhere over the grid fell through to
+    // the nearest scrollable ancestor — the host page, in an embedded
+    // workbook. `master` cancelled this gesture unconditionally, and it still
+    // does.
+    //
+    // The DOM-level statement of the row in
+    // core/test/events/wheelGuard.test.ts: the suite's other cases only ever
+    // exercise the dialog, so nothing here would have caught it.
+    const { container } = renderWorkbook(DATA_WITH_FILTER);
+
+    const funnels = () =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>(".luckysheet-filter-options")
+      );
+    await waitFor(() => expect(funnels().length).toBeGreaterThan(0));
+
+    const [first] = funnels();
+    first.focus();
+    fireEvent.keyDown(first, { key: "Enter" });
+    await waitFor(() =>
+      expect(document.querySelector(".fortune-filter-menu")).toBeTruthy()
+    );
+
+    // Re-asserted immediately before the gesture, not only in the waitFor
+    // above: the expectation below is the same value a grid with no menu open
+    // would give, so the case is only worth anything while the menu is
+    // provably still up. `.fortune-filter-menu` renders only when
+    // `ctx.filterContextMenu` is set, which is the state under test.
+    expect(document.querySelector(".fortune-filter-menu")).toBeTruthy();
+    expect(wheelOver(gridContainer(container))).toBe(true);
   });
 
   it("resumes cancelling once the pointer leaves the dialog", async () => {

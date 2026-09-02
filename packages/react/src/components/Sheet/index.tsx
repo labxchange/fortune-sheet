@@ -10,7 +10,7 @@ import {
   updateContextWithCanvas,
   updateContextWithSheetData,
   handleGlobalWheel,
-  shouldSkipGlobalWheel,
+  shouldCancelGlobalWheel,
   initFreeze,
   Sheet as SheetType,
 } from "@fortune-sheet/core";
@@ -249,10 +249,14 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
   // Read synchronously by onWheel below, which cannot reach `context` without
   // taking it as a dependency — and that would rebind the wheel listener on
   // every scroll, since scrolling is itself a context change.
+  //
+  // Only the two the *cancel* decision needs. `filterContextMenu` is the other
+  // half of shouldSkipGlobalWheel, but that one is asked from inside the
+  // recipe, which is handed the real context; mirroring it here would be state
+  // nothing reads.
   const wheelGuard = useRef({
     showSearch: context.showSearch,
     showReplace: context.showReplace,
-    filterContextMenu: context.filterContextMenu,
   });
 
   // Written in a layout effect rather than in the component body: a ref write
@@ -270,7 +274,6 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
   useLayoutEffect(() => {
     wheelGuard.current.showSearch = context.showSearch;
     wheelGuard.current.showReplace = context.showReplace;
-    wheelGuard.current.filterContextMenu = context.filterContextMenu;
   });
 
   const onWheel = useCallback(
@@ -284,10 +287,13 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
       // scrolls whatever is under the cursor on top of the grid scrolling
       // itself.
       //
-      // Gated on the same predicate the recipe uses, so a gesture the grid
-      // deliberately does not handle — over the search results, over an open
-      // filter menu — keeps the native scrolling it is asking for.
-      if (!shouldSkipGlobalWheel(wheelGuard.current, refs.globalCache)) {
+      // Gated on shouldCancelGlobalWheel rather than on the recipe's own
+      // shouldSkipGlobalWheel: the two agree only over the search dialog,
+      // whose results list is asking for the browser's scrolling. A gesture
+      // over the grid while a filter menu is open is one the grid declines to
+      // scroll but still cancels, as it did before this branch, so it does not
+      // fall through to whatever contains an embedded workbook.
+      if (shouldCancelGlobalWheel(wheelGuard.current, refs.globalCache)) {
         e.preventDefault();
       }
       setContext((draftCtx) => {

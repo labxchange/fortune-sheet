@@ -1,5 +1,6 @@
 import {
   handleGlobalWheel,
+  shouldCancelGlobalWheel,
   shouldSkipGlobalWheel,
 } from "../../src/events/mouse";
 import type { Context, GlobalCache } from "../../src";
@@ -11,7 +12,12 @@ import type { Context, GlobalCache } from "../../src";
 // pending work — so anything it does to the *event* lands after dispatch has
 // finished and is ignored by the browser. Cancelling therefore has to happen
 // in the caller, synchronously, and both sides have to agree on when to do it.
-// `shouldSkipGlobalWheel` is that shared answer.
+// `shouldSkipGlobalWheel` answers the recipe's half — should the grid scroll
+// — and `shouldCancelGlobalWheel` the caller's. They are separate because they
+// differ on exactly one row of the table: while a filter menu is open the grid
+// declines to scroll but the gesture is still cancelled, or it falls through to
+// whatever contains an embedded workbook. Both tables are asserted below, so
+// collapsing them back into one predicate fails here.
 //
 // Asserted here rather than through a render because this is exactly the part
 // a render cannot show: jsdom will happily record a `preventDefault` that a
@@ -86,9 +92,88 @@ describe("shouldSkipGlobalWheel", () => {
   });
 
   it("skips while a filter menu is open", () => {
+    // The grid is frozen behind the menu. Note this says nothing about
+    // cancelling — see the row of the same name below, which is the one place
+    // the two tables disagree.
     expect(
       shouldSkipGlobalWheel(ctx({ filterContextMenu: {} as any }), cache())
     ).toBe(true);
+  });
+});
+
+describe("shouldCancelGlobalWheel", () => {
+  it("cancels a plain gesture over the grid", () => {
+    expect(shouldCancelGlobalWheel(ctx(), cache())).toBe(true);
+  });
+
+  it("does not cancel over the dialog, opened by Find alone", () => {
+    expect(
+      shouldCancelGlobalWheel(
+        ctx({ showSearch: true }),
+        cache({ searchDialog: { mouseEnter: true } } as any)
+      )
+    ).toBe(false);
+  });
+
+  it("does not cancel over the dialog, opened by Replace alone", () => {
+    expect(
+      shouldCancelGlobalWheel(
+        ctx({ showReplace: true }),
+        cache({ searchDialog: { mouseEnter: true } } as any)
+      )
+    ).toBe(false);
+  });
+
+  it("does not cancel over the dialog with both flags set", () => {
+    expect(
+      shouldCancelGlobalWheel(
+        ctx({ showSearch: true, showReplace: true }),
+        cache({ searchDialog: { mouseEnter: true } } as any)
+      )
+    ).toBe(false);
+  });
+
+  it("cancels when the dialog is open but the pointer is elsewhere", () => {
+    expect(
+      shouldCancelGlobalWheel(
+        ctx({ showSearch: true }),
+        cache({ searchDialog: { mouseEnter: false } } as any)
+      )
+    ).toBe(true);
+  });
+
+  it("cancels on hover alone, with no dialog open", () => {
+    expect(
+      shouldCancelGlobalWheel(
+        ctx(),
+        cache({ searchDialog: { mouseEnter: true } } as any)
+      )
+    ).toBe(true);
+  });
+
+  it("still cancels while a filter menu is open", () => {
+    // The row that separates the two tables, and the regression this split
+    // exists to undo. Before the guards were unified, `Sheet` cancelled every
+    // gesture unconditionally; unifying them made an open filter menu suppress
+    // the cancel as well as the scroll, so a wheel anywhere over the grid fell
+    // through to the nearest scrollable ancestor — nothing in the standalone
+    // demo, the host page in an embedded workbook.
+    //
+    // The menu itself is a sibling of `<Sheet>` in Workbook, so gestures over
+    // the menu never reach the listener that asks this and are unaffected
+    // either way.
+    expect(
+      shouldCancelGlobalWheel(ctx({ filterContextMenu: {} as any }), cache())
+    ).toBe(true);
+  });
+
+  it("does not cancel over the dialog even while a filter menu is open", () => {
+    expect(
+      shouldCancelGlobalWheel(
+        ctx({ showSearch: true, filterContextMenu: {} as any }),
+        cache({ searchDialog: { mouseEnter: true } } as any)
+      )
+    ).toBe(false);
   });
 });
 

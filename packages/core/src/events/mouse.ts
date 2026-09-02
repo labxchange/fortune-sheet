@@ -74,26 +74,65 @@ import {
 let mouseWheelUniqueTimeout: ReturnType<typeof setTimeout>;
 let scrollLockTimeout: ReturnType<typeof setTimeout>;
 
+/* One wheel gesture, two questions — should the grid scroll, and should the
+   event be cancelled — and they do not have the same answer. They are kept
+   adjacent and over one shared building block because the pair has drifted
+   before: the scroll guard read `showSearch && showReplace` for a dialog that
+   opens with one or the other (keyboard.ts's Ctrl+F and Ctrl+H each set one),
+   so it was unreachable and every gesture over the dialog fell through to the
+   grid. */
+
 /**
- * Whether a wheel gesture belongs to something floating over the grid rather
- * than to the grid itself — the search dialog's results list, or an open
- * filter menu. Both need the browser's own scrolling, so the caller must
- * neither scroll the grid nor cancel the event.
+ * Whether the pointer is over the open search dialog, whose results list does
+ * its own scrolling. The one gesture the grid leaves entirely to the browser:
+ * neither scrolled nor cancelled.
  *
- * Split out of handleGlobalWheel so the caller can ask the same question
- * *synchronously*. The two must give the same answer, and when they were
- * written separately they did not: this guard read `showSearch && showReplace`
- * for a dialog that opens with one or the other (see keyboard.ts's Ctrl+F and
- * Ctrl+H handlers), so it was unreachable and every gesture over the dialog
- * fell through to the grid.
+ * A pointer test is needed because the dialog renders inside SheetOverlay, and
+ * so inside the element `Sheet` binds `wheel` on. The filter menu below is a
+ * sibling of `<Sheet>` in Workbook, so gestures over *it* never reach that
+ * listener and never reach either predicate here.
+ */
+function isOverSearchDialog(
+  ctx: Pick<Context, "showSearch" | "showReplace">,
+  cache: GlobalCache
+): boolean {
+  return Boolean(
+    cache.searchDialog?.mouseEnter && (ctx.showSearch || ctx.showReplace)
+  );
+}
+
+/**
+ * Whether the grid should decline to scroll itself for this gesture: the
+ * pointer is over the search dialog, or a filter menu is open and the grid is
+ * frozen behind it.
+ *
+ * Split out of handleGlobalWheel so the caller can ask *synchronously*. Note
+ * that the second case is not about anything else scrolling natively, which is
+ * why cancelling asks the separate question below rather than reusing this.
  */
 export function shouldSkipGlobalWheel(
   ctx: Pick<Context, "showSearch" | "showReplace" | "filterContextMenu">,
   cache: GlobalCache
 ): boolean {
-  if (cache.searchDialog?.mouseEnter && (ctx.showSearch || ctx.showReplace))
-    return true;
-  return ctx.filterContextMenu != null;
+  return isOverSearchDialog(ctx, cache) || ctx.filterContextMenu != null;
+}
+
+/**
+ * Whether the caller should cancel the gesture — which it must do
+ * synchronously; see handleGlobalWheel below for why it cannot.
+ *
+ * Deliberately *not* shouldSkipGlobalWheel. Not scrolling and not cancelling
+ * are the same decision only over the search dialog. A gesture over the grid
+ * while a filter menu is open is still cancelled, exactly as it was before
+ * this predicate existed: the grid does not scroll, but nothing else should
+ * either, and falling through would scroll the host page out from under an
+ * embedded workbook.
+ */
+export function shouldCancelGlobalWheel(
+  ctx: Pick<Context, "showSearch" | "showReplace">,
+  cache: GlobalCache
+): boolean {
+  return !isOverSearchDialog(ctx, cache);
 }
 
 /**
