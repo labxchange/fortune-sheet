@@ -309,6 +309,17 @@
   outline-offset: 2px;
 }
 
+/* The ring also has to sit above the buttons that follow it, and the shared
+   .button-basic:focus-visible rule above sets a z-index that a statically
+   positioned element ignores. Scoped here for the same reason the offset is:
+   position: relative on the shared class would switch that z-index on for all
+   eight of its other consumers, and make each of them a containing block for
+   any absolutely positioned descendant. Neither was audited for this ticket. */
+#fortune-custom-color .button-basic,
+#fortune-change-color .button-basic {
+  position: relative;
+}
+
 /* The native colour swatch had no focus style of its own, so it fell back to
    whatever ring the browser draws — which is painted against the swatch's own
    colour and disappears on a dark one. Offset so the ring lands on the panel
@@ -317,13 +328,6 @@
   outline: var(--border_focus_outer, 3px) solid
     var(--color_border_focus_outer, #0063c3);
   outline-offset: 2px;
-}
-
-/* The typed-colour field beside the native swatch. The row has to wrap for it:
-   the panel is 164px and was already carrying a label, a swatch and OK. */
-#fortune-custom-color .custom-color {
-  flex-wrap: wrap;
-  gap: 4px;
 }
 
 #fortune-custom-color .fortune-color-hex-input {
@@ -342,22 +346,21 @@
 
 #fortune-custom-color .custom-color {
   position: relative;
-  margin: auto;
   padding: 10px;
   border-radius: 6px;
   background: white;
-  display: flex;
   align-items: center;
   margin: 1px 0px;
   display: flex;
   justify-content: space-around;
+  /* The row has to wrap for the typed-colour field: the panel is 164px and was
+     already carrying a label, a swatch and OK. */
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .button-basic {
   display: inline-block;
-  /* Same reason as the colour swatches above: .button-basic:focus-visible sets
-     a z-index, which a static element ignores. */
-  position: relative;
   margin-bottom: 0;
   font-weight: 400;
   text-align: center;
