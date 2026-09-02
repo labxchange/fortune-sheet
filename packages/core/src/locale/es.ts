@@ -8,6 +8,10 @@ export default {
       "The selection operation has not been performed yetLa operación de selección aún no se ha realizado",
     cannotSelectMultiple:
       "No se puede seleccionar la zona de selección múltiple",
+    noRoomForResultError:
+      "No se puede realizar esta operación en una selección que llega al borde de la hoja",
+    noNumericDataError:
+      "No se puede realizar esta operación en una selección que no contiene números",
   },
   functionlist: [
     {

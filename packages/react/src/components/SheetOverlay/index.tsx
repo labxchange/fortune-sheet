@@ -462,9 +462,17 @@ const SheetOverlay: React.FC = () => {
   // 提醒弹窗
   useEffect(() => {
     if (context.warnDialog) {
+      const message = context.warnDialog;
       setTimeout(() => {
-        showDialog(context.warnDialog, "ok");
+        showDialog(message, "ok");
       }, 240);
+      // Consume it. This effect only runs when the string *changes*, so
+      // without clearing, raising the same warning a second time was swallowed
+      // in silence — the user repeats the action and gets no explanation at
+      // all. Clearing costs one extra pass in which the guard above is false.
+      setContext((draftCtx) => {
+        draftCtx.warnDialog = undefined;
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context.warnDialog]);
