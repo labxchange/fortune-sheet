@@ -11096,6 +11096,7 @@ export default {
     allCellsSelected: "Todas las celdas seleccionadas.",
     horizontalScrollbar: "Hoja de cálculo",
     verticalScrollbar: "Hoja de cálculo",
+    spreadsheetLandmark: "Hoja de cálculo",
     nameBoxReferenceClamped:
       "La referencia está fuera de la hoja. Se movió a la celda más cercana.",
     scrollbarRowPosition: "Fila ${index}",

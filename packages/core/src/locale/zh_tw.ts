@@ -11071,6 +11071,7 @@ export default {
     allCellsSelected: "已選擇所有儲存格。",
     horizontalScrollbar: "試算表",
     verticalScrollbar: "試算表",
+    spreadsheetLandmark: "試算表",
     nameBoxReferenceClamped: "參照超出工作表範圍。已移至最接近的儲存格。",
     scrollbarRowPosition: "第 ${index} 行",
     scrollbarColumnPosition: "第 ${index} 列",

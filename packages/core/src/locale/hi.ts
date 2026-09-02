@@ -11124,6 +11124,7 @@ export default {
     allCellsSelected: "सभी कक्ष चयनित।",
     horizontalScrollbar: "स्प्रेडशीट",
     verticalScrollbar: "स्प्रेडशीट",
+    spreadsheetLandmark: "स्प्रेडशीट",
     nameBoxReferenceClamped:
       "संदर्भ शीट के बाहर है। निकटतम कक्ष पर ले जाया गया।",
     scrollbarRowPosition: "पंक्ति ${index}",

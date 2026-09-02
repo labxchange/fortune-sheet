@@ -11104,6 +11104,7 @@ export default {
     allCellsSelected: "已选择所有单元格。",
     horizontalScrollbar: "电子表格",
     verticalScrollbar: "电子表格",
+    spreadsheetLandmark: "电子表格",
     nameBoxReferenceClamped: "引用超出工作表范围。已移动到最近的单元格。",
     scrollbarRowPosition: "第 ${index} 行",
     scrollbarColumnPosition: "第 ${index} 列",

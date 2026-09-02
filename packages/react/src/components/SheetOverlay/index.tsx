@@ -602,6 +602,10 @@ const SheetOverlay: React.FC = () => {
   return (
     <main
       className={GRID_ROOT_CLASS}
+      // Without a name, landmark navigation announces only "main", which does
+      // not say the region is the sheet and does not distinguish it from an
+      // embedding page's own main landmark (WCAG 1.3.1, 2.4.1).
+      aria-label={info.spreadsheetLandmark}
       ref={containerRef}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
