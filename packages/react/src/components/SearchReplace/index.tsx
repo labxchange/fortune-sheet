@@ -158,9 +158,20 @@ const SearchReplace: React.FC<{
       //
       // The Tab cycle in useDialogFocus stays: it keeps Tab a dialog gesture
       // rather than a grid move, which is a keyboard convenience and not a
-      // claim of modality. It is escapable by standard keys either way —
-      // both Close controls are in the cycle, and activating a result row
-      // leaves for the grid.
+      // claim of modality.
+      //
+      // No keyboard trap (WCAG 2.1.2), though this is the combination that
+      // makes the question real rather than theoretical: Tab now cycles, and
+      // Escape does not close this dialog — SearchReplace does not call
+      // useEscapeToClose at all. 2.1.2 asks that focus be movable away using
+      // standard keys, not that Escape in particular work, and it is: both
+      // Close controls are inside the cycle and reachable by Tab, so Tab then
+      // Enter leaves; activating a result row closes the dialog and hands
+      // focus to the grid. Escape would still be an improvement and is
+      // deliberately not done here — wiring it means joining
+      // useEscapeToClose's open-instance stack, which changes who claims
+      // Escape while the grid has a popup open, and that is its own change
+      // with its own regression surface.
       aria-labelledby={titleId}
       tabIndex={-1}
       style={getInitialPosition(getContainer())}

@@ -25,6 +25,11 @@ const DISABLED = '[disabled], [aria-disabled="true"]';
  * task-blocking and sets `aria-modal`, `SearchReplace` sits over a live grid
  * and deliberately does not.
  *
+ * A caller taking the cycle owes WCAG 2.1.2 an exit by standard keys. `Dialog`
+ * has Escape; `SearchReplace` does not, and argues its exits at its own call
+ * site rather than here, because what counts as an exit is the caller's
+ * inventory of controls and not the hook's.
+ *
  * Extracted from `Dialog`, which is not reusable by every dialog in the
  * package: `SearchReplace` is draggable and absolutely positioned and renders
  * its own close button, so it can only borrow the behaviour, not the chrome.
@@ -58,8 +63,12 @@ export function useDialogFocus(
       );
 
     const trapFocus = (e: KeyboardEvent) => {
-      // Escape is not handled here: dialogs route it through useEscapeToClose,
-      // so they join the same open-instance stack every popup uses.
+      // Escape is not handled here, and the two callers do not agree on where
+      // it goes: `Dialog` routes it through useEscapeToClose, joining the
+      // open-instance stack every popup uses; `SearchReplace` does not handle
+      // Escape at all. That asymmetry is why the hook stays out of it — see
+      // the 2.1.2 note at SearchReplace's role="dialog" for why a Tab cycle
+      // with no Escape is still escapable there.
       if (e.key !== "Tab") return;
       // The dialog sits inside the workbook container, whose own keydown
       // handler treats Tab as a grid move: it advances the selection and pulls
