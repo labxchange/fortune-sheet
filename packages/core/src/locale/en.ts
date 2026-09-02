@@ -11089,6 +11089,13 @@ export default {
     allSheets: "All sheets",
     scrollLeft: "Scroll tabs left",
     scrollRight: "Scroll tabs right",
+    sheetAddedAnnouncement: "${name} added and selected.",
+    sheetAddedNotSelectedAnnouncement: "${name} added.",
+    sheetSelectedAnnouncement: "${name} selected.",
+    sheetMovedAnnouncement:
+      "${name} moved to position ${position} of ${total}.",
+    sheetColorChangedAnnouncement: "${name} tab colour changed to ${color}.",
+    sheetColorResetAnnouncement: "${name} tab colour reset.",
     Dropdown: "Dropdown",
     selectAllCells: "Select all cells",
     columnOptions: "Column options",

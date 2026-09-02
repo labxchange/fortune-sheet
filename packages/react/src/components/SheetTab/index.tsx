@@ -14,6 +14,9 @@ import "./index.css";
 import SheetItem from "./SheetItem";
 import ZoomControl from "../ZoomControl";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
+import { useSheetSwitchAnnouncement } from "../../hooks/useSheetSwitchAnnouncement";
+import { useSheetTabMoveAnnouncement } from "../../hooks/useSheetTabMoveAnnouncement";
+import { useSheetTabColorAnnouncement } from "../../hooks/useSheetTabColorAnnouncement";
 import {
   activateOnEnterOrSpace,
   mouseDownToggleHandlers,
@@ -28,6 +31,9 @@ const SheetTab: React.FC = () => {
   const [isShowScrollBtn, setIsShowScrollBtn] = useState<boolean>(false);
   const [isShowBoundary, setIsShowBoundary] = useState<boolean>(true);
   const { info } = locale(context);
+  const sheetSwitchAnnouncement = useSheetSwitchAnnouncement(context, info);
+  const sheetMoveAnnouncement = useSheetTabMoveAnnouncement(context, info);
+  const sheetColorAnnouncement = useSheetTabColorAnnouncement(context, info);
 
   useRovingFocus({
     containerRef: tabContainerRef,
@@ -194,6 +200,20 @@ const SheetTab: React.FC = () => {
             <SVGIcon name="arrow-doubleright" width={12} height={12} />
           </div>
         )}
+      </div>
+      {/* Sheet tab actions have no other feedback a screen reader picks up:
+          the dropdown and Alt+Arrow shortcut switch sheets without moving
+          focus onto the new tab, and Move left/right and tab colour are
+          silent, visual-only changes. Polite, since none of these compete
+          with an in-progress alert the way the grid's own selection does. */}
+      <div id="sr-sheetSwitch" className="sr-only" role="status">
+        {sheetSwitchAnnouncement}
+      </div>
+      <div id="sr-sheetMove" className="sr-only" role="status">
+        {sheetMoveAnnouncement}
+      </div>
+      <div id="sr-sheetColor" className="sr-only" role="status">
+        {sheetColorAnnouncement}
       </div>
       <div className="fortune-sheet-area-right">
         <ZoomControl />

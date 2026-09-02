@@ -90,6 +90,10 @@ const SheetTabContextMenu: React.FC = () => {
           }
         });
         api.setSheetOrder(ctx, { [sheet.id!]: currentOrder + delta });
+        // The menu only opens for the current sheet, so the announcement
+        // hook can read the new position off currentSheetId — this counter
+        // just marks that a move happened at all.
+        ctx.sheetTabMoveCount = (ctx.sheetTabMoveCount ?? 0) + 1;
       });
     },
     [context.allowEdit, setContext, sheet]
