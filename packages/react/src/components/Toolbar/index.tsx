@@ -326,6 +326,26 @@ const Toolbar: React.FC<{
       }
       if (["font-color", "background"].includes(name)) {
         const pick = (color: string | undefined) => {
+          // Applying a colour only repaints, so without this the action is
+          // silent — the same gap the other toolbar announcements close. Named
+          // from the palette where there is a name; a colour from the custom
+          // picker falls back to its hex, as the swatches themselves do.
+          //
+          // Queued before the commit, like every other call site: the hook
+          // snapshots the fingerprint synchronously, so it has to read the
+          // state this action is about to change, not the state it produced.
+          announceAfterCommit(() => {
+            if (!color) return "";
+            const colorNames = info.colorNames as
+              | Record<string, string>
+              | undefined;
+            return replaceHtml(
+              name === "font-color"
+                ? info.toolbarFontColorSet
+                : info.toolbarBackgroundColorSet,
+              { color: colorNames?.[color] ?? color }
+            );
+          });
           setContext((draftCtx) =>
             (name === "font-color" ? handleTextColor : handleTextBackground)(
               draftCtx,
