@@ -91,9 +91,13 @@ const size = [
 
 type Props = {
   onPick: (changeColor?: string, changeStyle?: string) => void;
+  /** The chosen border colour, for the toolbar's status region. Picking a
+   *  colour here only stores it for the next handleBorder call, so nothing
+   *  repaints and there is otherwise no sign the choice registered. */
+  onColorPicked?: (color: string) => void;
 };
 
-const CustomBorder: React.FC<Props> = ({ onPick }) => {
+const CustomBorder: React.FC<Props> = ({ onPick, onColorPicked }) => {
   const { context, refs } = useContext(WorkbookContext);
   const { border } = locale(context);
   const [changeColor, setchangeColor] = useState("#000000");
@@ -204,10 +208,12 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
               onPick(color, changeStyle);
               colorPreviewRef.current!.style.backgroundColor = changeColor;
               setchangeColor(color as string);
+              onColorPicked?.(color as string);
             }}
             onColorPick={(color) => {
               onPick(color, changeStyle);
               setchangeColor(color as string);
+              onColorPicked?.(color as string);
             }}
           />
         </div>

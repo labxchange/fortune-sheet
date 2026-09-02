@@ -107,6 +107,28 @@ describe("Change Color accessibility", () => {
       expect(region!.getAttribute("role")).toBe("status");
       expect(region!.textContent).toContain("Sheet color:");
     });
+
+    it("keeps the same live-region node across the close, not a fresh one", () => {
+      // The assertion above passes either way, and the guarantee is subtle
+      // enough to lose by accident: the open and closed branches return
+      // different shapes, and it is only React unwrapping an unkeyed top-level
+      // fragment that makes both reconcile a bare div at index 0 with the same
+      // key and type. Give the region a key, or wrap it in an element, and the
+      // node is replaced — a screen reader then reads nothing, silently.
+      const { getByRole, getByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      const { submenu } = openChangeColor(getByRole, getByText);
+      const before = document.querySelector("#sr-sheetColor");
+
+      const confirm = within(submenu)
+        .getByText("OK")
+        .closest('[role="button"]') as HTMLElement;
+      fireEvent.click(confirm);
+
+      expect(before).toBeTruthy();
+      expect(document.querySelector("#sr-sheetColor")).toBe(before);
+    });
   });
 
   describe("the other ways a colour is applied", () => {

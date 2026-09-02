@@ -11054,6 +11054,7 @@ export default {
     toolbarFilterOff: "已關閉篩選。",
     toolbarFontColorSet: "文字顏色：${color}。",
     toolbarBackgroundColorSet: "儲存格顏色：${color}。",
+    toolbarBorderColorSet: "邊框顏色：${color}。",
     hexColorInput: "十六進位顏色",
 
     sheetSrIntro: "使用方向鍵在儲存格之間移動。",

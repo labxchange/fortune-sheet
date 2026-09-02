@@ -11108,6 +11108,7 @@ export default {
     toolbarFilterOff: "फ़िल्टर बंद।",
     toolbarFontColorSet: "पाठ का रंग: ${color}।",
     toolbarBackgroundColorSet: "कोशिका का रंग: ${color}।",
+    toolbarBorderColorSet: "सीमा का रंग: ${color}।",
     hexColorInput: "हेक्स रंग",
 
     sheetSrIntro: "कक्षों के बीच जाने के लिए तीर कुंजियों का उपयोग करें।",
