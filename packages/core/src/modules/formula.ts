@@ -2924,6 +2924,84 @@ export function rangeSetValue(
   if ($copyTo) $copyTo.innerHTML = $editor.innerHTML;
 }
 
+/**
+ * Write the phantom selection's A1 text into the formula at the caret and light
+ * up its overlay. Assumes `ctx.formulaCache.func_selectedrange` already
+ * describes the selection — the shift-extend path builds it by mutating the
+ * previous one, so it is set by the caller rather than here.
+ */
+export function applyPointModeSelection(
+  ctx: Context,
+  cellInput: HTMLDivElement,
+  fxInput: HTMLDivElement | null | undefined,
+  selected: Pick<Selection, "row" | "column">,
+  geometry: Rect
+) {
+  rangeSetValue(
+    ctx,
+    cellInput,
+    {
+      row: selected.row,
+      column: selected.column,
+    },
+    fxInput
+  );
+
+  ctx.formulaCache.rangestart = true;
+  ctx.formulaCache.rangedrag_column_start = false;
+  ctx.formulaCache.rangedrag_row_start = false;
+
+  ctx.formulaCache.selectingRangeIndex = ctx.formulaCache.rangechangeindex!;
+  if (ctx.formulaCache.rangechangeindex! > ctx.formulaRangeHighlight.length) {
+    createRangeHightlight(
+      ctx,
+      cellInput.innerHTML,
+      ctx.formulaCache.rangechangeindex!
+    );
+  }
+  createFormulaRangeSelect(ctx, {
+    rangeIndex: ctx.formulaCache.rangechangeindex || 0,
+    ...geometry,
+  });
+}
+
+/**
+ * The cell-area point-mode entry: record `selected` as the phantom selection,
+ * then hand off to `applyPointModeSelection`.
+ *
+ * Extracted from the cell-area mousedown handler so the arrow-key driver in
+ * `events/keyboard.ts` enters point mode down exactly the same path as a click.
+ * The row-header and column-header mousedown handlers deliberately keep their
+ * own copies: they select a whole row or column (`[null, null]` on the other
+ * axis), gate `rangeSetValue` behind a second `israngeseleciton` check, and end
+ * in `rangedrag_row_start` / `rangedrag_column_start` rather than `rangestart`.
+ */
+export function enterPointModeAt(
+  ctx: Context,
+  cellInput: HTMLDivElement,
+  fxInput: HTMLDivElement | null | undefined,
+  selected: Selection,
+  geometry: Rect
+) {
+  const { left, top, width, height } = geometry;
+  ctx.formulaCache.func_selectedrange = {
+    left,
+    width,
+    top,
+    height,
+    left_move: left,
+    width_move: width,
+    top_move: top,
+    height_move: height,
+    row: selected.row,
+    column: selected.column,
+    row_focus: selected.row_focus,
+    column_focus: selected.column_focus,
+  };
+
+  applyPointModeSelection(ctx, cellInput, fxInput, selected, geometry);
+}
+
 export function onFormulaRangeDragEnd(ctx: Context) {
   if (ctx.formulaCache.func_selectedrange) {
     const {
