@@ -53,6 +53,21 @@ const moveFocus = (from: HTMLElement, to: HTMLElement) => {
   });
 };
 
+/**
+ * Focus decisions here are deferred by a task (`focusAfterCommit`), and a
+ * synchronous `act()` does not flush macrotasks — there are no fake timers in
+ * `tests/setup.js`. Any assertion about where focus *ended up* has to wait for
+ * them, or it reads pre-timeout state and cannot fail: a popup that pulls focus
+ * back a task after dismissing would still look correct.
+ */
+const flushFocus = async () => {
+  await act(async () => {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+  });
+};
+
 const cellMenu = () =>
   document.querySelector<HTMLElement>(
     ".fortune-context-menu.luckysheet-cols-menu"
@@ -109,7 +124,7 @@ const openColorSubmenu = async () => {
 
 describe("popup dismissal on focus out", () => {
   describe("cell context menu (ticket 1218037811228849)", () => {
-    it("closes when focus moves out of it", () => {
+    it("closes when focus moves out of it", async () => {
       const { container } = render(<Workbook lang="en" data={plainSheet} />);
       openCellMenu(container);
       expect(cellMenu()).not.toBeNull();
@@ -122,7 +137,9 @@ describe("popup dismissal on focus out", () => {
 
       expect(cellMenu()).toBeNull();
       // Focus stays where the user sent it; the menu's own restore stands down
-      // once focus has deliberately left.
+      // once focus has deliberately left. Flushed, so a deferred restore that
+      // reached back for it would fail here rather than go unnoticed.
+      await flushFocus();
       expect(document.activeElement).toBe(outside);
     });
 
@@ -172,6 +189,10 @@ describe("popup dismissal on focus out", () => {
       moveFocus(row, outside);
 
       expect(filterMenu()).toBeNull();
+      // This popup routes every dismissal through `close`, which restores focus
+      // to the cell — so without the flush the assertion passes on pre-timeout
+      // state and the "Tab is swallowed" regression is invisible.
+      await flushFocus();
       expect(document.activeElement).toBe(outside);
     });
 

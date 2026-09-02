@@ -282,6 +282,8 @@ describe("filter criteria applied through the dropdown", () => {
     const cellInput = () =>
       container.querySelector<HTMLElement>("#luckysheet-rich-text-editor");
 
+    const popup = () => container.querySelector(".fortune-filter-menu");
+
     /** focusAfterCommit defers by a task, so let that task run. */
     const flushFocus = async () => {
       await act(async () => {
@@ -342,6 +344,59 @@ describe("filter criteria applied through the dropdown", () => {
       clickButton("Confirm");
       await flushFocus();
       expect(document.activeElement).toBe(cellInput());
+    });
+
+    // The three dismissal routes, which the footer cases above do not reach.
+    // They split: two must restore focus, one must leave it alone, and the
+    // difference is only knowable after the DOM settles — see
+    // `restoreFocusIfLost` in FilterMenu.
+    it("returns focus to the cell when Escape closes the popup", async () => {
+      focus(0, 2);
+      pressFunnel(0);
+      act(() => {
+        fireEvent.keyDown(document, { key: "Escape" });
+      });
+      await flushFocus();
+      expect(popup()).toBeNull();
+      expect(document.activeElement).toBe(cellInput());
+    });
+
+    it("returns focus to the cell when a press on dead chrome closes it", async () => {
+      // The case a per-route `close(restore)` would strand: a mousedown on
+      // non-focusable chrome moves focus nowhere, so the popup unmounts from
+      // under whatever held it and focus falls to <body> unless something
+      // rescues it. Indistinguishable from a press on a real control at the
+      // call site, which is why the decision is deferred instead.
+      focus(0, 2);
+      pressFunnel(0);
+      const deadChrome = container.querySelector<HTMLElement>(
+        ".fortune-name-box-container"
+      )!;
+      act(() => {
+        fireEvent.mouseDown(deadChrome, { bubbles: true });
+      });
+      await flushFocus();
+      expect(popup()).toBeNull();
+      expect(document.activeElement).toBe(cellInput());
+    });
+
+    it("leaves focus where the user tabbed when focus-out closes it", async () => {
+      // The inverse, and the regression this pair guards: restoring here would
+      // pull focus off the control the user just reached and throw it backwards
+      // onto the cell, silently swallowing their Tab.
+      focus(0, 2);
+      pressFunnel(0);
+      const row = popup()!.querySelector<HTMLElement>('[role="button"]')!;
+      const outside = container.querySelector<HTMLElement>(
+        ".fortune-toolbar [role='button']"
+      )!;
+      act(() => {
+        outside.focus();
+        fireEvent.focusOut(row, { relatedTarget: outside });
+      });
+      await flushFocus();
+      expect(popup()).toBeNull();
+      expect(document.activeElement).toBe(outside);
     });
 
     it("moves focus to the active cell when Clear filter removes every funnel", async () => {

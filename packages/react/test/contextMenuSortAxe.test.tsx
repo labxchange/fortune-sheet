@@ -21,6 +21,14 @@ import Workbook from "../src/components/Workbook";
 // jsdom loads no stylesheets, so the colour-contrast rules are disabled rather
 // than left to report a meaningless pass; the two focus-ring ratios are asserted
 // numerically in customSortA11y.test.tsx by reading the CSS as text.
+//
+// `axe-core` is pinned exactly in the root `devDependencies`, and this test is
+// why. It used to arrive only as a hoisted transitive of
+// `eslint-plugin-jsx-a11y`, which left the rule set this audit runs against —
+// and therefore its verdict — chosen by a lint plugin's range: bumping the
+// plugin could silently change what "zero violations" means here, and dropping
+// it would delete this test's dependency outright. Raise the pin deliberately,
+// and re-read the results when you do.
 const RULES = [
   "aria-required-children",
   "aria-required-parent",

@@ -286,18 +286,46 @@ const FilterMenu: React.FC = () => {
     focusAfterCommit(() => refs.cellInput.current);
   }, [refs.cellInput]);
 
+  /**
+   * The same destination, but only when closing would otherwise *lose* focus.
+   *
+   * The footer buttons above can restore unconditionally: the user asked for an
+   * outcome and the popup is the only thing that had focus. The three dismissal
+   * routes cannot. Tab out of the popup and `closeOnFocusOut` fires `close`,
+   * which a task later would pull focus off the control the user just tabbed to
+   * and drop it back on the cell — the Tab silently swallowed and focus thrown
+   * backwards, a fresh 2.4.3 failure manufactured by the 2.4.11 fix. An outside
+   * click on anything focusable does the same.
+   *
+   * Deciding by route (`close(restore)` per caller) leaves a hole: an outside
+   * click on non-focusable chrome moves focus nowhere, so the popup unmounts
+   * from under it and focus lands on `<body>`. That route has to restore, and it
+   * is indistinguishable from the focusable case at the call site — the
+   * difference only exists once the DOM has settled.
+   *
+   * So the question is asked then, and asked once: focus is rescued only if
+   * nothing else claimed it. Escape and a press on dead chrome both leave it on
+   * `<body>` and land on the cell; Tab and a press on a real control keep the
+   * destination the user chose.
+   */
+  const restoreFocusIfLost = useCallback(() => {
+    focusAfterCommit(() => {
+      const active = document.activeElement;
+      if (active != null && active !== document.body) return null;
+      return refs.cellInput.current;
+    });
+  }, [refs.cellInput]);
+
   // 点击其他区域的时候关闭FilterMenu
   const close = useCallback(() => {
     setContext((ctx) => {
       ctx.filterContextMenu = undefined;
     });
-    // Escape, an outside click and focus-out all arrive here, and each must land
-    // on the cell like the footer buttons do. `useEscapeToClose`'s own restore is
-    // disabled below precisely so this is the single decision point — otherwise
-    // it would put focus back on the funnel and only the footer routes would obey
-    // the ticket.
-    restoreFocusToGrid();
-  }, [setContext, restoreFocusToGrid]);
+    // Escape, an outside click and focus-out all arrive here. `useEscapeToClose`'s
+    // own restore is disabled below so this is the single decision point —
+    // otherwise it would put focus back on the funnel, which the ticket rejected.
+    restoreFocusIfLost();
+  }, [setContext, restoreFocusIfLost]);
 
   /* `subMenuRef` is passed to both routes because the colour submenu renders as
    * a *sibling* of `containerRef`, not a child (see the JSX at the foot of this
