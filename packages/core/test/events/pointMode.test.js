@@ -1,6 +1,9 @@
 import { contextFactory, selectionFactory } from "../factories/context";
 import { handleCellAreaMouseDown } from "../../src/events/mouse";
-import { handleGlobalKeyDown } from "../../src/events/keyboard";
+import {
+  handleFormulaArrowKey,
+  handleGlobalKeyDown,
+} from "../../src/events/keyboard";
 import { functionHTMLGenerate } from "../../src/modules/formula";
 import { GRID_ROOT_CLASS } from "../../src/constants";
 
@@ -242,17 +245,26 @@ describe("formula point mode", () => {
       expect(event.defaultPrevented).toBe(false);
     });
 
-    test("editing in the formula bar works the same and keeps focus there", () => {
+    test("editing in the formula bar writes there and mirrors to the cell", () => {
       const ctx = getContext();
       ctx.luckysheetCellUpdate = [2, 2];
       editFormulaIn(fxInput, "=SUM(");
+      fxInput.focus();
 
-      pressArrow(ctx, "ArrowUp", fxInput);
+      // The formula bar sits outside the grid and owns its own keydown handler,
+      // so handleGlobalKeyDown never sees these keys -- FxEditor calls the
+      // driver directly. This is that call.
+      const handled = handleFormulaArrowKey(
+        ctx,
+        cellInput,
+        fxInput,
+        new KeyboardEvent("keydown", { key: "ArrowUp" })
+      );
 
+      expect(handled).toBe(true);
       expect(fxInput.textContent).toBe("=SUM(C2");
       expect(cellInput.innerHTML).toBe(fxInput.innerHTML);
-      // The tail of handleGlobalKeyDown pulls focus back to the in-cell editor.
-      // Point mode returns before it, so the formula bar keeps the caret.
+      // Nothing in the driver moves focus; the caret stays where the user put it.
       expect(document.activeElement).toBe(fxInput);
     });
 
