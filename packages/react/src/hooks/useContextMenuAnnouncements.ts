@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import _ from "lodash";
 import { Context, locale, replaceHtml } from "@fortune-sheet/core";
 
@@ -6,9 +6,24 @@ import { Context, locale, replaceHtml } from "@fortune-sheet/core";
  * same phrase is spoken. Same trick as `useFilterAnnouncements`. */
 const ZERO_WIDTH_SPACE = "​";
 
-/** The element holding the text, referenced both as a live region and as the
- * cell input's description. */
-export const CONTEXT_MENU_REGION_ID = "sr-contextMenuRegion";
+/**
+ * Suffix of the id of the element holding the text, which is referenced both as
+ * a live region and as the cell input's description.
+ *
+ * A suffix rather than the whole id, because the id has to be unique per
+ * workbook and this fork is embedded several times on one page: the spreadsheet
+ * sim renders one `<Workbook>` per section, five of them in the Exploratory Data
+ * Analysis sim alone. With a fixed id every instance rendered
+ * `id="sr-contextMenuRegion"`, and an `aria-describedby` IDREF resolves to the
+ * *first* match in the document — so the description of the cell input in
+ * instance 3 pointed at instance 0's region, which is permanently empty. The
+ * announcement was written correctly, into a region nothing referenced, and
+ * VoiceOver read the focus utterance with a blank description: "text entry area,
+ * blank, main". Every test rendered a single workbook, so all of them passed.
+ *
+ * Exported for tests, which locate the region with `[id$=...]`.
+ */
+export const CONTEXT_MENU_REGION_ID_SUFFIX = "sr-contextMenuRegion";
 
 /**
  * How long the result stays available to be read. Long enough for a screen
@@ -76,7 +91,12 @@ export function announce(
 export function useContextMenuAnnouncements(
   context: Context,
   cellInputRef?: React.RefObject<HTMLElement | null>
-): string {
+): { regionId: string; announcement: string } {
+  // The hook owns the id and hands it back for the caller to render, rather than
+  // the caller passing one in: the `aria-describedby` written below and the
+  // `id` on the region then cannot drift apart, which is the whole failure this
+  // replaces.
+  const regionId = `${useId()}-${CONTEXT_MENU_REGION_ID_SUFFIX}`;
   const strings = locale(context);
   const [announcement, setAnnouncement] = useState("");
   const announceCount = useRef(0);
@@ -106,7 +126,7 @@ export function useContextMenuAnnouncements(
       announceCount.current % 2 === 0 ? `${text}${ZERO_WIDTH_SPACE}` : text
     );
     const cell = cellInputRef?.current;
-    cell?.setAttribute("aria-describedby", CONTEXT_MENU_REGION_ID);
+    cell?.setAttribute("aria-describedby", regionId);
 
     const timer = setTimeout(() => {
       setAnnouncement("");
@@ -116,7 +136,7 @@ export function useContextMenuAnnouncements(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seq]);
 
-  return announcement;
+  return { regionId, announcement };
 }
 
 export default useContextMenuAnnouncements;

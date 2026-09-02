@@ -2,7 +2,10 @@ import { locale } from "@fortune-sheet/core";
 import React, { useContext, useEffect, useRef } from "react";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
-import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
+import {
+  activateOnEnterOrSpace,
+  focusAfterCommit,
+} from "../../utils/keyboardActivation";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import "./index.css";
 
@@ -129,9 +132,23 @@ const Dialog: React.FC<Props> = ({
     dialog.addEventListener("keydown", trapFocus);
     return () => {
       dialog.removeEventListener("keydown", trapFocus);
-      if (previousActiveElement.current?.isConnected) {
-        previousActiveElement.current.focus();
-      }
+      // Deferred, because this restore is a focus change and focus changes have
+      // to go last (the reasoning `focusAfterCommit` documents at length).
+      //
+      // An action that closes a dialog usually also commits something, and the
+      // status of what it committed reaches a screen reader through the focus
+      // utterance of the element focus lands on — `useContextMenuAnnouncements`
+      // writes the text and points the cell input's `aria-describedby` at it,
+      // rather than racing a live region the focus change would discard. That
+      // write happens in a passive *mount* effect, and React runs passive
+      // unmount cleanups first, so restoring focus from here inline beat the
+      // announcement into the DOM every time: the Sort modal's Sort button
+      // composed "text entry area, blank, main" and never mentioned the sort.
+      //
+      // `focusAfterCommit` re-checks `isConnected` inside the timeout, so a
+      // restore target that goes away in the meantime is left alone instead of
+      // dropping focus on `<body>` — the same guarantee the inline check gave.
+      focusAfterCommit(() => previousActiveElement.current);
     };
   }, [initialFocusRef]);
 

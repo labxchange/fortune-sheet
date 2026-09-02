@@ -182,11 +182,11 @@ describe("announcement keys resolve to real strings", () => {
     key$,
     params,
   }) => {
-    const text = useContextMenuAnnouncements({
+    const { announcement } = useContextMenuAnnouncements({
       lang: "en",
       contextMenuAnnouncement: { key: key$, params, seq: 1 },
     } as any);
-    return <div data-testid="out">{text}</div>;
+    return <div data-testid="out">{announcement}</div>;
   };
 
   it.each([

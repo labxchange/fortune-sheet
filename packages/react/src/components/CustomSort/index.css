@@ -16,6 +16,28 @@
  * spaces in the markup now, so keeping the margin would have doubled them.
  */
 
+/*
+ * Restores the `display: inline` these labels got for free as bare `<span>`s.
+ *
+ * This fork renders inside host pages that ship their own unscoped element
+ * selectors, and the spreadsheet sim's bundle carries a global
+ * `label { display: block }` (leaked out of a legacy sim's stylesheet, loaded
+ * after this package's CSS). A bare `label` and this dialog's former `span`s
+ * never collided, so turning the text into real `<label>`s for WCAG 4.1.2 handed
+ * every one of them `display: block` — the checkbox and both radios dropped onto
+ * the line above their own text, doubling each row's height.
+ *
+ * Storybook loads only this package's CSS, so the dialog looks correct there and
+ * breaks only once embedded; the class selector here outranks the host's bare
+ * one regardless of source order, which is what makes the fix hold either way.
+ *
+ * `.fortune-sort-by-select`'s `margin-left` below is the standing evidence that
+ * inline is the intended layout: it spaces the select from a label beside it.
+ */
+.fortune-sort label {
+  display: inline;
+}
+
 .fortune-sort-modal > div {
   margin-bottom: 10px;
 }

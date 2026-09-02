@@ -1,12 +1,21 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import React, { useEffect, useMemo } from "react";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+  act,
+  within,
+} from "@testing-library/react";
 import { defaultContext, defaultSettings, Context } from "@fortune-sheet/core";
 import WorkbookContext from "../src/context";
 import { ModalProvider } from "../src/context/modal";
 import { useDialog } from "../src/hooks/useDialog";
 import CustomSort, { SORT_DIALOG_TITLE_ID } from "../src/components/CustomSort";
+import Workbook from "../src/components/Workbook";
+import { CONTEXT_MENU_REGION_ID_SUFFIX } from "../src/hooks/useContextMenuAnnouncements";
 
 // The Sort modal reached the audit with none of its three inputs named and no
 // name on the dialog itself: the `<span>` beside each control was never
@@ -212,6 +221,198 @@ describe("Sort modal announces the sort it performed", () => {
 
   it("announces a descending sort", () => {
     expect(confirmSort(true)?.key).toBe("rightclick.announceSortedDesc");
+  });
+});
+
+describe("the Sort modal's announcement reaches the focus it hands back", () => {
+  // The describe above proves the *request* is recorded. It was, and the modal
+  // was still silent: recorded at the wrong moment.
+  //
+  // The result is not delivered by the live region winning a race — VoiceOver
+  // drops a region message queued alongside a focus change, which is why
+  // `useContextMenuAnnouncements` hangs the text off the cell input's
+  // `aria-describedby` and lets it ride the focus utterance instead. That only
+  // works if the text is in the DOM *before* focus moves.
+  //
+  // Closing the modal moves focus: `Dialog` restores it to whatever held it
+  // when it opened, which the sort row deliberately made the cell input. And it
+  // restores synchronously, in its passive-effect cleanup — React runs unmount
+  // cleanups ahead of mount effects, so the cleanup's focus() beat the effect
+  // that writes the announcement. VoiceOver composed "text entry area, blank,
+  // main" and the sort was never mentioned.
+  //
+  // So this asserts on the DOM *as it stood at the instant focus landed*, not on
+  // the settled DOM. The settled DOM has always been right, which is exactly why
+  // the bug survived the tests above.
+  const plainData = [
+    {
+      name: "Sheet1",
+      id: "s1",
+      row: 10,
+      column: 6,
+      celldata: ["Fruit", "Cherry", "Apple", "Banana"].map((v, r) => ({
+        r,
+        c: 0,
+        v: { v, m: v, ct: { fa: "General", t: "s" } },
+      })),
+    },
+  ];
+
+  /** Both the modal's close and `focusAfterCommit` defer by a task. */
+  const flush = async () => {
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+  };
+
+  /** Scoped to one workbook root, so a page holding several stays unambiguous. */
+  const openSortModal = async (root: HTMLElement) => {
+    const rightClick = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(rightClick, "pageX", { value: 5 });
+    Object.defineProperty(rightClick, "pageY", { value: 5 });
+    act(() => {
+      root
+        .querySelector<HTMLElement>(".fortune-cell-area")!
+        .dispatchEvent(rightClick);
+    });
+    const row = Array.from(
+      root.querySelectorAll<HTMLElement>('[role="button"]')
+    ).find((el) => el.textContent === "Sort")!;
+    act(() => {
+      row.focus();
+      fireEvent.keyDown(row, { key: "Enter" });
+    });
+    return waitFor(() => screen.getByRole("dialog"));
+  };
+
+  /** The description an assistive technology would resolve when focus lands. */
+  const captureDescriptionAtFocus = async (dialog: HTMLElement) => {
+    let atFocus: { id: string | null; text: string | null } = {
+      id: null,
+      text: null,
+    };
+    const onFocusIn = (e: Event) => {
+      const id = (e.target as HTMLElement).getAttribute?.("aria-describedby");
+      atFocus = {
+        id: id ?? null,
+        // getElementById, not a scoped query: that is how an IDREF resolves,
+        // and resolving it globally is what exposes a collision with another
+        // workbook's region.
+        text: id ? document.getElementById(id)?.textContent ?? null : null,
+      };
+    };
+    document.addEventListener("focusin", onFocusIn);
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Sort$/ }));
+    await flush();
+    document.removeEventListener("focusin", onFocusIn);
+    return atFocus;
+  };
+
+  /**
+   * What a screen reader would have to work with when focus arrives: the
+   * description the focused element points at, resolved at that moment.
+   */
+  const confirmAndCaptureFocusUtterance = async (
+    descending: boolean
+  ): Promise<string | null> => {
+    const { container } = render(<Workbook lang="en" data={plainData} />);
+    const dialog = await openSortModal(container);
+
+    if (descending) {
+      fireEvent.click(
+        within(dialog).getByRole("radio", { name: /Descending/ })
+      );
+    }
+
+    let described: string | null = null;
+    const onFocusIn = (e: Event) => {
+      const el = e.target as HTMLElement;
+      const id = el.getAttribute?.("aria-describedby");
+      described = id ? document.getElementById(id)?.textContent ?? null : null;
+    };
+    document.addEventListener("focusin", onFocusIn);
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Sort$/ }));
+    await flush();
+    document.removeEventListener("focusin", onFocusIn);
+
+    return described;
+  };
+
+  it("has the ascending result in the DOM before focus returns to the grid", async () => {
+    expect(await confirmAndCaptureFocusUtterance(false)).toContain(
+      "Sorted in ascending order."
+    );
+  });
+
+  it("has the descending result in the DOM before focus returns to the grid", async () => {
+    expect(await confirmAndCaptureFocusUtterance(true)).toContain(
+      "Sorted in descending order."
+    );
+  });
+
+  it("points the restored focus at the region carrying it", async () => {
+    // The text existing is not enough on its own: it has to be the description
+    // of the element focus lands on, or it stays a live-region message competing
+    // with the focus utterance — the race this delivery mechanism avoids.
+    const { container } = render(<Workbook lang="en" data={plainData} />);
+    const dialog = await openSortModal(container);
+
+    let describedBy: string | null = null;
+    const onFocusIn = (e: Event) => {
+      describedBy =
+        (e.target as HTMLElement).getAttribute?.("aria-describedby") ?? null;
+    };
+    document.addEventListener("focusin", onFocusIn);
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Sort$/ }));
+    await flush();
+    document.removeEventListener("focusin", onFocusIn);
+
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy!)).toBe(
+      container.querySelector(`[id$="-${CONTEXT_MENU_REGION_ID_SUFFIX}"]`)
+    );
+  });
+
+  it("resolves to its own workbook's region when the page holds several", async () => {
+    // The failure the two reports above were actually describing, and the reason
+    // every other test here passed while VoiceOver said "text entry area, blank,
+    // main": the region's id was a module constant, so all five workbooks the
+    // spreadsheet sim renders emitted `id="sr-contextMenuRegion"`. The
+    // announcement went into the right region, but `aria-describedby` is an
+    // IDREF and an IDREF resolves to the *first* match in the document — the
+    // description of a cell input in any instance but the first pointed at the
+    // first instance's permanently empty region.
+    //
+    // Sorting in the *second* workbook is the whole point of the test; doing it
+    // in the first passes either way.
+    const { container } = render(
+      <>
+        <Workbook lang="en" data={plainData} />
+        <Workbook lang="en" data={plainData} />
+      </>
+    );
+    const [first, second] =
+      container.querySelectorAll<HTMLElement>(".fortune-container");
+    const dialog = await openSortModal(second);
+
+    const atFocus = await captureDescriptionAtFocus(dialog);
+
+    expect(atFocus.text).toContain("Sorted in ascending order.");
+    expect(document.getElementById(atFocus.id!)).toBe(
+      second.querySelector(`[id$="-${CONTEXT_MENU_REGION_ID_SUFFIX}"]`)
+    );
+    // And the ids are actually distinct, rather than the assertion above passing
+    // because both queries found the same element.
+    expect(
+      first.querySelector(`[id$="-${CONTEXT_MENU_REGION_ID_SUFFIX}"]`)!.id
+    ).not.toBe(
+      second.querySelector(`[id$="-${CONTEXT_MENU_REGION_ID_SUFFIX}"]`)!.id
+    );
   });
 });
 

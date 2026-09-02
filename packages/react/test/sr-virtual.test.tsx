@@ -2,6 +2,7 @@ import { render, act, fireEvent } from "@testing-library/react";
 import React from "react";
 import { virtual } from "@guidepup/virtual-screen-reader";
 import Workbook, { WorkbookInstance } from "../src/components/Workbook";
+import { CONTEXT_MENU_REGION_ID_SUFFIX } from "../src/hooks/useContextMenuAnnouncements";
 
 /**
  * What a screen reader actually says, rather than which attributes are set.
@@ -312,11 +313,12 @@ describe("what a screen reader announces", () => {
     const spoken = await virtual.spokenPhraseLog();
     expect(spoken).toContain("assertive: Contents cleared.");
     // And the description path, which is what survives a real focus utterance.
-    expect(
-      container
-        .querySelector("#luckysheet-rich-text-editor")
-        ?.getAttribute("aria-describedby")
-    ).toBe("sr-contextMenuRegion");
+    const clearedDescribedBy = container
+      .querySelector("#luckysheet-rich-text-editor")
+      ?.getAttribute("aria-describedby");
+    expect(document.getElementById(clearedDescribedBy!)).toBe(
+      container.querySelector(`[id$="-${CONTEXT_MENU_REGION_ID_SUFFIX}"]`)
+    );
   });
 
   it("speaks the result of the Sort dialog's Sort button", async () => {
@@ -325,6 +327,26 @@ describe("what a screen reader announces", () => {
     // commit, whereas `focusAfterCommit` defers to a macrotask. So the focus can
     // land before the description is in the DOM, and the utterance is composed
     // without it — the same bug in a different order.
+    //
+    // That was written as a hazard to watch for and then asserted against the
+    // settled DOM, which is always right by the time the assertions run. It was
+    // green for the whole of the second report of this bug. The `atFocus`
+    // capture below is what makes it able to fail: a screen reader composes the
+    // utterance from what exists when focus arrives, so that is the only moment
+    // worth reading.
+    let atFocus: { describedBy: string | null; text: string | null } | null =
+      null;
+    const captureAtFocus = (e: Event) => {
+      const el = e.target as HTMLElement;
+      const describedBy = el.getAttribute?.("aria-describedby") ?? null;
+      atFocus = {
+        describedBy,
+        text: describedBy
+          ? document.getElementById(describedBy)?.textContent ?? null
+          : null,
+      };
+    };
+
     await virtual.start({ container });
     act(() => {
       ref.current?.setSelection([{ row: [0, 2], column: [0, 0] }]);
@@ -354,21 +376,24 @@ describe("what a screen reader announces", () => {
       document.querySelectorAll<HTMLElement>('[role="button"]')
     ).find((el) => el.textContent === "Sort" && el.closest(".fortune-sort"));
     if (!sortButton) throw new Error("no Sort button in the dialog");
+    document.addEventListener("focusin", captureAtFocus);
     await act(async () => {
       fireEvent.click(sortButton);
     });
     await settle();
+    document.removeEventListener("focusin", captureAtFocus);
 
     // The virtual reader reports the assertive region dutifully, so it cannot
     // reproduce VoiceOver *discarding* it — that is the whole bug. What decides
     // the real outcome is whether the description is in place, and non-empty, at
     // the moment focus lands on the cell input.
-    const cell = container.querySelector("#luckysheet-rich-text-editor")!;
-    const describedBy = cell.getAttribute("aria-describedby");
-    expect(describedBy).toBe("sr-contextMenuRegion");
-    expect(document.getElementById(describedBy!)?.textContent).toMatch(
-      /Sorted in ascending order/
+    expect(atFocus).not.toBeNull();
+    expect(document.getElementById(atFocus!.describedBy!)).toBe(
+      container.querySelector(`[id$="-${CONTEXT_MENU_REGION_ID_SUFFIX}"]`)
     );
+    expect(atFocus!.text).toMatch(/Sorted in ascending order/);
+
+    const cell = container.querySelector("#luckysheet-rich-text-editor")!;
     expect(document.activeElement).toBe(cell);
 
     const spoken = await virtual.spokenPhraseLog();
