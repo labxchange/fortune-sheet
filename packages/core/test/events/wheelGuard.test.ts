@@ -53,6 +53,20 @@ describe("shouldSkipGlobalWheel", () => {
     ).toBe(true);
   });
 
+  it("skips when the pointer is over the dialog and both flags are set", () => {
+    // The one combination the old `showSearch && showReplace` guard *did*
+    // satisfy, and so the case that tells "the fix widened the guard" apart
+    // from "the fix moved the bug": widening with `||` has to keep the far end
+    // of the table intact, not trade one unreachable branch for another.
+    // Reachable in practice — Ctrl+H after Ctrl+F leaves both set.
+    expect(
+      shouldSkipGlobalWheel(
+        ctx({ showSearch: true, showReplace: true }),
+        cache({ searchDialog: { mouseEnter: true } } as any)
+      )
+    ).toBe(true);
+  });
+
   it("does not skip when the dialog is open but the pointer is elsewhere", () => {
     expect(
       shouldSkipGlobalWheel(

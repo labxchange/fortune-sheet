@@ -1,4 +1,10 @@
-import React, { useRef, useEffect, useContext, useCallback } from "react";
+import React, {
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useContext,
+  useCallback,
+} from "react";
 import {
   Canvas,
   updateContextWithCanvas,
@@ -248,11 +254,24 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
     showReplace: context.showReplace,
     filterContextMenu: context.filterContextMenu,
   });
-  wheelGuard.current = {
-    showSearch: context.showSearch,
-    showReplace: context.showReplace,
-    filterContextMenu: context.filterContextMenu,
-  };
+
+  // Written in a layout effect rather than in the component body: a ref write
+  // during render is a render-phase side effect, so a render that is discarded
+  // — interrupted, replayed under a concurrent update, double-invoked by
+  // StrictMode — still mutates it, and the guard would then answer for a
+  // context that was never committed.
+  //
+  // A layout effect and not useEffect because this ref is read from a native
+  // event handler. Layout effects flush synchronously with the commit, before
+  // the browser can dispatch the next wheel event; passive effects are
+  // deferred past paint, which would leave a frame in which the guard is one
+  // render stale. Fields are assigned in place so the steady state allocates
+  // nothing.
+  useLayoutEffect(() => {
+    wheelGuard.current.showSearch = context.showSearch;
+    wheelGuard.current.showReplace = context.showReplace;
+    wheelGuard.current.filterContextMenu = context.filterContextMenu;
+  });
 
   const onWheel = useCallback(
     (e: WheelEvent) => {
