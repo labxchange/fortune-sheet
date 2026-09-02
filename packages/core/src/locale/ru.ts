@@ -12984,6 +12984,7 @@ export default {
     toolbarFilterOff: "Фильтр выключен.",
     toolbarFontColorSet: "Цвет текста: ${color}.",
     toolbarBackgroundColorSet: "Цвет ячейки: ${color}.",
+    toolbarBorderColorSet: "Цвет границы: ${color}.",
     hexColorInput: "Цвет в HEX",
 
     sheetSrIntro:

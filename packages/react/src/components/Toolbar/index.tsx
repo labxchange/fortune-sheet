@@ -53,7 +53,10 @@ import { useAdjacentSubmenuPosition } from "../../hooks/useAdjacentSubmenuPositi
 import { useDialog } from "../../hooks/useDialog";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
-import { useToolbarAnnouncements } from "../../hooks/useToolbarAnnouncements";
+import {
+  clearFormatFingerprint,
+  useToolbarAnnouncements,
+} from "../../hooks/useToolbarAnnouncements";
 import {
   activateOnEnterOrSpace,
   focusAfterCommit,
@@ -1307,6 +1310,21 @@ const Toolbar: React.FC<{
                     setcustomColor(color as string);
                     setcustomStyle(style as string);
                   }}
+                  // The third CustomColor popup in the toolbar, and the only
+                  // one whose pick changes no cell: it stores the colour for
+                  // the next handleBorder. Nothing repaints, so announceNow
+                  // rather than announceAfterCommit — there is no committed
+                  // effect to detect, and picking a colour always takes.
+                  onColorPicked={(color) => {
+                    const colorNames = info.colorNames as
+                      | Record<string, string>
+                      | undefined;
+                    announceNow(
+                      replaceHtml(info.toolbarBorderColorSet, {
+                        color: colorNames?.[color] ?? color,
+                      })
+                    );
+                  }}
                 />
               </Select>
             )}
@@ -1597,7 +1615,12 @@ const Toolbar: React.FC<{
             // Queued before the commit so the hook can snapshot the state this
             // action is about to change; it reports the result afterwards, and
             // says nothing for the items with no phrase of their own.
-            announceAfterCommit((ctx) => toolbarActionPhrase(name, ctx));
+            // Clear format reaches every cell of the selection rather than the
+            // anchor, so it brings its own snapshot.
+            announceAfterCommit(
+              (ctx) => toolbarActionPhrase(name, ctx),
+              name === "clear-format" ? clearFormatFingerprint : undefined
+            );
             setContext((draftCtx) => {
               toolbarItemClickHandler(name)?.(
                 draftCtx,

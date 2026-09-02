@@ -11087,6 +11087,7 @@ export default {
     toolbarFilterOff: "已关闭筛选。",
     toolbarFontColorSet: "文本颜色：${color}。",
     toolbarBackgroundColorSet: "单元格颜色：${color}。",
+    toolbarBorderColorSet: "边框颜色：${color}。",
     hexColorInput: "十六进制颜色",
 
     sheetSrIntro: "使用方向键在单元格之间移动。",
