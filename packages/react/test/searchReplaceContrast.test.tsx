@@ -56,8 +56,16 @@ const ruleFor = (selector: string) => {
   return CSS.slice(at, CSS.indexOf("}", at));
 };
 
+/** The hex value `property` is declared as, within `rule`.
+ *
+ * The property name is anchored to a declaration boundary, or it matches as a
+ * substring: `declaration(rule, "color")` on a rule carrying both would find
+ * `background-color:` first and return the wrong colour — silently, and in the
+ * direction that makes a contrast assertion pass. */
 const declaration = (rule: string, property: string) => {
-  const match = rule.match(new RegExp(`${property}:\\s*(#[0-9a-fA-F]{3,6})`));
+  const match = rule.match(
+    new RegExp(`(?:^|[\\s;{])${property}:\\s*(#[0-9a-fA-F]{3,6})`)
+  );
   expect(match).toBeTruthy();
   return match![1];
 };
@@ -76,6 +84,16 @@ const SELECTED_OPTION =
   '#fortune-search-replace #searchAllbox .boxItem[aria-selected="true"]';
 
 describe("Find and Replace colour contrast", () => {
+  it("reads a property that another one ends with", () => {
+    // The helper the rest of the suite leans on, on the shape that would fool
+    // an unanchored name: `background-color` declared before `color`. Unpinned,
+    // this returned the background for both and every ratio below compared a
+    // colour with itself.
+    const rule = "  background-color: #5b57d1;\n  color: #fff;\n";
+    expect(declaration(rule, "color")).toBe("#fff");
+    expect(declaration(rule, "background-color")).toBe("#5b57d1");
+  });
+
   it("sanity-checks the ratio maths against known pairs", () => {
     // A contrast helper that is silently wrong would pass everything below.
     expect(contrast("#ffffff", "#000000")).toBeCloseTo(21, 1);
