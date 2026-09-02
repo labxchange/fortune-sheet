@@ -109,12 +109,11 @@ const SearchReplace: React.FC<{
   });
 
   const closeDialog = useCallback(() => {
-    _.set(refs.globalCache, "searchDialog.mouseEnter", false);
     setContext((draftCtx) => {
       draftCtx.showSearch = false;
       draftCtx.showReplace = false;
     });
-  }, [refs.globalCache, setContext]);
+  }, [setContext]);
 
   const setCheckMode = useCallback(
     (mode: string, value: boolean) =>
@@ -175,12 +174,6 @@ const SearchReplace: React.FC<{
       aria-labelledby={titleId}
       tabIndex={-1}
       style={getInitialPosition(getContainer())}
-      onMouseEnter={() => {
-        _.set(refs.globalCache, "searchDialog.mouseEnter", true);
-      }}
-      onMouseLeave={() => {
-        _.set(refs.globalCache, "searchDialog.mouseEnter", false);
-      }}
       onMouseDown={(e) => {
         const { nativeEvent } = e;
         onSearchDialogMoveStart(refs.globalCache, nativeEvent, getContainer());

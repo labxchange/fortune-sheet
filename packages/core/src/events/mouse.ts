@@ -75,46 +75,131 @@ let mouseWheelUniqueTimeout: ReturnType<typeof setTimeout>;
 let scrollLockTimeout: ReturnType<typeof setTimeout>;
 
 /* One wheel gesture, two questions — should the grid scroll, and should the
-   event be cancelled — and they do not have the same answer. They are kept
-   adjacent and over one shared building block because the pair has drifted
-   before: the scroll guard read `showSearch && showReplace` for a dialog that
-   opens with one or the other (keyboard.ts's Ctrl+F and Ctrl+H each set one),
-   so it was unreachable and every gesture over the dialog fell through to the
-   grid. */
+   event be cancelled — and they do not have the same answer.
+
+   Both are asked of the *event*, not of remembered state, and that is the
+   point rather than a detail. Three revisions of this guard have shipped a
+   stand-in for the real question and been corrected for over-covering:
+   `showSearch && showReplace` (a flag combination the dialog never reaches),
+   then one predicate for both questions (which suppressed the cancel over the
+   grid whenever a filter menu was open), then hover on the dialog root (which
+   suppressed it over every part of the dialog that has nothing to scroll).
+   Each of those describes *where the pointer is* and infers what the browser
+   will do with the gesture. The inference is what keeps being wrong, so it is
+   gone: the only exemption left names the element that actually consumes the
+   gesture, and asks whether this event landed inside it. */
+
+/** The only element the grid exempts from cancellation: the Find All results
+ *  box. It carries `overflow-y: auto` so the browser has something to scroll
+ *  there, and `overscroll-behavior: contain` so a gesture that reaches the end
+ *  of the list stops rather than chaining out to the grid — and past it, to
+ *  whatever contains an embedded workbook. Both live in
+ *  SearchReplace/index.css, both are what make declining to cancel safe, and
+ *  react's sheetWheelCancel suite asserts this selector against that rule so
+ *  the two cannot drift apart.
+ *
+ *  Exempt by choice, not because nothing else scrolls. `.fortune-sheet-container`
+ *  also holds `.luckysheet-scrollbar-x`/`-y` and the cell editor's
+ *  `.luckysheet-input-box-inner`, all of them native scrollers. `master`
+ *  cancelled gestures over those and so does this, and adding one here would
+ *  not be completing a pattern: this list is the elements that both scroll
+ *  *and* contain their scroll chain, and `overscroll-behavior` appears exactly
+ *  once in packages/react/src — on the rule below.
+ *
+ *  An id shared by every instance, and it stays one: this is reached through
+ *  `closest` from the event's own target, which walks that gesture's own
+ *  ancestors, so two workbooks on a page each answer for their own box. That
+ *  is the difference from the ids `useId` had to take over — those were
+ *  resolved by `getElementById` and `htmlFor`, which take the first match in
+ *  the document and so crossed between instances. */
+export const SELF_SCROLLING_SELECTOR = "#searchAllbox";
 
 /**
- * Whether the pointer is over the open search dialog, whose results list does
- * its own scrolling. The one gesture the grid leaves entirely to the browser:
- * neither scrolled nor cancelled.
+ * Whether the browser will scroll something for this gesture, so the grid can
+ * leave it alone entirely: neither scrolled nor cancelled.
  *
- * A pointer test is needed because the dialog renders inside SheetOverlay, and
- * so inside the element `Sheet` binds `wheel` on. The filter menu below is a
- * sibling of `<Sheet>` in Workbook, so gestures over *it* never reach that
- * listener and never reach either predicate here.
+ * The one DOM question behind both predicates below, and the caller asks it
+ * **once per gesture** rather than letting each predicate ask for itself. That
+ * matters because the two are answered at different moments — the cancel
+ * synchronously during dispatch, the scroll inside a `setContext` recipe React
+ * usually defers to the render pass — and the DOM moves in between: Find Next
+ * and Replace All clear `searchResult`, which unmounts the box. Asked twice,
+ * a gesture could be left uncancelled *and* scroll the grid, which is the
+ * double-scroll the whole guard exists to prevent.
+ *
+ * `e.target` is the deepest element under the pointer, which is why this needs
+ * no hover bookkeeping and cannot go stale — a cached flag survives the box
+ * unmounting under the pointer, and there is no `mouseleave` when it does.
+ * A target test is needed at all because the dialog renders inside
+ * SheetOverlay, and so inside the element `Sheet` binds `wheel` on. The filter
+ * menu is a sibling of `<Sheet>` in Workbook, so gestures over *it* never
+ * reach that listener and never reach this.
  */
-function isOverSearchDialog(
-  ctx: Pick<Context, "showSearch" | "showReplace">,
-  cache: GlobalCache
-): boolean {
-  return Boolean(
-    cache.searchDialog?.mouseEnter && (ctx.showSearch || ctx.showReplace)
-  );
+export function isOverSelfScrollingElement(e: WheelEvent): boolean {
+  // Not `instanceof Element`: a workbook rendered into another realm — an
+  // iframe, a popped-out window — has its own Element, and the check would be
+  // false there. Optional call also covers a target that is not an element.
+  const target = e.target as Element | null;
+  const box = target?.closest?.(SELF_SCROLLING_SELECTOR);
+  if (box == null) return false;
+
+  // `closest` walks all the way to the document, and this is an id rather than
+  // a scoped class, so bound the walk to the workbook handling the gesture. A
+  // host page with that id on an ancestor would otherwise switch cancellation
+  // off for the whole grid. (`currentTarget` is only readable during dispatch,
+  // which is where the caller asks — hence the null-tolerance.)
+  const container = e.currentTarget as Element | null;
+  if (container != null && !container.contains(box)) return false;
+
+  // Being the results box is still not enough: the exemption is only safe if
+  // the browser is really going to scroll it, and neither half of that is
+  // implied by the element's identity.
+  //
+  // The box is a fixed 210px holding a 30px caption row and 30px options, so a
+  // search matching one or two cells does not fill it — the ordinary case, not
+  // a corner — and Chrome does not scroll a non-overflowing box at all. It
+  // then goes looking for the next scroller up, and whether
+  // `overscroll-behavior: contain` is still consulted on a box that is not
+  // itself scrolling is an engine question this deliberately does not rest on:
+  // it was resting on a spec rule Chrome ignores that cost this change a round
+  // already.
+  //
+  // Overflowing is not the same as scrollable either — `scrollHeight` is the
+  // union of descendant boxes, so an `overflow: visible` element reports it
+  // too. The computed value is what decides, and it is asked on the axis this
+  // gesture is actually on: the list is `width: 100%` and never overflows
+  // horizontally, so a shift-wheel over the box is cancelled like the rest of
+  // the dialog rather than exempted on a measurement taken in the other axis.
+  //
+  // When any of this says no, the answer is the same as everywhere else in the
+  // dialog, which is `master`'s — cancel, and let the grid scroll.
+  //
+  // Cheap in the only place it runs: over the grid `closest` returns null and
+  // none of it executes.
+  const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+  const style = box.ownerDocument?.defaultView?.getComputedStyle(box);
+  const overflow = horizontal ? style?.overflowX : style?.overflowY;
+  if (overflow !== "auto" && overflow !== "scroll") return false;
+
+  return horizontal
+    ? box.scrollWidth > box.clientWidth
+    : box.scrollHeight > box.clientHeight;
 }
 
 /**
- * Whether the grid should decline to scroll itself for this gesture: the
- * pointer is over the search dialog, or a filter menu is open and the grid is
- * frozen behind it.
+ * Whether the grid should decline to scroll itself for this gesture: it landed
+ * on the results box, which scrolls itself, or a filter menu is open and the
+ * grid is frozen behind it.
  *
  * Split out of handleGlobalWheel so the caller can ask *synchronously*. Note
  * that the second case is not about anything else scrolling natively, which is
  * why cancelling asks the separate question below rather than reusing this.
  */
 export function shouldSkipGlobalWheel(
-  ctx: Pick<Context, "showSearch" | "showReplace" | "filterContextMenu">,
-  cache: GlobalCache
+  ctx: Pick<Context, "filterContextMenu">,
+  overSelfScroller: boolean
 ): boolean {
-  return isOverSearchDialog(ctx, cache) || ctx.filterContextMenu != null;
+  return overSelfScroller || ctx.filterContextMenu != null;
 }
 
 /**
@@ -122,17 +207,19 @@ export function shouldSkipGlobalWheel(
  * synchronously; see handleGlobalWheel below for why it cannot.
  *
  * Deliberately *not* shouldSkipGlobalWheel. Not scrolling and not cancelling
- * are the same decision only over the search dialog. A gesture over the grid
+ * are the same decision only over the results box. A gesture over the grid
  * while a filter menu is open is still cancelled, exactly as it was before
  * this predicate existed: the grid does not scroll, but nothing else should
  * either, and falling through would scroll the host page out from under an
  * embedded workbook.
+ *
+ * Reads as `master`'s unconditional cancel minus one exception, and takes no
+ * context at all — there is no state to mirror into a ref for the synchronous
+ * caller, and so no window in which it can answer for a render that was never
+ * committed.
  */
-export function shouldCancelGlobalWheel(
-  ctx: Pick<Context, "showSearch" | "showReplace">,
-  cache: GlobalCache
-): boolean {
-  return !isOverSearchDialog(ctx, cache);
+export function shouldCancelGlobalWheel(overSelfScroller: boolean): boolean {
+  return !overSelfScroller;
 }
 
 /**
@@ -141,17 +228,24 @@ export function shouldCancelGlobalWheel(
  * Does **not** call preventDefault: this runs inside a setContext recipe,
  * which React defers into a state updater, so a preventDefault here would land
  * after the event had finished dispatching and be silently ignored. Cancelling
- * the gesture is the caller's job, synchronously, gated on
- * shouldSkipGlobalWheel.
+ * the gesture is the caller's job, synchronously, and gated on
+ * shouldCancelGlobalWheel — *not* on the predicate below, which answers the
+ * other question. Conflating the two is what round four of this PR was about.
+ *
+ * `overSelfScroller` is the caller's single reading of the DOM, passed in
+ * rather than re-derived: by the time this recipe runs the box may have
+ * unmounted, and the two halves of one gesture have to agree. It defaults for
+ * a caller that has no better answer, which is not the path Sheet takes.
  */
 export function handleGlobalWheel(
   ctx: Context,
   e: WheelEvent,
   cache: GlobalCache,
   scrollbarX: HTMLDivElement,
-  scrollbarY: HTMLDivElement
+  scrollbarY: HTMLDivElement,
+  overSelfScroller: boolean = isOverSelfScrollingElement(e)
 ) {
-  if (shouldSkipGlobalWheel(ctx, cache)) return;
+  if (shouldSkipGlobalWheel(ctx, overSelfScroller)) return;
   let { scrollLeft } = scrollbarX;
   const { scrollTop } = scrollbarY;
   let visibledatacolumn_c = ctx.visibledatacolumn;

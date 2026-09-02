@@ -139,10 +139,19 @@
    * dialog instead of the list moving.
    *
    * This is half the fix. The other half is in JS: Sheet binds a wheel
-   * listener over the whole grid, and until shouldSkipGlobalWheel was
-   * corrected it scrolled the sheet and cancelled the gesture before the
-   * browser could scroll this box at all. Chaining is what remains once that
-   * handler correctly stands aside, and this is what stops it.
+   * listener over the whole grid, and it used to scroll the sheet and cancel
+   * the gesture before the browser could scroll this box at all — the grid
+   * declines to do either here now. Chaining is what remains once that handler
+   * correctly stands aside, and this is what stops it.
+   *
+   * The two halves are load-bearing for each other, so neither may move alone.
+   * `#searchAllbox` is the whole of core's SELF_SCROLLING_SELECTOR, and the
+   * guard reads the computed value of the overflow property above before it
+   * declines to cancel — so dropping that declaration turns the exemption off
+   * rather than corrupting it, while dropping this one leaves the exemption on
+   * with nothing to stop the chain, which is the direction that leaks. Rename
+   * the id and the exemption goes off too. sheetWheelCancel.test.tsx asserts
+   * this rule against that selector for exactly those reasons.
    */
   overscroll-behavior: contain;
 }

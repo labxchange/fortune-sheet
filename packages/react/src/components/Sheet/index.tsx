@@ -1,15 +1,10 @@
-import React, {
-  useRef,
-  useEffect,
-  useLayoutEffect,
-  useContext,
-  useCallback,
-} from "react";
+import React, { useRef, useEffect, useContext, useCallback } from "react";
 import {
   Canvas,
   updateContextWithCanvas,
   updateContextWithSheetData,
   handleGlobalWheel,
+  isOverSelfScrollingElement,
   shouldCancelGlobalWheel,
   initFreeze,
   Sheet as SheetType,
@@ -246,36 +241,6 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
     }
   }, [context, refs.canvas, refs.globalCache.freezen, setContext, sheet.id]);
 
-  // Read synchronously by onWheel below, which cannot reach `context` without
-  // taking it as a dependency — and that would rebind the wheel listener on
-  // every scroll, since scrolling is itself a context change.
-  //
-  // Only the two the *cancel* decision needs. `filterContextMenu` is the other
-  // half of shouldSkipGlobalWheel, but that one is asked from inside the
-  // recipe, which is handed the real context; mirroring it here would be state
-  // nothing reads.
-  const wheelGuard = useRef({
-    showSearch: context.showSearch,
-    showReplace: context.showReplace,
-  });
-
-  // Written in a layout effect rather than in the component body: a ref write
-  // during render is a render-phase side effect, so a render that is discarded
-  // — interrupted, replayed under a concurrent update, double-invoked by
-  // StrictMode — still mutates it, and the guard would then answer for a
-  // context that was never committed.
-  //
-  // A layout effect and not useEffect because this ref is read from a native
-  // event handler. Layout effects flush synchronously with the commit, before
-  // the browser can dispatch the next wheel event; passive effects are
-  // deferred past paint, which would leave a frame in which the guard is one
-  // render stale. Fields are assigned in place so the steady state allocates
-  // nothing.
-  useLayoutEffect(() => {
-    wheelGuard.current.showSearch = context.showSearch;
-    wheelGuard.current.showReplace = context.showReplace;
-  });
-
   const onWheel = useCallback(
     (e: WheelEvent) => {
       // Cancelling the gesture has to happen here, not inside the recipe
@@ -288,12 +253,24 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
       // itself.
       //
       // Gated on shouldCancelGlobalWheel rather than on the recipe's own
-      // shouldSkipGlobalWheel: the two agree only over the search dialog,
-      // whose results list is asking for the browser's scrolling. A gesture
-      // over the grid while a filter menu is open is one the grid declines to
-      // scroll but still cancels, as it did before this branch, so it does not
-      // fall through to whatever contains an embedded workbook.
-      if (shouldCancelGlobalWheel(wheelGuard.current, refs.globalCache)) {
+      // shouldSkipGlobalWheel: the two agree only over the Find All results
+      // box, which is asking for the browser's scrolling. A gesture over the
+      // grid while a filter menu is open is one the grid declines to scroll
+      // but still cancels, as it did before this branch, so it does not fall
+      // through to whatever contains an embedded workbook.
+      //
+      // The DOM is read once, here, and the answer handed to both halves. The
+      // cancel is decided now; the scroll is decided inside the recipe, which
+      // React usually defers to the render pass — and the box can unmount in
+      // between (Find Next clears the results), so asking again there could
+      // leave a gesture uncancelled *and* scroll the grid. Reading it here is
+      // also what makes `e.currentTarget` available to bound the lookup.
+      //
+      // Note there is no ref and no mirrored context: the question is asked of
+      // the event, so unlike the two revisions before it there is nothing that
+      // can answer for a render that was never committed.
+      const overSelfScroller = isOverSelfScrollingElement(e);
+      if (shouldCancelGlobalWheel(overSelfScroller)) {
         e.preventDefault();
       }
       setContext((draftCtx) => {
@@ -302,7 +279,8 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
           e,
           refs.globalCache,
           refs.scrollbarX.current!,
-          refs.scrollbarY.current!
+          refs.scrollbarY.current!,
+          overSelfScroller
         );
       });
     },

@@ -281,7 +281,9 @@ export type GlobalCache = {
     cursorMoveStartPosition: { x: number; y: number } | undefined;
   };
   searchDialog?: {
-    mouseEnter?: boolean;
+    // No hover flag here: the wheel guard asks the event's target instead, so
+    // there is nothing to keep in sync with the pointer. See
+    // SELF_SCROLLING_SELECTOR in events/mouse.ts.
     moveProps?: {
       initialPosition: Rect | undefined;
       cursorMoveStartPosition: { x: number; y: number } | undefined;
