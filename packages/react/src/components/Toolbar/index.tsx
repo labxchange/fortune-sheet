@@ -52,6 +52,7 @@ import { useRovingFocus } from "../../hooks/useRovingFocus";
 import {
   activateOnEnterOrSpace,
   focusAfterCommit,
+  withFocusReturn as sharedWithFocusReturn,
   onActivate,
 } from "../../utils/keyboardActivation";
 import { filterUnchanged } from "../../utils/filterDom";
@@ -288,15 +289,13 @@ const Toolbar: React.FC<{
    */
   const withFocusReturn = useCallback(
     <A extends unknown[]>(run: (...args: A) => void) =>
-      (...args: A) => {
-        const before = contextRef.current.luckysheetfile;
-        run(...args);
-        focusAfterCommit(() =>
-          contextRef.current.luckysheetfile === before
-            ? null
-            : refs.cellInput.current
-        );
-      },
+      sharedWithFocusReturn(
+        run,
+        // Through the ref, not `context`: this is read after the commit, when
+        // the value captured at render time is already stale.
+        () => contextRef.current.luckysheetfile,
+        () => refs.cellInput.current
+      ),
     [refs.cellInput]
   );
 
