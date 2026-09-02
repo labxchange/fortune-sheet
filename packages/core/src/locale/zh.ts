@@ -11062,6 +11062,7 @@ export default {
     enteredFilteredRegion: "已进入筛选区域：${start} 至 ${end}。",
     leftFilteredRegion: "已离开筛选区域。",
     currentCellInput: "当前单元格输入",
+    formulaReferenceSelected: "引用 ${range}。",
     newSheet: "新表",
     sheetTabs: "工作表标签",
     sheetOptions: "图纸选项",
