@@ -11074,6 +11074,9 @@ export default {
     toolbarTextWrapSet: "Ajuste de texto: ${mode}.",
     toolbarFilterOn: "Filtro activado.",
     toolbarFilterOff: "Filtro desactivado.",
+    toolbarFontColorSet: "Color Texto: ${color}.",
+    toolbarBackgroundColorSet: "Color Celda: ${color}.",
+    hexColorInput: "Color hexadecimal",
 
     sheetSrIntro: "Use las teclas de flecha para moverse entre celdas.",
     cellHasFilterDropdown: "Tiene menú de filtro.",
@@ -11884,6 +11887,8 @@ export default {
     resetColor: "Reiniciar color",
     cancelText: "Cancelar",
     chooseText: "Confirmar color",
+    sheetColorApplied: "Color de hoja: ${color}.",
+    sheetColorRemoved: "Color de hoja eliminado.",
     focus: "Enfocar",
 
     sheetNameInputLabel: "Nombre de la hoja",

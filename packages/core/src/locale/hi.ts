@@ -11102,6 +11102,9 @@ export default {
     toolbarTextWrapSet: "टेक्स्ट रैप: ${mode}।",
     toolbarFilterOn: "फ़िल्टर चालू।",
     toolbarFilterOff: "फ़िल्टर बंद।",
+    toolbarFontColorSet: "पाठ का रंग: ${color}।",
+    toolbarBackgroundColorSet: "कोशिका का रंग: ${color}।",
+    hexColorInput: "हेक्स रंग",
 
     sheetSrIntro: "कक्षों के बीच जाने के लिए तीर कुंजियों का उपयोग करें।",
     cellHasFilterDropdown: "फ़िल्टर ड्रॉपडाउन है।",
@@ -11920,6 +11923,8 @@ export default {
     resetColor: "रंग रीसेट करें",
     cancelText: "रद्द करें",
     chooseText: "रंग की पुष्टि करें",
+    sheetColorApplied: "शीट का रंग: ${color}।",
+    sheetColorRemoved: "शीट का रंग हटाया गया।",
     focus: "फोकस करें",
 
     sheetNameInputLabel: "शीट का नाम",

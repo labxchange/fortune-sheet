@@ -12978,6 +12978,9 @@ export default {
     toolbarTextWrapSet: "Перенос текста: ${mode}.",
     toolbarFilterOn: "Фильтр включён.",
     toolbarFilterOff: "Фильтр выключен.",
+    toolbarFontColorSet: "Цвет текста: ${color}.",
+    toolbarBackgroundColorSet: "Цвет ячейки: ${color}.",
+    hexColorInput: "Цвет в HEX",
 
     sheetSrIntro:
       "Используйте клавиши со стрелками для перемещения между ячейками.",
@@ -14476,6 +14479,8 @@ export default {
     resetColor: "Сбросить цвет",
     cancelText: "Отмена",
     chooseText: "Подтвердить цвет",
+    sheetColorApplied: "Цвет листа: ${color}.",
+    sheetColorRemoved: "Цвет листа удалён.",
     focus: "Фокус",
 
     sheetNameInputLabel: "Имя листа",

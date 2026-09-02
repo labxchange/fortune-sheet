@@ -11083,6 +11083,9 @@ export default {
     toolbarTextWrapSet: "文本换行：${mode}。",
     toolbarFilterOn: "已开启筛选。",
     toolbarFilterOff: "已关闭筛选。",
+    toolbarFontColorSet: "文本颜色：${color}。",
+    toolbarBackgroundColorSet: "单元格颜色：${color}。",
+    hexColorInput: "十六进制颜色",
 
     sheetSrIntro: "使用方向键在单元格之间移动。",
     cellHasFilterDropdown: "有筛选下拉菜单。",
@@ -11940,6 +11943,8 @@ export default {
     resetColor: "重置颜色",
     cancelText: "取消",
     chooseText: "确定颜色",
+    sheetColorApplied: "工作表颜色：${color}。",
+    sheetColorRemoved: "已移除工作表颜色。",
     focus: "聚焦",
 
     sheetNameInputLabel: "工作表名称",
