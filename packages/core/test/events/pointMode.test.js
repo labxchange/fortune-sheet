@@ -271,17 +271,107 @@ describe("formula point mode", () => {
     test("a merged reference is stepped over, not re-entered", () => {
       const ctx = getContext();
       ctx.luckysheetCellUpdate = [3, 0];
-      // B2:B3 merged, so a reference on it must move to B1 in one press.
+      // B2:B3 merged. Both halves of how a merge is stored have to be present:
+      // the cells' own `mc`, which mergeBorder reads to find the span, and
+      // config.merge, which rangeSetValue reads to decide what to write. A
+      // fixture with only the first makes rangeSetValue take a branch the app
+      // never takes.
       ctx.luckysheetfile[0].data[1][1] = { mc: { r: 1, c: 1, rs: 2, cs: 1 } };
       ctx.luckysheetfile[0].data[2][1] = { mc: { r: 1, c: 1 } };
+      ctx.config = { merge: { "1_1": { r: 1, c: 1, rs: 2, cs: 1 } } };
       editFormula("=SUM(");
 
       pressArrow(ctx, "ArrowUp", cellInput); // A3
-      pressArrow(ctx, "ArrowRight", cellInput); // B2:B3, the merge
-      expect(cellInput.textContent).toBe("=SUM(B2:B3");
+      pressArrow(ctx, "ArrowRight", cellInput); // onto the merge
 
+      // Upstream collapses a merged reference to the merge's anchor before
+      // writing it -- shared with the mouse, not this feature's doing.
+      expect(cellInput.textContent).toBe("=SUM(B2");
+      // ...but the phantom selection still spans the merge, which is what the
+      // next step has to leave from.
+      expect(ctx.formulaCache.func_selectedrange).toMatchObject({
+        row: [1, 2],
+        column: [1, 1],
+      });
+
+      // One press clears the whole merge rather than landing inside it again.
       pressArrow(ctx, "ArrowUp", cellInput);
       expect(cellInput.textContent).toBe("=SUM(B1");
+    });
+
+    test("the reference stops at the last row and column too", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      editFormula("=SUM(");
+
+      // The fixture is 4x4, so row 3 / column 3 are the last of each.
+      pressArrow(ctx, "ArrowDown", cellInput); // D3 -> C4
+      expect(cellInput.textContent).toBe("=SUM(C4");
+      const atEdge = pressArrow(ctx, "ArrowDown", cellInput);
+      expect(cellInput.textContent).toBe("=SUM(C4");
+      expect(atEdge.defaultPrevented).toBe(true);
+
+      pressArrow(ctx, "ArrowRight", cellInput);
+      expect(cellInput.textContent).toBe("=SUM(D4");
+      pressArrow(ctx, "ArrowRight", cellInput);
+      expect(cellInput.textContent).toBe("=SUM(D4");
+    });
+
+    test("the reference goes at the innermost open call", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      editFormula("=SUM(AVERAGE(");
+
+      pressArrow(ctx, "ArrowUp", cellInput);
+
+      expect(cellInput.textContent).toBe("=SUM(AVERAGE(C2");
+    });
+
+    describe("modified arrows are not point mode", () => {
+      // The grid filters these out long before its arrow branch; the formula
+      // bar switches on `key` alone. The guard lives in canEnterPointMode so
+      // both drivers inherit it -- without it, Shift+Left in the formula bar
+      // writes a reference instead of selecting text.
+      test.each([
+        ["shiftKey", { shiftKey: true }],
+        ["ctrlKey", { ctrlKey: true }],
+        ["metaKey", { metaKey: true }],
+        ["altKey", { altKey: true }],
+      ])("%s + arrow declines", (_name, modifier) => {
+        const ctx = getContext();
+        ctx.luckysheetCellUpdate = [2, 2];
+        editFormula("=SUM(");
+        const before = cellInput.innerHTML;
+
+        const handled = handleFormulaArrowKey(
+          ctx,
+          cellInput,
+          fxInput,
+          new KeyboardEvent("keydown", { key: "ArrowUp", ...modifier })
+        );
+
+        expect(handled).toBe(false);
+        expect(cellInput.innerHTML).toBe(before);
+        expect(ctx.formulaCache.rangestart).toBeFalsy();
+      });
+    });
+
+    test("a key that is not an arrow declines", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      editFormula("=SUM(");
+      const before = cellInput.innerHTML;
+
+      // Both in-repo call sites pre-filter, but the driver is public API.
+      const handled = handleFormulaArrowKey(
+        ctx,
+        cellInput,
+        fxInput,
+        new KeyboardEvent("keydown", { key: "PageDown" })
+      );
+
+      expect(handled).toBe(false);
+      expect(cellInput.innerHTML).toBe(before);
     });
   });
 });

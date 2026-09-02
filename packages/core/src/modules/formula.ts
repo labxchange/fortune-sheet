@@ -92,6 +92,15 @@ export class FormulaCache {
 
   rangeSetValueTo?: any;
 
+  /**
+   * The A1 text rangeSetValue last wrote into the formula. Recorded because it
+   * is not always derivable from func_selectedrange: a reference onto a merged
+   * cell is collapsed to the merge's anchor here, so the phantom selection says
+   * B2:B3 while the formula says B2. Anything reporting the pick to the user
+   * has to quote what was written, not recompute it.
+   */
+  rangeText?: string;
+
   rangeIndex?: number;
 
   rangestart?: boolean;
@@ -2766,6 +2775,7 @@ export function rangeSetValue(
       ctx.formulaCache.rangetosheet
     );
   }
+  ctx.formulaCache.rangeText = range;
   // let $editor;
 
   if (

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import {
   Context,
   formatRefForSr,
-  getRangetxt,
   locale,
   replaceHtml,
 } from "@fortune-sheet/core";
@@ -32,21 +31,16 @@ export function useFormulaRangeAnnouncement(context: Context): string {
   const [announcement, setAnnouncement] = useState("");
 
   const { formulaRangeSelect } = context;
-  const picked = context.formulaCache?.func_selectedrange;
-  const active =
-    !!context.formulaCache?.rangestart && !!formulaRangeSelect && !!picked;
-
-  // A whole-row or whole-column reference carries nulls on the other axis, and
-  // getRangetxt renders those as "A:C" / "2:4" — still a reference worth
-  // speaking, so it is passed through rather than filtered out.
+  // Quoted from rangeSetValue, never recomputed from func_selectedrange. The
+  // two disagree: a pick onto a merged cell is collapsed to the merge's anchor
+  // before it is written, so the phantom selection says B2:B3 while the formula
+  // says B2. Recomputing would tell a screen-reader user a range that is not in
+  // their formula — on the very announcement added to avoid a 4.1.3 failure.
+  // It also makes AutoSum right for free: it seeds func_selectedrange with the
+  // cell being edited but inserts the detected sum range.
   const rangeText =
-    active && picked
-      ? getRangetxt(
-          context,
-          context.currentSheetId,
-          { row: picked.row, column: picked.column },
-          context.currentSheetId
-        )
+    context.formulaCache?.rangestart && formulaRangeSelect
+      ? context.formulaCache.rangeText ?? ""
       : "";
 
   // No markAsRepeat here, unlike the other announcement hooks. They exist for
