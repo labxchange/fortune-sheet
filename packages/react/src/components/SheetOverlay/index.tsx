@@ -56,6 +56,7 @@ import { useSelectionModeAnnouncement } from "../../hooks/useSelectionModeAnnoun
 import { useSelectAllAnnouncement } from "../../hooks/useSelectAllAnnouncement";
 import { useNameBoxClampAnnouncement } from "../../hooks/useNameBoxClampAnnouncement";
 import { useContextMenuAnnouncements } from "../../hooks/useContextMenuAnnouncements";
+import { useFocusedCellFormulaAnnouncement } from "../../hooks/useFocusedCellFormulaAnnouncement";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
@@ -574,6 +575,7 @@ const SheetOverlay: React.FC = () => {
     regionId: contextMenuRegionId,
     announcement: contextMenuAnnouncement,
   } = useContextMenuAnnouncements(context, refs.cellInput);
+  const formulaAnnouncement = useFocusedCellFormulaAnnouncement(context, info);
   const cellAreaId = useId();
   const { cellAnnouncement: filterCellAnnouncement, regionAnnouncement } =
     useFilterAnnouncements(context, info);
@@ -1050,9 +1052,13 @@ const SheetOverlay: React.FC = () => {
           </div>
         </div>
       </div>
+      {/* Ordered as reference, value, then the value's own properties, then the
+          event that moved us here: a formula marker qualifies the value it
+          follows, so it sits next to it, while a clamp describes the jump and
+          stays last. */}
       <div id="sr-selection" className="sr-only" role="alert">
         {!rangeText.includes("NaN")
-          ? `${rangeText} ${computedCellValue}${filterCellAnnouncement}${clampAnnouncement}`
+          ? `${rangeText} ${computedCellValue}${formulaAnnouncement}${filterCellAnnouncement}${clampAnnouncement}`
           : `A1. ${info.sheetSrIntro}`}
       </div>
       {/*

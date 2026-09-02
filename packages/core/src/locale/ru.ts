@@ -12983,6 +12983,7 @@ export default {
       "Используйте клавиши со стрелками для перемещения между ячейками.",
     cellHasFilterDropdown: "Есть раскрывающийся список фильтра.",
     cellFilterActive: "Фильтр активен.",
+    cellHasFormula: "Есть формула.",
     enteredFilteredRegion:
       "Вход в отфильтрованную область: с ${start} по ${end}.",
     leftFilteredRegion: "Выход из отфильтрованной области.",

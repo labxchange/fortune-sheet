@@ -16,6 +16,7 @@ import {
   escapeHTMLTag,
   isAllowEdit,
   getrangeseleciton,
+  locale,
 } from "@fortune-sheet/core";
 import React, {
   useContext,
@@ -33,6 +34,7 @@ import FormulaSearch from "./FormulaSearch";
 import FormulaHint from "./FormulaHint";
 import usePrevious from "../../hooks/usePrevious";
 import useFocusedCellRefText from "../../hooks/useFocusedCellRefText";
+import { useFocusedCellFormulaAnnouncement } from "../../hooks/useFocusedCellFormulaAnnouncement";
 
 const InputBox: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
@@ -399,6 +401,8 @@ const InputBox: React.FC = () => {
 
   const cellRef = useFocusedCellRefText(context);
   const editing = context.luckysheetCellUpdate.length > 0;
+  const { info } = locale(context);
+  const formulaAnnouncement = useFocusedCellFormulaAnnouncement(context, info);
 
   /**
    * The cell input's accessible name, and the reason it needs one.
@@ -414,17 +418,29 @@ const InputBox: React.FC = () => {
    * The value is left out while an edit is open: the field's own text is then
    * the value, and repeating it in the name has the screen reader say the
    * content twice before the user has finished typing it.
+   *
+   * A formula cell says so here as well as in `#sr-selection`, because the two
+   * speak in different situations and neither covers the other. `#sr-selection`
+   * is an alert tied to the selection *changing* — arrowing onto the cell. This
+   * name is what is read when focus arrives without the selection moving: back
+   * from the formula bar, back from the toolbar, or when the user asks what is
+   * focused. Marking only the alert would leave every one of those routes
+   * announcing a computed value as though it had been typed. It rides with the
+   * value, and so is absent while editing for the same reason the value is: the
+   * field then holds the formula source itself, leading `=` and all.
    */
   const cellInputLabel = useMemo(() => {
     if (!cellRef) return "";
     if (editing) return cellRef;
     const flowdata = getFlowdata(context);
     const displayed = flowdata?.[row_index]?.[col_index]?.m;
-    return displayed ? `${cellRef} ${displayed}` : cellRef;
+    const named = displayed ? `${cellRef} ${displayed}` : cellRef;
+    return `${named}${formulaAnnouncement}`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     cellRef,
     editing,
+    formulaAnnouncement,
     context.luckysheetfile,
     context.currentSheetId,
     row_index,
