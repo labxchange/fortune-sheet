@@ -149,3 +149,38 @@ export function mouseDownToggleHandlers<T extends HTMLElement = HTMLElement>(
     }),
   };
 }
+
+/**
+ * Wrap a command so that focus returns to the cells it acted on.
+ *
+ * After an editing command run from the toolbar, focus belongs in the user's
+ * working context rather than on the control that ran it (WCAG 2.4.3): select
+ * B5, bold it, and the next arrow key should move from B5, not along the
+ * toolbar. `getTarget` names where that is — the cell input, which is where a
+ * mouse click already leaves focus and the only place the grid's own key
+ * handling runs.
+ *
+ * A command that declined to act must not relocate anyone, which is what
+ * `readStamp` is for: it samples some value that changes if and only if the
+ * command wrote something, before and after. In the workbook that is
+ * `luckysheetfile` — immer rebuilds the references along the path to whatever a
+ * command wrote, up to and including that array, and preserves them for a
+ * subtree nothing touched. So a command that changed no cell, format, merge or
+ * freeze leaves it identical and focus stays where the user put it. This
+ * generalises the rule `filterUnchanged` states for the two filter items.
+ *
+ * Both `readStamp` and `getTarget` are called late — after the commit — for the
+ * reasons `focusAfterCommit` documents; a caller holding a React ref must read
+ * through it rather than closing over a value from render.
+ */
+export function withFocusReturn<A extends unknown[]>(
+  run: (...args: A) => void,
+  readStamp: () => unknown,
+  getTarget: () => HTMLElement | null | undefined
+): (...args: A) => void {
+  return (...args: A) => {
+    const before = readStamp();
+    run(...args);
+    focusAfterCommit(() => (readStamp() === before ? null : getTarget()));
+  };
+}
