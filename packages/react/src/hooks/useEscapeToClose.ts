@@ -13,22 +13,6 @@ const DEFAULT_FOCUSABLE_SELECTOR =
 // popup layer at a time instead of unwinding all of them at once.
 const openInstanceStack: symbol[] = [];
 
-/**
- * Popup dismissal, in one place.
- *
- * The name is now narrower than the job: this owns Escape, the autofocus on
- * open and the focus-restore on close, and — behind `closeOnFocusOut` — whether
- * the popup survives focus leaving it. Those belong together because they are
- * one question, "is focus still in this popup", asked at four moments; the
- * nested-popup rule in particular has to be answered identically by Escape and
- * by focus-out, and `openInstanceStack` above already exists to answer it once.
- *
- * It is not renamed because all eight call sites would churn for no behaviour
- * change, on a diff whose main risk is review size. Folding `useOutsideClick`
- * in as well — making this the single `useDismissablePopup` the codebase is
- * clearly converging on — is the honest next step, and deliberately not taken
- * here.
- */
 export type UseEscapeToCloseOptions = {
   /** Set to false to skip attaching listeners (e.g. while a popup is closed). Default true. */
   open?: boolean;
@@ -60,6 +44,30 @@ export type UseEscapeToCloseOptions = {
   withinRefs?: React.RefObject<HTMLElement | null>[];
 };
 
+/**
+ * Popup dismissal, in one place.
+ *
+ * The name is now narrower than the job: this owns Escape, the autofocus on
+ * open and the focus-restore on close, and — behind `closeOnFocusOut` — whether
+ * the popup survives focus leaving it. Those belong together because they are
+ * one question, "is focus still in this popup", asked at four moments; the
+ * nested-popup rule in particular has to be answered identically by Escape and
+ * by focus-out, and `openInstanceStack` above already exists to answer it once.
+ *
+ * One caveat on that "identically": `focusInsideContainer` below, which gates
+ * the restore-on-close, still asks the narrow `containerRef.contains()` version
+ * rather than `isWithinPopupContent`. Every route that closes a popup while
+ * focus sits in a *satellite* submenu currently either restores focus itself
+ * (Escape, via the submenu's own instance) or should not restore at all
+ * (focus-out, outside click), so nothing depends on the difference today —
+ * but a new route that does would silently skip its restore.
+ *
+ * It is not renamed because all eight call sites would churn for no behaviour
+ * change, on a diff whose main risk is review size. Folding `useOutsideClick`
+ * in as well — making this the single `useDismissablePopup` the codebase is
+ * clearly converging on — is the honest next step, and deliberately not taken
+ * here.
+ */
 export function useEscapeToClose({
   open = true,
   onClose,

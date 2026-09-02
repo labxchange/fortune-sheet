@@ -357,5 +357,44 @@ describe("popup dismissal on focus out", () => {
 
       expect(list()).toBeNull();
     });
+
+    it("closes the zoom ratio menu on focus out", () => {
+      const { container } = render(<Workbook lang="en" data={plainSheet} />);
+      const trigger = container.querySelector<HTMLElement>(
+        ".fortune-zoom-ratio-current"
+      )!;
+      act(() => {
+        fireEvent.mouseDown(trigger);
+      });
+      const menu = () =>
+        document.querySelector<HTMLElement>(".fortune-zoom-ratio-menu");
+      expect(menu()).not.toBeNull();
+
+      const row = menu()!.querySelector<HTMLElement>('[role="button"]')!;
+      const outside = container.querySelector<HTMLElement>(
+        ".fortune-toolbar [role='button']"
+      )!;
+      moveFocus(row, outside);
+
+      expect(menu()).toBeNull();
+    });
+
+    /*
+     * Two of the eight opt-ins are not covered here, deliberately rather than by
+     * oversight:
+     *
+     *  * the toolbar's More-items overflow only mounts once the toolbar is wider
+     *    than the sheet, and that decision reads `sheetWidth` and per-item
+     *    offsets — jsdom reports every one of them as 0, so the container never
+     *    renders and there is nothing to open.
+     *  * the data-validation dropdown needs a validated cell plus a press on its
+     *    arrow, whose hit test is also layout-derived.
+     *
+     * Both are wired identically to the four above (one `closeOnFocusOut: true`,
+     * no `withinRefs`), and the rules themselves are unit-tested in
+     * useEscapeToClose.test.tsx. The gap is that nothing proves *those two* call
+     * sites are wired at all, which is what the manual pass in the PR
+     * description covers.
+     */
   });
 });
