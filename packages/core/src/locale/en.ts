@@ -11121,6 +11121,9 @@ export default {
     // name and falls back to its hex, exactly as the swatches themselves do.
     toolbarFontColorSet: "Text color: ${color}.",
     toolbarBackgroundColorSet: "Cell color: ${color}.",
+    // Reuses border.borderColor, the phrase this locale already uses for the
+    // control, so the announcement matches the label the user saw.
+    toolbarBorderColorSet: "Border color: ${color}.",
     // Names the typed-colour field that sits beside the native colour swatch.
     // That swatch opens the browser's own picker, which in Chrome is
     // pointer-only, so this field is the keyboard route to an arbitrary colour

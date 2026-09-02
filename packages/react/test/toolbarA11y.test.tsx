@@ -227,6 +227,48 @@ describe("toolbar actions announce what they did", () => {
     expect(announcement(container)).toBe("");
   });
 
+  // Clear format is the one action here that reaches past its anchor: it
+  // rewrites every cell of every selection. Watching the focused cell, as the
+  // other actions do, reports nothing whenever the anchor happens to be the
+  // one cell with no formatting on it — which is the ordinary shape of a
+  // column, a text header above formatted data.
+  it("reports a clear that emptied the rest of the selection, not the anchor", async () => {
+    const { container, getByRole, ref } = renderSheet({
+      toolbarItems: ["bold", "clear-format"],
+    });
+
+    // Format A2 only, leaving the A1 anchor with nothing to lose.
+    act(() => {
+      ref.current?.setSelection([{ row: [1, 1], column: [0, 0] }]);
+    });
+    clickToolbarButton(getByRole, "Bold (Ctrl+B)");
+    await flush();
+
+    act(() => {
+      ref.current?.setSelection([{ row: [0, 1], column: [0, 0] }]);
+    });
+    clickToolbarButton(getByRole, "Clear Format");
+    await flush();
+
+    expect(announcement(container)).toContain("Formatting cleared.");
+  });
+
+  it("still says nothing when there was no formatting to clear", async () => {
+    // The other half of the same contract: widening what the action watches
+    // must not turn it into an announcement of the request.
+    const { container, getByRole, ref } = renderSheet({
+      toolbarItems: ["clear-format"],
+    });
+    act(() => {
+      ref.current?.setSelection([{ row: [0, 1], column: [0, 0] }]);
+    });
+
+    clickToolbarButton(getByRole, "Clear Format");
+    await flush();
+
+    expect(announcement(container)).toBe("");
+  });
+
   it("announces the mode chosen for text wrap", async () => {
     const { container, ref } = renderSheet({ toolbarItems: ["text-wrap"] });
     selectA1(ref);
@@ -248,6 +290,47 @@ describe("toolbar actions announce what they did", () => {
     await flush();
 
     expect(announcement(container)).toContain("Text wrap: Wrap.");
+  });
+
+  it("announces the border colour, the third colour popup in the toolbar", async () => {
+    // CustomColor has three call sites, not two: font colour, background
+    // colour, and this one inside CustomBorder. The keyboard and naming fixes
+    // reach it for free through the shared component, but the announcement is
+    // wired per call site, so this popup applied a colour in silence. Picking
+    // here only stores the colour for the next handleBorder — nothing repaints
+    // and no cell changes — so it announces directly rather than waiting for a
+    // committed effect it will never see.
+    const { container, getAllByRole, getByText, ref } = renderSheet({
+      toolbarItems: ["border"],
+    });
+    selectA1(ref);
+
+    // Border is a split button: the main half applies border-all directly, so
+    // index 1 — the dropdown arrow — is the half that opens the popup.
+    const [, borderArrow] = getAllByRole("button", { name: /^Border/ });
+    act(() => {
+      fireEvent.mouseDown(borderArrow);
+    });
+
+    // Opened by keyboard rather than hover, which is the route the fix is for.
+    const colorRow = getByText("border color").closest(
+      '[role="button"]'
+    ) as HTMLElement;
+    act(() => {
+      fireEvent.keyDown(colorRow, { key: "Enter" });
+    });
+
+    const swatch = document.querySelector<HTMLElement>(
+      '#fortune-custom-color [role="option"]'
+    )!;
+    const name = swatch.getAttribute("aria-label")!;
+    act(() => {
+      fireEvent.click(swatch);
+    });
+    await flush();
+
+    expect(announcement(container)).toContain("Border color:");
+    expect(announcement(container)).toContain(name);
   });
 
   it("announces undo and redo, whose effect the sheet cannot show", async () => {

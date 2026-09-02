@@ -11080,6 +11080,7 @@ export default {
     toolbarFilterOff: "Filtro desactivado.",
     toolbarFontColorSet: "Color Texto: ${color}.",
     toolbarBackgroundColorSet: "Color Celda: ${color}.",
+    toolbarBorderColorSet: "Color del borde: ${color}.",
     hexColorInput: "Color hexadecimal",
 
     sheetSrIntro: "Use las teclas de flecha para moverse entre celdas.",
