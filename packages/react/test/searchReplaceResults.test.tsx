@@ -200,12 +200,17 @@ describe("Find All results list", () => {
     const listbox = within(dialog).getByRole("listbox");
 
     const describedBy = listbox.getAttribute("aria-describedby")!;
-    expect(document.getElementById(describedBy)!.textContent).toBe(
-      "Activate a result to go to that cell"
-    );
+    const hint = document.getElementById(describedBy)!;
+    expect(hint.textContent).toBe("Activate a result to go to that cell");
     // and the description is not inside the listbox, which must own only
-    // its options
-    expect(listbox.querySelector(`#${describedBy}`)).toBeNull();
+    // its options.
+    //
+    // `contains` rather than `listbox.querySelector('#' + describedBy)`: these
+    // ids come from useId, so they contain colons (`:r13:-results-hint`) and
+    // are not valid in a bare id selector without CSS.escape. getElementById
+    // and contains take an id as an id rather than as a selector, so neither
+    // cares how it is spelled.
+    expect(listbox.contains(hint)).toBe(false);
     expect(
       options(dialog).some((o) =>
         o.getAttribute("aria-label")!.includes("Activate")
