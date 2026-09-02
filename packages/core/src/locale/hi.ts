@@ -6,6 +6,10 @@ export default {
     dataNullError: "डेटा जो मौजूद नहीं है उस पर यह कार्य नहीं किया जा सकता",
     noSeletionError: "चयन कार्य अभी तक नहीं किया गया है",
     cannotSelectMultiple: "एकाधिक चयन नहीं किया जा सकता",
+    noRoomForResultError:
+      "शीट के किनारे तक पहुँचने वाले चयन पर यह कार्य नहीं किया जा सकता",
+    noNumericDataError:
+      "ऐसे चयन पर यह कार्य नहीं किया जा सकता जिसमें कोई संख्या न हो",
   },
   functionlist: [
     {
