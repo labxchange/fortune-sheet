@@ -11078,6 +11078,7 @@ export default {
     sheetSrIntro: "Use las teclas de flecha para moverse entre celdas.",
     cellHasFilterDropdown: "Tiene menú de filtro.",
     cellFilterActive: "Filtro activo.",
+    cellHasFormula: "Tiene fórmula.",
     enteredFilteredRegion:
       "Se entró en la región filtrada: ${start} hasta ${end}.",
     leftFilteredRegion: "Se salió de la región filtrada.",

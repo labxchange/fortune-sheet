@@ -11054,6 +11054,7 @@ export default {
     sheetSrIntro: "使用方向鍵在儲存格之間移動。",
     cellHasFilterDropdown: "有篩選下拉選單。",
     cellFilterActive: "篩選器已啟用。",
+    cellHasFormula: "有公式。",
     enteredFilteredRegion: "已進入篩選區域：${start} 至 ${end}。",
     leftFilteredRegion: "已離開篩選區域。",
     currentCellInput: "目前儲存格輸入",

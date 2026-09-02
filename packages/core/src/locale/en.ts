@@ -11109,6 +11109,12 @@ export default {
     sheetSrIntro: "Use the arrow keys to move between cells.",
     cellHasFilterDropdown: "Has filter dropdown.",
     cellFilterActive: "Filter active.",
+    // Says a cell's value was produced by a formula rather than typed. The sheet
+    // is a canvas, so the grid announcement is the only place a cell can carry
+    // that — without it a computed value is indistinguishable from a literal one
+    // (WCAG 1.3.1, 4.1.2). Phrased as a property of the cell, like
+    // `cellHasFilterDropdown` above, because that is what it is.
+    cellHasFormula: "Has formula.",
     enteredFilteredRegion: "Entered filtered region: ${start} through ${end}.",
     leftFilteredRegion: "Left filtered region.",
     currentCellInput: "Current cell input",
