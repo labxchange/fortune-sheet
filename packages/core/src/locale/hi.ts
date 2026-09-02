@@ -11106,6 +11106,7 @@ export default {
     sheetSrIntro: "कक्षों के बीच जाने के लिए तीर कुंजियों का उपयोग करें।",
     cellHasFilterDropdown: "फ़िल्टर ड्रॉपडाउन है।",
     cellFilterActive: "फ़िल्टर सक्रिय है।",
+    cellHasFormula: "सूत्र है।",
     enteredFilteredRegion:
       "फ़िल्टर किए गए क्षेत्र में प्रवेश किया: ${start} से ${end} तक।",
     leftFilteredRegion: "फ़िल्टर किए गए क्षेत्र से बाहर निकले।",
