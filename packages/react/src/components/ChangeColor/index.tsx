@@ -1,15 +1,38 @@
 import { Context, getSheetIndex, locale } from "@fortune-sheet/core";
-import React, { useCallback, useContext, useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useState,
+} from "react";
 import WorkbookContext from "../../context";
 import ColorPicker from "../Toolbar/ColorPicker";
+import ColorHexInput from "../Toolbar/ColorHexInput";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 import "./index.css";
 
 type Props = {
   triggerParentUpdate: (state: boolean) => void;
+  /**
+   * A colour was applied to the sheet — by a swatch, by the reset row, or by
+   * Confirm. `undefined` means the colour was removed.
+   *
+   * Raised rather than announced here because Confirm also closes this menu:
+   * a live region inside a subtree that unmounts in the same commit is gone
+   * before a screen reader can read it, so the region has to live in the
+   * component that outlives it.
+   */
+  onColorApplied?: (color: string | undefined) => void;
+  /** Confirm was pressed: the caller closes the menu and moves focus. */
+  onConfirm?: () => void;
 };
 
-export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
+export const ChangeColor: React.FC<Props> = ({
+  triggerParentUpdate,
+  onColorApplied,
+  onConfirm,
+}) => {
   const { context, setContext } = useContext(WorkbookContext);
   const { toolbar, sheetconfig, button } = locale(context);
   const [inputColor, setInputColor] = useState<string>("#000000");
@@ -19,10 +42,14 @@ export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
     ].color
   );
 
+  const customColorLabelId = useId();
+
   // 确定按钮
   const certainBtn = useCallback(() => {
     setSelectColor(inputColor);
-  }, [inputColor]);
+    onColorApplied?.(inputColor);
+    onConfirm?.();
+  }, [inputColor, onColorApplied, onConfirm]);
 
   // 把用户选择的颜色记录在ctx中
   useEffect(() => {
@@ -37,7 +64,10 @@ export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
     <div id="fortune-change-color">
       <div
         className="color-reset"
-        onClick={() => setSelectColor(undefined)}
+        onClick={() => {
+          setSelectColor(undefined);
+          onColorApplied?.(undefined);
+        }}
         onKeyDown={activateOnEnterOrSpace}
         tabIndex={0}
         role="button"
@@ -45,9 +75,13 @@ export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
         {sheetconfig.resetColor}
       </div>
       <div className="custom-color">
-        <div>{toolbar.customColor}:</div>
+        {/* The adjacent text is already this control's visible label, so point
+            at it rather than adding a second, invisible name — that keeps the
+            two in step and satisfies Label in Name (WCAG 2.5.3) for free. */}
+        <div id={customColorLabelId}>{toolbar.customColor}:</div>
         <input
           type="color"
+          aria-labelledby={customColorLabelId}
           value={inputColor}
           onChange={(e) => setInputColor(e.target.value)}
           onFocus={() => {
@@ -57,6 +91,14 @@ export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
             triggerParentUpdate(false);
           }}
           onKeyDown={(e) => e.stopPropagation()}
+        />
+        <ColorHexInput
+          value={inputColor}
+          onCommit={(color) => {
+            setInputColor(color);
+            setSelectColor(color);
+            onColorApplied?.(color);
+          }}
         />
         <div
           className="button-basic button-primary"
@@ -74,6 +116,7 @@ export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
         onPick={(color) => {
           setInputColor(color);
           setSelectColor(color);
+          onColorApplied?.(color);
         }}
       />
     </div>

@@ -11105,6 +11105,17 @@ export default {
     toolbarTextWrapSet: "Text wrap: ${mode}.",
     toolbarFilterOn: "Filter on.",
     toolbarFilterOff: "Filter off.",
+    // Applying a colour changes only pixels, so nothing else reaches a live
+    // region — the same gap the other toolbar keys above cover. Named from the
+    // palette where possible; a colour chosen from the custom picker has no
+    // name and falls back to its hex, exactly as the swatches themselves do.
+    toolbarFontColorSet: "Text color: ${color}.",
+    toolbarBackgroundColorSet: "Cell color: ${color}.",
+    // Names the typed-colour field that sits beside the native colour swatch.
+    // That swatch opens the browser's own picker, which in Chrome is
+    // pointer-only, so this field is the keyboard route to an arbitrary colour
+    // (WCAG 2.1.1) rather than a convenience.
+    hexColorInput: "Hex color",
 
     sheetSrIntro: "Use the arrow keys to move between cells.",
     cellHasFilterDropdown: "Has filter dropdown.",
@@ -11899,6 +11910,10 @@ export default {
     resetColor: "Reset color",
     cancelText: "Cancel",
     chooseText: "Confirm color",
+    // The sheet tab recolours and says nothing. Announced from a region that
+    // outlives the menu, since applying the colour also closes it.
+    sheetColorApplied: "Sheet color: ${color}.",
+    sheetColorRemoved: "Sheet color removed.",
     focus: "Focus",
 
     tipNameRepeat: "The name of the tab page cannot be repeated! Please revise",

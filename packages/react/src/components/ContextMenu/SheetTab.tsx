@@ -1,4 +1,4 @@
-import { locale, deleteSheet, api } from "@fortune-sheet/core";
+import { locale, deleteSheet, api, replaceHtml } from "@fortune-sheet/core";
 import _ from "lodash";
 import React, {
   useContext,
@@ -14,7 +14,8 @@ import { useAlert } from "../../hooks/useAlert";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
-import { onActivate } from "../../utils/keyboardActivation";
+import { onActivate, returnFocusToCell } from "../../utils/keyboardActivation";
+import { markAsRepeat } from "../../utils/liveRegion";
 import { ChangeColor } from "../ChangeColor";
 import SVGIcon from "../SVGIcon";
 import Divider from "./Divider";
@@ -32,13 +33,15 @@ export const SHEET_TAB_MENU_ID = "fortune-sheet-tab-options-menu";
 const SheetTabContextMenu: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
   const { x, y, sheet, onRename } = context.sheetTabContextMenu;
-  const { sheetconfig } = locale(context);
+  const { sheetconfig, info } = locale(context);
   const [position, setPosition] = useState({ x: -1, y: -1 });
   const [isShowChangeColor, setIsShowChangeColor] = useState<boolean>(false);
   const [isShowInputColor, setIsShowInputColor] = useState<boolean>(false);
   const [changeColorOpenedBy, setChangeColorOpenedBy] = useState<
     "pointer" | "keyboard"
   >("pointer");
+  const [colorAnnouncement, setColorAnnouncement] = useState("");
+  const colorAnnounceCount = useRef(0);
   const { showAlert, hideAlert } = useAlert();
   const changeColorMenuId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -50,6 +53,46 @@ const SheetTabContextMenu: React.FC = () => {
       ctx.sheetTabContextMenu = {};
     });
   }, [setContext]);
+
+  /**
+   * Say which colour the sheet tab now carries.
+   *
+   * Named from the palette where there is a name, falling back to the hex for a
+   * colour chosen in the custom picker — the same rule the swatches themselves
+   * use. A live region is silent when written the same text twice running, and
+   * re-applying one colour is an obvious thing to do, so repeats carry the
+   * modulo-2 marker the other announcement hooks use.
+   */
+  const announceColor = useCallback(
+    (color: string | undefined) => {
+      const colorNames = info.colorNames as Record<string, string> | undefined;
+      const phrase = color
+        ? replaceHtml(sheetconfig.sheetColorApplied, {
+            color: colorNames?.[color] ?? color,
+          })
+        : sheetconfig.sheetColorRemoved;
+      colorAnnounceCount.current += 1;
+      setColorAnnouncement(
+        colorAnnounceCount.current % 2 === 0 ? markAsRepeat(phrase) : phrase
+      );
+    },
+    [info, sheetconfig]
+  );
+
+  /**
+   * Confirm applied the colour, so the menu has done its job: collapse it and
+   * put the user back on the sheet.
+   *
+   * Deferred through `returnFocusToCell` because closing unmounts the control
+   * that currently holds focus — setting focus inline would be undone by
+   * `useEscapeToClose`'s own restore as the submenu tears down, and a focus
+   * left on a detached node silently falls back to `<body>`.
+   */
+  const confirmColor = useCallback(() => {
+    setIsShowChangeColor(false);
+    close();
+    returnFocusToCell(refs.cellInput.current);
+  }, [close, refs.cellInput]);
 
   useLayoutEffect(() => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -134,189 +177,217 @@ const SheetTabContextMenu: React.FC = () => {
     });
   }, [context.allowEdit, setContext, sheet?.id]);
 
-  if (!sheet || x == null || y == null) return null;
+  /*
+   * The status region is rendered whether or not the menu is open, and is the
+   * first child in both branches so React keeps the *same* DOM node across the
+   * close. That is the whole point of it living here: Confirm applies the
+   * colour and closes the menu in one commit, and a live region that unmounts
+   * in the commit that writes to it is gone before a screen reader reads it.
+   * `SheetTabContextMenu` is itself mounted unconditionally by `Workbook`, so
+   * the region is in the accessibility tree well before anything is written to
+   * it — which is also what live regions require to fire at all.
+   */
+  const colorStatus = (
+    <div
+      id="sr-sheetColor"
+      className="sr-only"
+      role="status"
+      aria-atomic="true"
+    >
+      {colorAnnouncement}
+    </div>
+  );
+
+  if (!sheet || x == null || y == null) return colorStatus;
 
   return (
-    <div
-      id={SHEET_TAB_MENU_ID}
-      role="menu"
-      className="fortune-context-menu luckysheet-cols-menu"
-      onContextMenu={(e) => e.stopPropagation()}
-      style={{ left: position.x, top: position.y, overflow: "visible" }}
-      ref={containerRef}
-    >
-      {settings.sheetTabContextMenu?.map((name, i) => {
-        if (name === "delete") {
-          return (
-            <Menu
-              key={name}
-              role="button"
-              onClick={() => {
-                const shownSheets = context.luckysheetfile.filter(
-                  (singleSheet) =>
-                    _.isUndefined(singleSheet.hide) || singleSheet.hide !== 1
-                );
-                if (
-                  context.luckysheetfile.length > 1 &&
-                  shownSheets.length > 1
-                ) {
-                  showAlert(sheetconfig.confirmDelete, "yesno", () => {
-                    setContext(
-                      (ctx) => {
-                        deleteSheet(ctx, sheet.id!);
-                      },
-                      {
-                        deleteSheetOp: {
-                          id: sheet.id!,
+    <>
+      {colorStatus}
+      <div
+        id={SHEET_TAB_MENU_ID}
+        role="menu"
+        className="fortune-context-menu luckysheet-cols-menu"
+        onContextMenu={(e) => e.stopPropagation()}
+        style={{ left: position.x, top: position.y, overflow: "visible" }}
+        ref={containerRef}
+      >
+        {settings.sheetTabContextMenu?.map((name, i) => {
+          if (name === "delete") {
+            return (
+              <Menu
+                key={name}
+                role="button"
+                onClick={() => {
+                  const shownSheets = context.luckysheetfile.filter(
+                    (singleSheet) =>
+                      _.isUndefined(singleSheet.hide) || singleSheet.hide !== 1
+                  );
+                  if (
+                    context.luckysheetfile.length > 1 &&
+                    shownSheets.length > 1
+                  ) {
+                    showAlert(sheetconfig.confirmDelete, "yesno", () => {
+                      setContext(
+                        (ctx) => {
+                          deleteSheet(ctx, sheet.id!);
                         },
-                      }
-                    );
-                    hideAlert();
-                  });
-                } else {
-                  showAlert(sheetconfig.noMoreSheet, "ok");
-                }
-                close();
-              }}
-            >
-              {sheetconfig.delete}
-            </Menu>
-          );
-        }
-        if (name === "rename") {
-          return (
-            <Menu
-              key={name}
-              role="button"
-              onClick={() => {
-                onRename?.();
-                close();
-              }}
-            >
-              {sheetconfig.rename}
-            </Menu>
-          );
-        }
-        if (name === "move") {
-          return (
-            <React.Fragment key={name}>
-              <Menu
-                role="button"
-                onClick={() => {
-                  moveSheet(-1.5);
+                        {
+                          deleteSheetOp: {
+                            id: sheet.id!,
+                          },
+                        }
+                      );
+                      hideAlert();
+                    });
+                  } else {
+                    showAlert(sheetconfig.noMoreSheet, "ok");
+                  }
                   close();
                 }}
               >
-                {sheetconfig.moveLeft}
+                {sheetconfig.delete}
               </Menu>
+            );
+          }
+          if (name === "rename") {
+            return (
               <Menu
+                key={name}
                 role="button"
                 onClick={() => {
-                  moveSheet(1.5);
+                  onRename?.();
                   close();
                 }}
               >
-                {sheetconfig.moveRight}
+                {sheetconfig.rename}
               </Menu>
-            </React.Fragment>
-          );
-        }
-        if (name === "hide") {
-          return (
-            <Menu
-              key={name}
-              role="button"
-              onClick={() => {
-                hideSheet();
-                close();
-              }}
-            >
-              {sheetconfig.hide}
-            </Menu>
-          );
-        }
-        if (name === "copy") {
-          return (
-            <Menu
-              key={name}
-              role="button"
-              onClick={() => {
-                copySheet();
-                close();
-              }}
-            >
-              {sheetconfig.copy}
-            </Menu>
-          );
-        }
-        if (name === "color") {
-          return (
-            <div
-              key={name}
-              ref={changeColorRowRef}
-              style={{ position: "relative" }}
-              onMouseEnter={() => {
-                setChangeColorOpenedBy("pointer");
-                setIsShowChangeColor(true);
-              }}
-              onMouseLeave={() => {
-                if (!isShowInputColor) {
-                  setIsShowChangeColor(false);
-                }
-              }}
-            >
+            );
+          }
+          if (name === "move") {
+            return (
+              <React.Fragment key={name}>
+                <Menu
+                  role="button"
+                  onClick={() => {
+                    moveSheet(-1.5);
+                    close();
+                  }}
+                >
+                  {sheetconfig.moveLeft}
+                </Menu>
+                <Menu
+                  role="button"
+                  onClick={() => {
+                    moveSheet(1.5);
+                    close();
+                  }}
+                >
+                  {sheetconfig.moveRight}
+                </Menu>
+              </React.Fragment>
+            );
+          }
+          if (name === "hide") {
+            return (
               <Menu
+                key={name}
                 role="button"
-                expanded={isShowChangeColor}
-                hasPopup="menu"
-                controls={changeColorMenuId}
                 onClick={() => {
+                  hideSheet();
+                  close();
+                }}
+              >
+                {sheetconfig.hide}
+              </Menu>
+            );
+          }
+          if (name === "copy") {
+            return (
+              <Menu
+                key={name}
+                role="button"
+                onClick={() => {
+                  copySheet();
+                  close();
+                }}
+              >
+                {sheetconfig.copy}
+              </Menu>
+            );
+          }
+          if (name === "color") {
+            return (
+              <div
+                key={name}
+                ref={changeColorRowRef}
+                style={{ position: "relative" }}
+                onMouseEnter={() => {
                   setChangeColorOpenedBy("pointer");
                   setIsShowChangeColor(true);
                 }}
-                onKeyDown={onActivate(() => {
-                  setChangeColorOpenedBy("keyboard");
-                  setIsShowChangeColor(true);
-                })}
+                onMouseLeave={() => {
+                  if (!isShowInputColor) {
+                    setIsShowChangeColor(false);
+                  }
+                }}
               >
-                {sheetconfig.changeColor}
-                <span className="change-color-triangle">
-                  <SVGIcon name="rightArrow" width={18} />
-                </span>
-              </Menu>
-              {isShowChangeColor && context.allowEdit && (
-                <div
-                  id={changeColorMenuId}
-                  role="menu"
-                  ref={changeColorMenuRef}
-                  style={{ position: "absolute" }}
+                <Menu
+                  role="button"
+                  expanded={isShowChangeColor}
+                  hasPopup="menu"
+                  controls={changeColorMenuId}
+                  onClick={() => {
+                    setChangeColorOpenedBy("pointer");
+                    setIsShowChangeColor(true);
+                  }}
+                  onKeyDown={onActivate(() => {
+                    setChangeColorOpenedBy("keyboard");
+                    setIsShowChangeColor(true);
+                  })}
                 >
-                  <ChangeColor triggerParentUpdate={updateShowInputColor} />
-                </div>
-              )}
-            </div>
-          );
-        }
-        if (name === "focus") {
-          return (
-            <Menu
-              key={name}
-              role="button"
-              onClick={() => {
-                focusSheet();
-                close();
-              }}
-            >
-              {sheetconfig.focus}
-            </Menu>
-          );
-        }
-        if (name === "|") {
-          return <Divider key={`divide-${i}`} />;
-        }
-        return null;
-      })}
-    </div>
+                  {sheetconfig.changeColor}
+                  <span className="change-color-triangle">
+                    <SVGIcon name="rightArrow" width={18} />
+                  </span>
+                </Menu>
+                {isShowChangeColor && context.allowEdit && (
+                  <div
+                    id={changeColorMenuId}
+                    role="menu"
+                    ref={changeColorMenuRef}
+                    style={{ position: "absolute" }}
+                  >
+                    <ChangeColor
+                      triggerParentUpdate={updateShowInputColor}
+                      onColorApplied={announceColor}
+                      onConfirm={confirmColor}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          }
+          if (name === "focus") {
+            return (
+              <Menu
+                key={name}
+                role="button"
+                onClick={() => {
+                  focusSheet();
+                  close();
+                }}
+              >
+                {sheetconfig.focus}
+              </Menu>
+            );
+          }
+          if (name === "|") {
+            return <Divider key={`divide-${i}`} />;
+          }
+          return null;
+        })}
+      </div>
+    </>
   );
 };
 

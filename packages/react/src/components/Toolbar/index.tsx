@@ -337,6 +337,22 @@ const Toolbar: React.FC<{
           } else {
             refs.globalCache.recentBackgroundColor = color;
           }
+          // Applying a colour only repaints, so without this the action is
+          // silent — the same gap the other toolbar announcements close. Named
+          // from the palette where there is a name; a colour from the custom
+          // picker falls back to its hex, as the swatches themselves do.
+          announceAfterCommit(() => {
+            if (!color) return "";
+            const colorNames = info.colorNames as
+              | Record<string, string>
+              | undefined;
+            return replaceHtml(
+              name === "font-color"
+                ? info.toolbarFontColorSet
+                : info.toolbarBackgroundColorSet,
+              { color: colorNames?.[color] ?? color }
+            );
+          });
         };
         return (
           <div style={{ position: "relative" }} key={name}>

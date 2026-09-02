@@ -11050,6 +11050,9 @@ export default {
     toolbarTextWrapSet: "文字換行：${mode}。",
     toolbarFilterOn: "已開啟篩選。",
     toolbarFilterOff: "已關閉篩選。",
+    toolbarFontColorSet: "文字顏色：${color}。",
+    toolbarBackgroundColorSet: "儲存格顏色：${color}。",
+    hexColorInput: "十六進位顏色",
 
     sheetSrIntro: "使用方向鍵在儲存格之間移動。",
     cellHasFilterDropdown: "有篩選下拉選單。",
@@ -11858,6 +11861,8 @@ export default {
     resetColor: "重置顏色",
     cancelText: "取消",
     chooseText: "確定顏色",
+    sheetColorApplied: "工作表顏色：${color}。",
+    sheetColorRemoved: "已移除工作表顏色。",
     focus: "聚焦",
 
     tipNameRepeat: "籤頁的名稱不能重複！請重新修改",

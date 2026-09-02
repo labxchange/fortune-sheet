@@ -108,22 +108,40 @@ const ColorPicker: React.FC<Props> = ({ onPick }) => {
     containerRef,
     orientation: "grid",
     columns: palette[0].length,
-    // the swatches are gridcells now, so the default [role="button"] selector
-    // would match nothing
-    itemSelector: '[role="gridcell"]',
+    // the swatches carry role="option" now, so the default [role="button"]
+    // selector would match nothing
+    itemSelector: '[role="option"]',
   });
   return (
-    // grid/row/gridcell so the 2D model the arrow keys already implement is
-    // also the one the accessibility tree exposes — previously AT announced a
-    // flat run of 64 buttons with no row or column position.
+    // A listbox, not a grid. This was grid/row/gridcell, on the reasoning that
+    // the 2D model the arrow keys implement should also be the one the
+    // accessibility tree exposes. In use that is actively worse: role="row"
+    // takes its accessible name *from its contents* (ARIA 1.2, "Name From:
+    // author, contents"), and a row here contains nothing but eight named
+    // swatches — so arrowing onto a swatch announced the colour and then all
+    // eight colour names of the row it had entered.
+    //
+    // Row and column carry no meaning a user has to act on here; the colour
+    // name is the whole payload. listbox/option says "pick one of these",
+    // keeps the set position AT would otherwise lose ("3 of 64"), and leaves
+    // nothing in the tree that can be named by concatenation. The visual rows
+    // stay, as presentational layout, and the arrow keys still move in 2D.
     <div
       className="fortune-toolbar-color-picker"
       ref={containerRef}
-      role="grid"
+      role="listbox"
       aria-label={info.colorPalette}
     >
       {palette.map((rows, i) => (
-        <div key={i} className="fortune-toolbar-color-picker-row" role="row">
+        // presentational: the row is a flexbox for layout only, and must not
+        // reach the accessibility tree, where it would be named by its own
+        // contents. role="presentation" also keeps the options owned by the
+        // listbox, which axe's aria-required-children checks for.
+        <div
+          key={i}
+          className="fortune-toolbar-color-picker-row"
+          role="presentation"
+        >
           {rows.map((c, j) => {
             const index = i * palette[0].length + j;
             return (
@@ -136,7 +154,13 @@ const ColorPicker: React.FC<Props> = ({ onPick }) => {
                 // leaves arrow navigation unchanged
                 tabIndex={index === activeIndex ? 0 : -1}
                 onFocus={() => setActiveIndex(index)}
-                role="gridcell"
+                role="option"
+                // aria-selected is a required state of role="option", and
+                // ColorPicker is not told which colour is currently applied.
+                // false throughout is the honest answer, and both VoiceOver
+                // and NVDA speak a selected state only when it is true, so it
+                // adds no words to the announcement.
+                aria-selected={false}
                 // a bare hex is read out character by character ("pound, e,
                 // zero, six, six, six, six"), so every swatch is named. All six
                 // locales cover the whole palette; the hex fallback is only for
