@@ -61,7 +61,9 @@ const ruleFor = (selector: string) => {
  * The property name is anchored to a declaration boundary, or it matches as a
  * substring: `declaration(rule, "color")` on a rule carrying both would find
  * `background-color:` first and return the wrong colour — silently, and in the
- * direction that makes a contrast assertion pass. */
+ * direction that is awkward rather than dangerous: a rule's background
+ * compared against itself is 1:1, so the ratio assertion fails rather than
+ * passing, and the next person to add a case debugs the wrong thing. */
 const declaration = (rule: string, property: string) => {
   const match = rule.match(
     new RegExp(`(?:^|[\\s;{])${property}:\\s*(#[0-9a-fA-F]{3,6})`)
