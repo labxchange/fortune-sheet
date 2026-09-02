@@ -13001,6 +13001,7 @@ export default {
     allCellsSelected: "Выделены все ячейки.",
     horizontalScrollbar: "Электронная таблица",
     verticalScrollbar: "Электронная таблица",
+    spreadsheetLandmark: "Электронная таблица",
     nameBoxReferenceClamped:
       "Ссылка за пределами листа. Выполнен переход к ближайшей ячейке.",
     scrollbarRowPosition: "Строка ${index}",

@@ -11137,6 +11137,12 @@ export default {
     // can differ by grammatical gender or number if it needs to.
     horizontalScrollbar: "Spreadsheet",
     verticalScrollbar: "Spreadsheet",
+    // Names the grid's `main` landmark so landmark navigation says what the
+    // region contains instead of a bare "main". Deliberately just the noun, for
+    // the same reason as the two scrollbar keys above: assistive technology
+    // appends the role itself, so "Spreadsheet region" would be read as
+    // "Spreadsheet region, main region".
+    spreadsheetLandmark: "Spreadsheet",
     nameBoxReferenceClamped:
       "Reference is outside the sheet. Moved to the nearest cell.",
     scrollbarRowPosition: "Row ${index}",
