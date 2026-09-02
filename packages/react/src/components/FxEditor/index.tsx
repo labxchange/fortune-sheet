@@ -8,6 +8,7 @@ import {
   isInlineStringCell,
   escapeScriptTag,
   moveHighlightCell,
+  handleFormulaArrowKey,
   handleFormulaInput,
   rangeHightlightselected,
   valueShowEs,
@@ -265,12 +266,36 @@ const FxEditor: React.FC = () => {
                 break;
               }
               */
-            case "ArrowLeft": {
-              rangeHightlightselected(draftCtx, refs.fxInput.current!);
-              break;
-            }
+            case "ArrowUp":
+            case "ArrowDown":
+            case "ArrowLeft":
             case "ArrowRight": {
-              rangeHightlightselected(draftCtx, refs.fxInput.current!);
+              // Point mode -- picking a cell reference with the arrows instead
+              // of typing it. The grid's own key handler never sees these: it
+              // hands every key straight back to a text-entry target sitting
+              // outside the grid, and Left/Right are stopPropagation()ed above
+              // in any case. So the formula bar calls the same driver the
+              // in-cell editor reaches through handleGlobalKeyDown.
+              if (
+                refs.cellInput.current &&
+                handleFormulaArrowKey(
+                  draftCtx,
+                  refs.cellInput.current,
+                  refs.fxInput.current,
+                  // The stable copy taken at the top of this handler, the same
+                  // one onChange reads back.
+                  lastKeyDownEventRef.current!
+                )
+              ) {
+                e.preventDefault();
+                e.stopPropagation();
+                break;
+              }
+              // Declined: the arrows keep moving the caret, and Left/Right go
+              // on refreshing the highlight the way they always have.
+              if (key === "ArrowLeft" || key === "ArrowRight") {
+                rangeHightlightselected(draftCtx, refs.fxInput.current!);
+              }
               break;
             }
             default:
