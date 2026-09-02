@@ -8,6 +8,7 @@ import {
   isInlineStringCell,
   escapeScriptTag,
   moveHighlightCell,
+  canEnterPointMode,
   handleFormulaArrowKey,
   handleFormulaInput,
   rangeHightlightselected,
@@ -129,6 +130,27 @@ const FxEditor: React.FC = () => {
       if (key === "ArrowLeft" || key === "ArrowRight") {
         e.stopPropagation();
       }
+
+      // Decided here rather than inside the producer below. setContext takes a
+      // functional updater, which React only evaluates eagerly while the fiber
+      // has no pending update; when it defers, canEnterPointMode would read
+      // window.getSelection() after the browser had already moved the caret,
+      // and preventDefault would land too late to stop it. Reading it now also
+      // primes rangeSetValueTo from the caret as it stood at keydown --
+      // formulaCache is a class instance, so immer leaves it undrafted and the
+      // producer sees the same object.
+      const entersPointMode =
+        (key === "ArrowUp" ||
+          key === "ArrowDown" ||
+          key === "ArrowLeft" ||
+          key === "ArrowRight") &&
+        !!refs.cellInput.current &&
+        canEnterPointMode(context, e.nativeEvent);
+      if (entersPointMode) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+
       setContext((draftCtx) => {
         if (context.luckysheetCellUpdate.length > 0) {
           switch (key) {
@@ -229,20 +251,16 @@ const FxEditor: React.FC = () => {
               // hands every key straight back to a text-entry target sitting
               // outside the grid, and Left/Right are stopPropagation()ed above
               // in any case. So the formula bar calls the same driver the
-              // in-cell editor reaches through handleGlobalKeyDown.
-              if (
-                refs.cellInput.current &&
+              // in-cell editor reaches through handleGlobalKeyDown -- and, via
+              // canEnterPointMode, through the same modifier filter, which the
+              // grid applies upstream and this switch on `key` alone would not.
+              if (entersPointMode) {
                 handleFormulaArrowKey(
                   draftCtx,
-                  refs.cellInput.current,
+                  refs.cellInput.current!,
                   refs.fxInput.current,
-                  // The stable copy taken at the top of this handler, the same
-                  // one onChange reads back.
-                  lastKeyDownEventRef.current!
-                )
-              ) {
-                e.preventDefault();
-                e.stopPropagation();
+                  e.nativeEvent
+                );
                 break;
               }
               // Declined: the arrows keep moving the caret, and Left/Right go
@@ -258,13 +276,7 @@ const FxEditor: React.FC = () => {
         }
       });
     },
-    [
-      context.allowEdit,
-      context.luckysheetCellUpdate.length,
-      refs.cellInput,
-      refs.fxInput,
-      setContext,
-    ]
+    [context, refs.cellInput, refs.fxInput, setContext]
   );
 
   const onChange = useCallback(() => {
