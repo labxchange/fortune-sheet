@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import React from "react";
 import Workbook from "../src/components/Workbook";
+import { CONTEXT_MENU_REGION_ID_SUFFIX } from "../src/hooks/useContextMenuAnnouncements";
 
 // WCAG 2.1.1, 4.1.2, 2.4.3 and 4.1.3 together, because they are one interaction.
 //
@@ -42,7 +43,9 @@ const nameFieldFor = (name: string) =>
   screen.getByText(name).closest(".luckysheet-sheets-item-name") as HTMLElement;
 
 const statusRegion = () =>
-  document.querySelector<HTMLElement>("#sr-contextMenuRegion");
+  document.querySelector<HTMLElement>(
+    `[id$="-${CONTEXT_MENU_REGION_ID_SUFFIX}"]`
+  );
 
 /** Every tab carries its own caret, so it has to be scoped to one of them. */
 const caretFor = (name: string) =>

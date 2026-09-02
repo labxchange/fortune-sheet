@@ -55,10 +55,7 @@ import { useFilterAnnouncements } from "../../hooks/useFilterAnnouncements";
 import { useSelectionModeAnnouncement } from "../../hooks/useSelectionModeAnnouncement";
 import { useSelectAllAnnouncement } from "../../hooks/useSelectAllAnnouncement";
 import { useNameBoxClampAnnouncement } from "../../hooks/useNameBoxClampAnnouncement";
-import {
-  useContextMenuAnnouncements,
-  CONTEXT_MENU_REGION_ID,
-} from "../../hooks/useContextMenuAnnouncements";
+import { useContextMenuAnnouncements } from "../../hooks/useContextMenuAnnouncements";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
@@ -569,10 +566,14 @@ const SheetOverlay: React.FC = () => {
   const selectionModeAnnouncement = useSelectionModeAnnouncement(context);
   const selectAllAnnouncement = useSelectAllAnnouncement(context);
   const clampAnnouncement = useNameBoxClampAnnouncement(context, info);
-  const contextMenuAnnouncement = useContextMenuAnnouncements(
-    context,
-    refs.cellInput
-  );
+  // The id comes back from the hook rather than being a module constant: this
+  // fork is embedded once per sim section, and a fixed id made every instance's
+  // `aria-describedby` resolve to the first instance's (empty) region. See
+  // CONTEXT_MENU_REGION_ID_SUFFIX.
+  const {
+    regionId: contextMenuRegionId,
+    announcement: contextMenuAnnouncement,
+  } = useContextMenuAnnouncements(context, refs.cellInput);
   const cellAreaId = useId();
   const { cellAnnouncement: filterCellAnnouncement, regionAnnouncement } =
     useFilterAnnouncements(context, info);
@@ -1085,7 +1086,7 @@ const SheetOverlay: React.FC = () => {
           asserts it survives a focus move that way. The full reasoning is in
           useContextMenuAnnouncements. */}
       <div
-        id={CONTEXT_MENU_REGION_ID}
+        id={contextMenuRegionId}
         className="sr-only"
         role="alert"
         aria-live="assertive"

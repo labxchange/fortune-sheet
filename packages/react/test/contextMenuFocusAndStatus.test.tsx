@@ -1,6 +1,7 @@
 import { render, act, fireEvent, screen } from "@testing-library/react";
 import React from "react";
 import Workbook, { WorkbookInstance } from "../src/components/Workbook";
+import { CONTEXT_MENU_REGION_ID_SUFFIX } from "../src/hooks/useContextMenuAnnouncements";
 
 // WCAG 2.4.3 and 4.1.3 together, because they are the same edit.
 //
@@ -42,7 +43,9 @@ const cellInput = (container: HTMLElement) =>
   container.querySelector<HTMLElement>("#luckysheet-rich-text-editor");
 
 const statusRegion = (container: HTMLElement) =>
-  container.querySelector<HTMLElement>("#sr-contextMenuRegion");
+  container.querySelector<HTMLElement>(
+    `[id$="-${CONTEXT_MENU_REGION_ID_SUFFIX}"]`
+  );
 
 /**
  * Right-click the grid to open the context menu. pageX/pageY are set because the
@@ -276,8 +279,12 @@ describe("context-menu action status announcements", () => {
 
     expect(statusRegion(container)!.textContent).toMatch(/Contents cleared/);
     // And the cell input points at it, so the focus announcement includes it.
-    expect(cellInput(container)?.getAttribute("aria-describedby")).toBe(
-      "sr-contextMenuRegion"
-    );
+    // Resolved the way an assistive technology resolves an IDREF — through
+    // `getElementById` over the whole document — so a description that names an
+    // id belonging to *another* workbook on the page fails here rather than
+    // passing on the string alone.
+    const describedBy = cellInput(container)?.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy!)).toBe(statusRegion(container));
   });
 });

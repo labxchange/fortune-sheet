@@ -96,7 +96,12 @@ const Dialog: React.FC<Props> = ({
     restoreFocus: false,
   });
 
-  useDialogFocus(dialogRef, initialFocusRef);
+  // `deferRestore`: this dialog's close is usually also a commit whose result a
+  // screen reader hears through the focus utterance of wherever focus lands, so
+  // the restore has to run after the announcement reaches the DOM. See the
+  // hook's cleanup. `SearchReplace` has no such announcement and stays
+  // synchronous.
+  useDialogFocus(dialogRef, initialFocusRef, undefined, true);
 
   return (
     <div
