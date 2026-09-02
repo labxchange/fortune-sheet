@@ -53,6 +53,7 @@ import RangeDialog from "../DataVerification/RangeDialog";
 import { useDialog } from "../../hooks/useDialog";
 import { useFilterAnnouncements } from "../../hooks/useFilterAnnouncements";
 import { useSelectionModeAnnouncement } from "../../hooks/useSelectionModeAnnouncement";
+import { useFormulaRangeAnnouncement } from "../../hooks/useFormulaRangeAnnouncement";
 import { useSelectAllAnnouncement } from "../../hooks/useSelectAllAnnouncement";
 import { useNameBoxClampAnnouncement } from "../../hooks/useNameBoxClampAnnouncement";
 import SVGIcon from "../SVGIcon";
@@ -564,6 +565,7 @@ const SheetOverlay: React.FC = () => {
 
   const selectionModeAnnouncement = useSelectionModeAnnouncement(context);
   const selectAllAnnouncement = useSelectAllAnnouncement(context);
+  const formulaRangeAnnouncement = useFormulaRangeAnnouncement(context);
   const clampAnnouncement = useNameBoxClampAnnouncement(context, info);
   const cellAreaId = useId();
   const { cellAnnouncement: filterCellAnnouncement, regionAnnouncement } =
@@ -1061,6 +1063,12 @@ const SheetOverlay: React.FC = () => {
           Polite, for the same reason as above. */}
       <div id="sr-selectAll" className="sr-only" role="status">
         {selectAllAnnouncement}
+      </div>
+      {/* Picking a cell reference during formula entry moves an overlay
+          rectangle and rewrites text inside a contenteditable — both invisible
+          to a screen reader. Polite, for the same reason as above. */}
+      <div id="sr-formulaRange" className="sr-only" role="status">
+        {formulaRangeAnnouncement}
       </div>
     </main>
   );
