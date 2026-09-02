@@ -149,3 +149,25 @@ export function mouseDownToggleHandlers<T extends HTMLElement = HTMLElement>(
     }),
   };
 }
+
+/**
+ * Hand keyboard focus back to the cell after an edit ends in the formula bar.
+ *
+ * The target is the cell input, not the grid root. The sheet is painted on a
+ * canvas, so no cell is focusable in its own right — but the cell input is
+ * positioned over the focused cell by `InputBox` and carries that cell's
+ * accessible name, so it is the closest thing the DOM has to "the cell". The
+ * grid root would be a landmark-level target and announce as the whole sheet.
+ *
+ * It is also where `handleGlobalKeyDown` parks focus at the end of every
+ * keystroke (`core/events/keyboard.ts`), so aiming here works with the grid's
+ * existing focus model rather than being undone by it a keypress later.
+ *
+ * Deferred because the commit re-renders and `InputBox` schedules its own
+ * caret fixup in a timeout; `focusAfterCommit` also declines a detached target.
+ */
+export function returnFocusToCell(
+  cellInput: HTMLElement | null | undefined
+): void {
+  focusAfterCommit(() => cellInput);
+}

@@ -32,6 +32,7 @@ import ContentEditable from "./ContentEditable";
 import FormulaSearch from "./FormulaSearch";
 import FormulaHint from "./FormulaHint";
 import usePrevious from "../../hooks/usePrevious";
+import useFocusedCellRefText from "../../hooks/useFocusedCellRefText";
 
 const InputBox: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
@@ -396,6 +397,40 @@ const InputBox: React.FC = () => {
     [context.luckysheetCellUpdate]
   );
 
+  const cellRef = useFocusedCellRefText(context);
+  const editing = context.luckysheetCellUpdate.length > 0;
+
+  /**
+   * The cell input's accessible name, and the reason it needs one.
+   *
+   * The sheet is painted on a canvas, so this input is the only element that
+   * stands for a cell in the DOM: `InputBox` positions it over the focused cell,
+   * and `handleGlobalKeyDown` parks focus on it after every keystroke. Unnamed,
+   * it announced as a bare "edit text" — so a keyboard user who committed an
+   * edit, or came back to the sheet, was told nothing about where they were
+   * (WCAG 2.4.3, 4.1.2). Naming it for the cell is what makes focus resting here
+   * correct rather than something to be moved away from.
+   *
+   * The value is left out while an edit is open: the field's own text is then
+   * the value, and repeating it in the name has the screen reader say the
+   * content twice before the user has finished typing it.
+   */
+  const cellInputLabel = useMemo(() => {
+    if (!cellRef) return "";
+    if (editing) return cellRef;
+    const flowdata = getFlowdata(context);
+    const displayed = flowdata?.[row_index]?.[col_index]?.m;
+    return displayed ? `${cellRef} ${displayed}` : cellRef;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    cellRef,
+    editing,
+    context.luckysheetfile,
+    context.currentSheetId,
+    row_index,
+    col_index,
+  ]);
+
   const cfg = context.config || {};
   const rowReadOnly: Record<number, number> = cfg.rowReadOnly || {};
   const colReadOnly: Record<number, number> = cfg.colReadOnly || {};
@@ -441,6 +476,7 @@ const InputBox: React.FC = () => {
           }}
           className="luckysheet-cell-input"
           id="luckysheet-rich-text-editor"
+          aria-label={cellInputLabel}
           style={{
             transform: `scale(${context.zoomRatio})`,
             transformOrigin: "left top",
