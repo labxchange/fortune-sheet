@@ -11,7 +11,7 @@ import {
   replaceHtml,
 } from "@fortune-sheet/core";
 import produce from "immer";
-import React, { useContext, useState, useCallback, useRef } from "react";
+import React, { useContext, useState, useCallback, useRef, useId } from "react";
 import _ from "lodash";
 import WorkbookContext from "../../context";
 import SVGIcon from "../SVGIcon";
@@ -61,6 +61,26 @@ const SearchReplace: React.FC<{
       previous === message ? markAsRepeat(message) : message
     );
   }, []);
+
+  // Derived from one useId rather than hardcoded, because every one of these
+  // is pure a11y wiring — none is referenced by a stylesheet — and htmlFor and
+  // aria-labelledby resolve to the *first* match in document order. Two
+  // <Workbook>s on one page with this dialog open in both is enough: the
+  // second dialog would take its name from the first one's heading, and
+  // clicking its "Find" label would focus the first one's input.
+  //
+  // The ids in this file that are CSS selectors (#fortune-search-replace,
+  // #searchAllbox, #searchInput, #regCheck and friends) stay hardcoded — they
+  // have to be, and duplicating them is inert because nothing reads them for
+  // meaning.
+  const instanceId = useId();
+  const titleId = `${instanceId}-title`;
+  const findInputId = `${instanceId}-find-input`;
+  const replaceInputId = `${instanceId}-replace-input`;
+  const regCheckId = `${instanceId}-reg-check`;
+  const wordCheckId = `${instanceId}-word-check`;
+  const caseCheckId = `${instanceId}-case-check`;
+  const resultsHintId = `${instanceId}-results-hint`;
 
   // The find box, not the first focusable element — which is the close button,
   // so a default-to-first landing makes every keyboard user tab past the
@@ -141,7 +161,7 @@ const SearchReplace: React.FC<{
       // claim of modality. It is escapable by standard keys either way —
       // both Close controls are in the cycle, and activating a result row
       // leaves for the grid.
-      aria-labelledby="fortune-search-replace-title"
+      aria-labelledby={titleId}
       tabIndex={-1}
       style={getInitialPosition(getContainer())}
       onMouseEnter={() => {
@@ -160,7 +180,7 @@ const SearchReplace: React.FC<{
         {/* The dialog has no visible title — the Find/Replace tabs stand in for
             one — so the name AT reads comes from here. A heading rather than a
             bare span so it also lands in a screen reader's heading list. */}
-        <h2 id="fortune-search-replace-title" className="sr-only">
+        <h2 id={titleId} className="sr-only">
           {findAndReplace.dialogTitle}
         </h2>
         <div
@@ -205,12 +225,12 @@ const SearchReplace: React.FC<{
                     accessible name — screen readers at high punctuation
                     verbosity read it aloud, and it is a hardcoded fullwidth
                     colon that no locale overrides. */}
-                <label htmlFor="fortune-search-find-input">
+                <label htmlFor={findInputId}>
                   {findAndReplace.findTextbox}
                 </label>
                 ：
                 <input
-                  id="fortune-search-find-input"
+                  id={findInputId}
                   className="formulaInputFocus"
                   ref={searchInputRef}
                   spellCheck="false"
@@ -221,12 +241,12 @@ const SearchReplace: React.FC<{
               </div>
               {showReplace && (
                 <div className="textboxs" id="replaceInput">
-                  <label htmlFor="fortune-search-replace-input">
+                  <label htmlFor={replaceInputId}>
                     {findAndReplace.replaceTextbox}
                   </label>
                   ：
                   <input
-                    id="fortune-search-replace-input"
+                    id={replaceInputId}
                     className="formulaInputFocus"
                     spellCheck="false"
                     onKeyDown={(e) => e.stopPropagation()}
@@ -239,31 +259,31 @@ const SearchReplace: React.FC<{
             <div className="checkboxs">
               <div id="regCheck">
                 <input
-                  id="fortune-search-regCheck"
+                  id={regCheckId}
                   type="checkbox"
                   onChange={(e) => setCheckMode("regCheck", e.target.checked)}
                 />
-                <label htmlFor="fortune-search-regCheck">
+                <label htmlFor={regCheckId}>
                   {findAndReplace.regexTextbox}
                 </label>
               </div>
               <div id="wordCheck">
                 <input
-                  id="fortune-search-wordCheck"
+                  id={wordCheckId}
                   type="checkbox"
                   onChange={(e) => setCheckMode("wordCheck", e.target.checked)}
                 />
-                <label htmlFor="fortune-search-wordCheck">
+                <label htmlFor={wordCheckId}>
                   {findAndReplace.wholeTextbox}
                 </label>
               </div>
               <div id="caseCheck">
                 <input
-                  id="fortune-search-caseCheck"
+                  id={caseCheckId}
                   type="checkbox"
                   onChange={(e) => setCheckMode("caseCheck", e.target.checked)}
                 />
-                <label htmlFor="fortune-search-caseCheck">
+                <label htmlFor={caseCheckId}>
                   {findAndReplace.distinguishTextbox}
                 </label>
               </div>
@@ -437,7 +457,7 @@ const SearchReplace: React.FC<{
               resolves by id from anywhere in the document, and the listbox
               must own nothing but its options — see the note below.
             */}
-            <div id="fortune-search-replace-results-hint" className="sr-only">
+            <div id={resultsHintId} className="sr-only">
               {findAndReplace.resultsUsageHint}
             </div>
             <div
@@ -449,7 +469,7 @@ const SearchReplace: React.FC<{
               // option's name it was re-read on every arrow key — forty
               // results meant hearing how to activate one forty times — where
               // a description on the list is offered once, on entry.
-              aria-describedby="fortune-search-replace-results-hint"
+              aria-describedby={resultsHintId}
             >
               {/*
                 Decorative, and hidden from assistive tech on purpose. These

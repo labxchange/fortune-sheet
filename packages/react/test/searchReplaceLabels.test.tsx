@@ -84,6 +84,45 @@ describe("Find and Replace accessible labels", () => {
     expect(caseBox.checked).toBe(true);
   });
 
+  it("keeps two workbooks on one page from sharing the dialog's ids", async () => {
+    // htmlFor and aria-labelledby resolve to the first match in document
+    // order, so hardcoded ids do not merely duplicate — they cross-wire: the
+    // second dialog is named by the first one's heading, and clicking its
+    // "Find" label focuses the first one's input. Deriving all seven from
+    // useId is what stops that, and this is the case that says so.
+    //
+    // getElementById returns the *first* match, which is what makes these
+    // assertions discriminating: under shared ids the second dialog's lookups
+    // land inside the first dialog and containment fails.
+    const { getAllByRole } = render(
+      <>
+        <Workbook data={[{ name: "Sheet1" }]} toolbarItems={["search"]} />
+        <Workbook data={[{ name: "Sheet1" }]} toolbarItems={["search"]} />
+      </>
+    );
+
+    getAllByRole("button", { name: /find and replace/i }).forEach((opener) =>
+      fireEvent.click(opener)
+    );
+    const dialogs = await waitFor(() => {
+      const found = getAllByRole("dialog");
+      expect(found).toHaveLength(2);
+      return found;
+    });
+
+    dialogs.forEach((dialog) => {
+      const titleId = dialog.getAttribute("aria-labelledby")!;
+      expect(dialog.contains(document.getElementById(titleId))).toBe(true);
+
+      const findBox = within(dialog).getByLabelText("Find Content");
+      expect(dialog.contains(document.getElementById(findBox.id))).toBe(true);
+    });
+
+    expect(dialogs[0].getAttribute("aria-labelledby")).not.toBe(
+      dialogs[1].getAttribute("aria-labelledby")
+    );
+  });
+
   it("leaves the visible colon out of the accessible name", async () => {
     // Read aloud at high punctuation verbosity, and it is a hardcoded
     // fullwidth colon no locale overrides — so it stays a sibling text node.
