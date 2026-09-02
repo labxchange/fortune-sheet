@@ -49,13 +49,6 @@
   outline-offset: 2px;
 }
 
-/* The typed-colour field beside the native swatch. The row has to wrap for it:
-   the panel is 164px and was already carrying a label, a swatch and OK. */
-#fortune-change-color .custom-color {
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
 #fortune-change-color .fortune-color-hex-input {
   width: 72px;
   font-size: 12px;
@@ -72,15 +65,17 @@
 
 #fortune-change-color .custom-color {
   position: relative;
-  margin: auto;
   padding: 10px;
   border-radius: 6px;
   background: white;
-  display: flex;
   align-items: center;
   margin: 1px 0px;
   display: flex;
   justify-content: space-around;
+  /* The row has to wrap for the typed-colour field: the panel is 164px and was
+     already carrying a label, a swatch and OK. */
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .button-basic {
