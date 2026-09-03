@@ -314,9 +314,10 @@
    positioned element ignores. Scoped here for the same reason the offset is:
    position: relative on the shared class would switch that z-index on for all
    eight of its other consumers, and make each of them a containing block for
-   any absolutely positioned descendant. Neither was audited for this ticket. */
-#fortune-custom-color .button-basic,
-#fortune-change-color .button-basic {
+   any absolutely positioned descendant. Neither was audited for this ticket.
+   #fortune-change-color needs the same pair; both of its rules live together
+   in ChangeColor/index.css. */
+#fortune-custom-color .button-basic {
   position: relative;
 }
 
@@ -330,7 +331,12 @@
   outline-offset: 2px;
 }
 
-#fortune-custom-color .fortune-color-hex-input {
+/* One rule for both popups rather than a copy in each stylesheet: the field is
+   the shared ColorHexInput, which lives in this folder, and the two panels are
+   deliberately id-scoped so a bare class rule would be the odd one out. The
+   popups' own markup is still styled from their own files. */
+#fortune-custom-color .fortune-color-hex-input,
+#fortune-change-color .fortune-color-hex-input {
   width: 72px;
   font-size: 12px;
   padding: 3px 4px;
@@ -338,7 +344,8 @@
   border-radius: 2px;
 }
 
-#fortune-custom-color .fortune-color-hex-input:focus-visible {
+#fortune-custom-color .fortune-color-hex-input:focus-visible,
+#fortune-change-color .fortune-color-hex-input:focus-visible {
   outline: var(--border_focus_outer, 3px) solid
     var(--color_border_focus_outer, #0063c3);
   outline-offset: 1px;
