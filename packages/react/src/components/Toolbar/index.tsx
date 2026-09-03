@@ -1128,10 +1128,15 @@ const Toolbar: React.FC<{
                 <MenuDivider />
                 <Option
                   key="formula"
-                  onClick={withFocusReturn(() => {
+                  onClick={() => {
+                    // Not wrapped in withFocusReturn: this opens a dialog
+                    // rather than editing the sheet, so luckysheetfile never
+                    // changes and the wrapper would only ever decline -- the
+                    // same reason keyboard-shortcuts, screenshot and every
+                    // Combo trigger are excluded below.
                     showDialog(<FormulaSearch onCancel={hideDialog} />);
                     setOpen(false);
-                  })}
+                  }}
                 >{`${formula.find}...`}</Option>
               </Select>
             )}
