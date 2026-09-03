@@ -454,7 +454,16 @@ const SheetOverlay: React.FC = () => {
 
       // Only reset selection if there's no existing selection
       if (!currentSheet.luckysheet_select_save?.length) {
-        api.setSelection(draftCtx, [{ row: [0], column: [0] }], {});
+        // Both ends of the range, not just the start. `row: [0]` leaves
+        // `row[1]` undefined, `normalizeSelection` fills only the focus cell,
+        // and every `for (r = row[0]; r <= row[1]; r += 1)` in core then runs
+        // zero times because `0 <= undefined` is false — so on a freshly
+        // mounted sheet, and after switching to a sheet that has no saved
+        // selection, the toolbar did nothing at all: bold, colours, number
+        // formats, text wrap and merge each read as a dead control until the
+        // user clicked a cell. It is also what made `getRangetxt` produce
+        // "A1:NaN", which NameBox and #sr-selection each work around.
+        api.setSelection(draftCtx, [{ row: [0, 0], column: [0, 0] }], {});
       }
     });
   }, [context.currentSheetId, setContext]);
