@@ -98,13 +98,22 @@ export function onActivationKeyDown<T extends HTMLElement = HTMLElement>(
  * then. A target that is gone is left alone rather than focused, because
  * focusing a detached node silently moves focus to <body> — the failure this
  * helper exists to prevent.
+ *
+ * `preventScroll` because every caller here is *restoring* focus to where the
+ * user already is, not taking them somewhere new: nothing should move on
+ * screen. Without it the browser scrolls the nearest scrollable ancestor to
+ * reveal the target — and the target is usually the cell input, which
+ * `InputBox` parks at `left: -10000` whenever there is no selection for it to
+ * sit on. An embedder that puts the grid in a scroll pane (LabXchange's sims
+ * lay their pages out in one) then has its own layout dragged sideways by a
+ * focus call, which is not this helper's business to do.
  */
 export function focusAfterCommit(
   getTarget: () => HTMLElement | null | undefined
 ): void {
   setTimeout(() => {
     const target = getTarget();
-    if (target?.isConnected) target.focus();
+    if (target?.isConnected) target.focus({ preventScroll: true });
   });
 }
 

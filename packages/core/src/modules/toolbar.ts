@@ -1535,9 +1535,36 @@ export function handleBorder(
   // }, 1);
 }
 
-export function handleMerge(ctx: Context, type: string) {
+/**
+ * Why a merge press did nothing, or that it did something.
+ *
+ * Every one of these but `"changed"` and `"refused"` was silent: the selection
+ * a sheet mounts with is a single cell, so the merge button did nothing at all
+ * until the selection was extended, and read as broken to mouse and keyboard
+ * alike. `"nothingMerged"` is the same dead end for *un*-merge, and the
+ * locale has carried the words for `"overlap"` and `"partMerge"`
+ * (`merge.overlappingError`, `merge.partiallyError`) all along — their alerts
+ * are the ones commented out below. `"refused"` covers the states the user
+ * cannot act on anyway (a read-only sheet, no selection at all) and stays
+ * unspoken — `"readOnly"` is split out of it because nothing on screen marks
+ * a read-only row, so of every ending here it is the one a user is least able
+ * to work out unaided. `generalDialog.readOnlyError` is what the right-click
+ * menu already shows for it.
+ */
+export type MergeOutcome =
+  | "changed"
+  | "singleCell"
+  | "readOnly"
+  | "overlap"
+  | "partMerge"
+  | "nothingMerged"
+  | "refused";
+
+/** Merges or un-merges the selection, reporting what came of it; see
+ *  `MergeOutcome`. */
+export function handleMerge(ctx: Context, type: string): MergeOutcome {
   const allowEdit = isAllowEdit(ctx);
-  if (!allowEdit) return;
+  if (!allowEdit) return "readOnly";
   // if (!checkProtectionNotEnable(ctx.currentSheetId)) {
   //   return;
   // }
@@ -1548,12 +1575,12 @@ export function handleMerge(ctx: Context, type: string) {
     //   } else {
     //     tooltip.info("不能合并重叠区域", "");
     //   }
-    return;
+    return "overlap";
   }
 
   if (ctx.config.merge != null) {
     let has_PartMC = false;
-    if (!ctx.luckysheet_select_save) return;
+    if (!ctx.luckysheet_select_save) return "refused";
     for (let s = 0; s < ctx.luckysheet_select_save.length; s += 1) {
       const r1 = ctx.luckysheet_select_save[s].row[0];
       const r2 = ctx.luckysheet_select_save[s].row[1];
@@ -1573,20 +1600,53 @@ export function handleMerge(ctx: Context, type: string) {
       // } else {
       //   tooltip.info("无法对部分合并单元格执行此操作", "");
       // }
-      return;
+      return "partMerge";
     }
   }
 
   const flowdata = getFlowdata(ctx);
-  if (!flowdata) return;
+  if (!flowdata) return "refused";
 
-  if (!ctx.luckysheet_select_save) return;
+  if (!ctx.luckysheet_select_save) return "refused";
 
-  mergeCells(ctx, ctx.currentSheetId, ctx.luckysheet_select_save, type);
+  // Asked of the selection rather than inferred from `mergeCells` returning
+  // false, because that answer has two causes and they need different words:
+  // a range too small to merge, and an un-merge over cells that were never
+  // merged.
+  const everyRangeIsOneCell = ctx.luckysheet_select_save.every((range) => {
+    // A selection's far edge is nil until a layout pass resolves it — the
+    // sheet's first selection is `row: [0, null]` (see NameBox) — and that
+    // state is one cell as far as the user is concerned, so it must answer the
+    // same way rather than falling through to a merge that iterates nothing.
+    const lastRow = _.isNil(range.row[1]) ? range.row[0] : range.row[1];
+    const lastCol = _.isNil(range.column[1])
+      ? range.column[0]
+      : range.column[1];
+    return range.row[0] === lastRow && range.column[0] === lastCol;
+  });
+  if (everyRangeIsOneCell) return "singleCell";
+
+  const acted = mergeCells(
+    ctx,
+    ctx.currentSheetId,
+    ctx.luckysheet_select_save,
+    type
+  );
+  if (acted) return "changed";
+  return type === "merge-cancel" ? "nothingMerged" : "refused";
 }
 
-export function handleSort(ctx: Context, isAsc: boolean) {
-  sortSelection(ctx, isAsc);
+/**
+ * Passes through whether the sort happened; see `sortSelection`.
+ *
+ * `sortSelection` reports a typed `SortRefusal` alongside the outcome, which
+ * the right-click menu and the custom-sort dialog use to say *why* a sort was
+ * declined. The toolbar has no surface for that — it announces success and
+ * stays silent otherwise — so it narrows to the boolean it acts on rather than
+ * carrying a reason no caller here reads.
+ */
+export function handleSort(ctx: Context, isAsc: boolean): boolean {
+  return sortSelection(ctx, isAsc).sorted;
 }
 
 export function handleFreeze(ctx: Context, type: string) {
