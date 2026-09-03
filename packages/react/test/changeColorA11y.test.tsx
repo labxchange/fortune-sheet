@@ -264,6 +264,92 @@ describe("Change Color accessibility", () => {
       expect(status()).toBe("");
       expect(field.value).toBe("#000000");
     });
+
+    it("leaves the sheet alone when the field is only tabbed through", () => {
+      // The field sits between the swatch and Confirm in the tab order, so a
+      // keyboard user cannot reach OK without passing through it. Committing on
+      // every blur made that traversal apply a colour and announce it — the
+      // seeded draft is itself a valid hex, so no typing was needed. Confirm is
+      // what applies here, exactly as it is for the swatch beside it.
+      let sheets: any;
+      const { getByRole, getByText } = render(
+        <Workbook
+          data={[{ name: "Sheet1" }]}
+          onChange={(data) => {
+            sheets = data;
+          }}
+        />
+      );
+      const { submenu } = openChangeColor(getByRole, getByText);
+      const field = hexField(submenu);
+
+      fireEvent.focus(field);
+      fireEvent.blur(field);
+
+      expect(status()).toBe("");
+      expect(sheets?.[0]?.color).toBeUndefined();
+    });
+
+    it("applies a colour the user did type on the way out, not only on Enter", () => {
+      // The counter-path: leaving the field is still a commit when there is
+      // something to commit, so the inertness above is about the pristine
+      // field and not about blur.
+      let sheets: any;
+      const { getByRole, getByText } = render(
+        <Workbook
+          data={[{ name: "Sheet1" }]}
+          onChange={(data) => {
+            sheets = data;
+          }}
+        />
+      );
+      const { submenu } = openChangeColor(getByRole, getByText);
+      const field = hexField(submenu);
+
+      fireEvent.focus(field);
+      fireEvent.change(field, { target: { value: "#123456" } });
+      fireEvent.blur(field);
+
+      expect(status()).toContain("#123456");
+      expect(sheets?.[0]?.color).toBe("#123456");
+    });
+
+    it("survives the pointer wandering off the row mid-entry", () => {
+      // The row closes this submenu on mouseleave unless something inside it
+      // reports being in use, and only the native swatch was reporting it. The
+      // submenu also opens on hover, so a pointer-opened menu plus a click into
+      // this field plus any movement off the row unmounted the field and threw
+      // the typed value away.
+      const { getByRole, getByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      const { colorRow, submenu } = openChangeColor(getByRole, getByText);
+      const menuId = colorRow.getAttribute("aria-controls")!;
+      const row = colorRow.parentElement!;
+
+      fireEvent.focus(hexField(submenu));
+      fireEvent.mouseLeave(row);
+
+      expect(document.getElementById(menuId)).not.toBeNull();
+    });
+
+    it("does not hold the submenu open once the field is done with", () => {
+      // The counter-path to the guard: an idle field must not turn the row into
+      // a menu that will not close.
+      const { getByRole, getByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      const { colorRow, submenu } = openChangeColor(getByRole, getByText);
+      const menuId = colorRow.getAttribute("aria-controls")!;
+      const row = colorRow.parentElement!;
+      const field = hexField(submenu);
+
+      fireEvent.focus(field);
+      fireEvent.blur(field);
+      fireEvent.mouseLeave(row);
+
+      expect(document.getElementById(menuId)).toBeNull();
+    });
   });
 
   describe("the toolbar's custom-colour popup", () => {

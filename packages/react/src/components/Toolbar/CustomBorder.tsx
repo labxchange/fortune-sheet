@@ -168,7 +168,14 @@ const CustomBorder: React.FC<Props> = ({ onPick, onColorPicked }) => {
           setOpenedBy("pointer");
           setOpenSubmenu("color");
         }}
-        onMouseLeave={() => setOpenSubmenu(null)}
+        onMouseLeave={() => {
+          // This popup holds the typed-colour field and the native swatch, and
+          // hiding it blurs whatever is focused inside — so a pointer drifting
+          // off the row mid-entry would take the caret with it. Stay open while
+          // focus is in there; Escape and the next mouseleave still close it.
+          if (colorRef.current?.contains(document.activeElement)) return;
+          setOpenSubmenu(null);
+        }}
       >
         <div
           className="fortune-border-select-option"

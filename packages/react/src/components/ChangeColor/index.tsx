@@ -94,6 +94,11 @@ export const ChangeColor: React.FC<Props> = ({
         />
         <ColorHexInput
           value={inputColor}
+          // The row above closes this submenu on mouseleave unless something
+          // inside it says it is in use, and only the native swatch was saying
+          // so — a pointer that opened the menu and then drifted off the row
+          // unmounted the field mid-entry and took the typed value with it.
+          onEditingChange={triggerParentUpdate}
           onCommit={(color) => {
             setInputColor(color);
             setSelectColor(color);

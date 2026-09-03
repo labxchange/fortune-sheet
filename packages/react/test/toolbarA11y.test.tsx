@@ -333,6 +333,65 @@ describe("toolbar actions announce what they did", () => {
     expect(announcement(container)).toContain(name);
   });
 
+  it("keeps the border colour popup open while its typed-colour field is in use", () => {
+    // This row hides its submenu on mouseleave, and hiding it blurs whatever is
+    // focused inside — so a pointer drifting off the row while the hex field or
+    // the native swatch was being used took the caret with it. Unlike the sheet
+    // tab's version this popup is display-toggled rather than unmounted, so the
+    // damage was the lost focus rather than the lost value.
+    const { getAllByRole, getByText, ref } = renderSheet({
+      toolbarItems: ["border"],
+    });
+    selectA1(ref);
+
+    const [, borderArrow] = getAllByRole("button", { name: /^Border/ });
+    act(() => {
+      fireEvent.mouseDown(borderArrow);
+    });
+    const colorRow = getByText("border color").closest(
+      '[role="button"]'
+    ) as HTMLElement;
+    act(() => {
+      fireEvent.keyDown(colorRow, { key: "Enter" });
+    });
+
+    const menu = document.getElementById(
+      colorRow.getAttribute("aria-controls")!
+    )!;
+    const field = menu.querySelector<HTMLInputElement>(
+      ".fortune-color-hex-input"
+    )!;
+    const row = colorRow.parentElement!;
+
+    // Real focus, not a synthetic focus event: the guard asks the document
+    // where focus actually is.
+    act(() => {
+      field.focus();
+    });
+    act(() => {
+      fireEvent.mouseLeave(row);
+    });
+    expect(menu.style.display).toBe("block");
+
+    // And the counter-path: with focus back out of the submenu, the pointer
+    // closes it.
+    //
+    // Focus goes to the colour *row* — still inside the Combo popup, outside
+    // `colorRef` — rather than blurring to `<body>`. Blurring to nothing takes
+    // focus out of the Combo entirely, which is the case `Combo`'s
+    // `closeOnFocusOut` now dismisses (WCAG 2.4.11); the popup unmounts, and
+    // this assertion would then read a detached node whose inline style is
+    // frozen at whatever it last rendered. The row is also the honest gesture:
+    // the pointer leaves a row the keyboard has come back to.
+    act(() => {
+      colorRow.focus();
+    });
+    act(() => {
+      fireEvent.mouseLeave(row);
+    });
+    expect(menu.style.display).toBe("none");
+  });
+
   it("announces undo and redo, whose effect the sheet cannot show", async () => {
     const { container, getByRole, ref } = renderSheet({
       toolbarItems: ["undo", "redo", "bold"],
