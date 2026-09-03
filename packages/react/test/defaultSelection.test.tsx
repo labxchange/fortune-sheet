@@ -58,6 +58,25 @@ describe("the selection a sheet mounts with", () => {
     expect(region.textContent).toContain("Bold on.");
   });
 
+  it("still opens with the arrow-key intro, and drops it once moved", async () => {
+    // The intro used to be reached by asking whether `rangeText` contained
+    // `NaN` — which it did only because the mount selection was malformed. Now
+    // that it is a real cell, the intro is asked for directly: shown until the
+    // selection moves, replaced by the cell's value afterwards.
+    const { container, ref } = renderSheet();
+    await flush();
+
+    const region = container.querySelector("#sr-selection")!;
+    expect(region.textContent).toContain("Use the arrow keys");
+
+    act(() => {
+      ref.current?.setSelection([{ row: [1, 1], column: [0, 0] }]);
+    });
+    await flush();
+
+    expect(region.textContent).not.toContain("Use the arrow keys");
+  });
+
   it("leaves a sheet that brought its own selection alone", async () => {
     const { ref } = renderSheet({
       data: [

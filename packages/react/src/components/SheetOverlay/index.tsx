@@ -6,6 +6,7 @@ import React, {
   useLayoutEffect,
   useMemo,
   useId,
+  useState,
 } from "react";
 import "./index.css";
 import {
@@ -581,6 +582,54 @@ const SheetOverlay: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context.currentSheetId, context.luckysheet_select_save]);
 
+  /**
+   * Whether anything has moved the selection on this sheet yet.
+   *
+   * The "use the arrow keys" intro below is for a grid nobody has moved in, and
+   * it used to be reached by asking whether `rangeText` contained `NaN`. That
+   * worked only by accident: the mount selection was written `row: [0]`, whose
+   * unresolved end `getRangetxt` rendered as "A1:NaN", and the intro rode on
+   * that. So it was a mount-time message keyed on a malformed range — which
+   * meant it lasted exactly as long as the malformation did, until the first
+   * layout pass resolved the extent, and in jsdom (no layout pass) forever.
+   *
+   * With the mount selection written as a real cell, the malformation is gone
+   * and the intro went with it. Asking the question directly is what it should
+   * always have been: it is shown until the selection changes, and reset when
+   * the sheet does, since arriving on a different sheet is arriving somewhere
+   * new. The `NaN` guard stays below as a guard — a selection can still reach
+   * here unresolved through `setSelection` or imported data — but it no longer
+   * doubles as the trigger for a message about something else.
+   *
+   * The visible consequence, stated so it is not read later as a regression:
+   * switching to a sheet that already has a selection now announces the intro
+   * rather than that cell's value, where before the reset it announced the
+   * value. That is the intended trade — the reference is still spoken either
+   * way, and the alternative is a grid whose only "how to move" hint is
+   * unreachable for anyone who did not arrive at mount.
+   */
+  const [selectionHasMoved, setSelectionHasMoved] = useState(false);
+  const arrivedAtRef = useRef<string | null>(null);
+  useEffect(() => {
+    // Seeded here rather than cleared to null, so that switching between two
+    // sheets whose selections read the same leaves a reference to compare
+    // against: `rangeText` would not change, the effect below would not run,
+    // and the first real move on the new sheet would be spent re-seeding
+    // instead of clearing the intro.
+    setSelectionHasMoved(false);
+    arrivedAtRef.current = rangeText || null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [context.currentSheetId]);
+  useEffect(() => {
+    if (!rangeText) return;
+    if (arrivedAtRef.current === null) {
+      // The mount selection arriving, one commit after the empty first render.
+      arrivedAtRef.current = rangeText;
+      return;
+    }
+    if (rangeText !== arrivedAtRef.current) setSelectionHasMoved(true);
+  }, [rangeText]);
+
   const selectionModeAnnouncement = useSelectionModeAnnouncement(context);
   const selectAllAnnouncement = useSelectAllAnnouncement(context);
   const clampAnnouncement = useNameBoxClampAnnouncement(context, info);
@@ -1074,8 +1123,10 @@ const SheetOverlay: React.FC = () => {
           follows, so it sits next to it, while a clamp describes the jump and
           stays last. */}
       <div id="sr-selection" className="sr-only" role="alert">
-        {!rangeText.includes("NaN")
-          ? `${rangeText} ${computedCellValue}${formulaAnnouncement}${filterCellAnnouncement}${clampAnnouncement}`
+        {rangeText && !rangeText.includes("NaN")
+          ? `${rangeText} ${
+              selectionHasMoved ? computedCellValue : info.sheetSrIntro
+            }${formulaAnnouncement}${filterCellAnnouncement}${clampAnnouncement}`
           : `A1. ${info.sheetSrIntro}`}
       </div>
       {/*
