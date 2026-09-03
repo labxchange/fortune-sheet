@@ -65,10 +65,12 @@ function forEachSelectedCell(
  * can be answered by a count, while a toggle can flip an attribute either way
  * without changing how many cells carry formatting at all.
  *
- * It costs no more than the action it is measuring: `updateFormat` walks the
- * same cells and writes to each, and only cells that exist are serialised, so
- * a whole-column selection over ten filled rows visits ten cells and not the
- * column's nominal length.
+ * The cost is the selection's nominal extent walked twice — once before the
+ * action, once after — with `JSON.stringify` paid only on the cells that exist.
+ * `updateFormat` walks that same nominal extent, so this is a constant factor
+ * on top of the action rather than a different order of work, and the
+ * serialisation follows the filled cells rather than the range's declared
+ * size.
  *
  * The two non-cell entries are state rather than data — the paint model, and
  * the filter range — so they are carried alongside.
