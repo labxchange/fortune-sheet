@@ -1213,19 +1213,24 @@ export function getRangetxt(
 }
 
 /**
- * The core value `#sr-selection` (SheetOverlay, @fortune-sheet/react)
- * announces for the current selection: the cell/range reference plus the
- * focused cell's displayed value. Exposed from core so that a caller
- * elsewhere in the workbook -- Toolbar's withFocusReturn -- can tell whether
- * a command changed the very thing #sr-selection is built from, without
- * duplicating the formula and risking the two drifting apart.
+ * The two raw values `#sr-selection` (SheetOverlay, @fortune-sheet/react)
+ * announces for the current selection: the cell/range reference (unformatted
+ * -- the caller applies its own screen-reader spacing, `formatRefForSr`, for
+ * display) and the focused cell's displayed value. Exposed from core, and
+ * consumed by SheetOverlay itself rather than duplicated there, so that a
+ * caller elsewhere in the workbook -- Toolbar's withFocusReturn -- can tell
+ * whether a command changed the very thing #sr-selection is built from
+ * without a second implementation the two could drift out of.
  *
- * This is a comparison key, not display text: it skips the screen-reader
- * spacing and the locale-dependent empty-workbook fallback SheetOverlay's own
- * rendering applies, neither of which affects whether the value changed.
- * Returns "" when there is no addressable selection.
+ * Both fields are "" together when there is no addressable selection --
+ * matching rangeText's own null-focus guard rather than defaulting the
+ * cell lookup to row/column 0, which would otherwise pair an empty range
+ * with a non-empty value for the same "no selection" state.
  */
-export function getSrSelectionCoreText(ctx: Context) {
+export function getSrSelectionCore(ctx: Context): {
+  rangeText: string;
+  cellValue: string;
+} {
   const lastSelection = _.last(ctx.luckysheet_select_save);
   if (
     !(
@@ -1234,7 +1239,7 @@ export function getSrSelectionCoreText(ctx: Context) {
       lastSelection.column_focus != null
     )
   )
-    return "";
+    return { rangeText: "", cellValue: "" };
   const rf = lastSelection.row_focus;
   const cf = lastSelection.column_focus;
   const rangeText =
@@ -1246,12 +1251,17 @@ export function getSrSelectionCoreText(ctx: Context) {
       : getRangetxt(ctx, ctx.currentSheetId, lastSelection);
 
   const sheetIndex = getSheetIndex(ctx, ctx.currentSheetId);
-  const cellValue =
-    sheetIndex == null
+  // `.m` can be a number (a cell displaying a plain numeric value stores it
+  // that way); both call sites only ever interpolate this into a string.
+  // `|| ""` first, same as before this was split out, so a literal 0 still
+  // collapses to "" rather than becoming the string "0".
+  const cellValue = String(
+    (sheetIndex == null
       ? ""
-      : ctx.luckysheetfile[sheetIndex]?.data?.[rf]?.[cf]?.m || "";
+      : ctx.luckysheetfile[sheetIndex]?.data?.[rf]?.[cf]?.m) || ""
+  );
 
-  return `${rangeText} ${cellValue}`;
+  return { rangeText, cellValue };
 }
 
 // 把string A1:A2转为选区数组

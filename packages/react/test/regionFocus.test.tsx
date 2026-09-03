@@ -157,6 +157,39 @@ describe("Region focus", () => {
       );
     });
 
+    // e.code reflects the physical key regardless of what character AltGr
+    // composed, so a Polish AltGr+Z ("ż") is indistinguishable from Ctrl+Z by
+    // ctrlKey/code alone -- undo/redo and the cut/copy/context-menu chords
+    // are exactly as reachable through that collision as the two chords
+    // above, since none of them sit behind their own AltGr guard. The guard
+    // has to run ahead of all of them, not just the two region chords.
+    it("protects undo/redo from an AltGr-composed character too, not just the region chords", () => {
+      const { container } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+      const workbook =
+        container.querySelector<HTMLElement>(".fortune-container")!;
+
+      // The undo/redo branch calls stopPropagation() once it runs, so the
+      // event never bubbling to document is the observable proof it did.
+      let reachedDocument = false;
+      const onDocumentKeyDown = () => {
+        reachedDocument = true;
+      };
+      document.addEventListener("keydown", onDocumentKeyDown);
+
+      fireEvent(
+        workbook,
+        altGraphEvent(workbook, {
+          key: "ż",
+          code: "KeyZ",
+          ctrlKey: true,
+          altKey: true,
+        })
+      );
+
+      document.removeEventListener("keydown", onDocumentKeyDown);
+      expect(reachedDocument).toBe(true);
+    });
+
     // `/` is itself AltGr-composed on several layouts, so the dialog branch
     // needs the guard as much as the region branch does.
     it("does not open the shortcuts dialog for an AltGr-composed slash", () => {

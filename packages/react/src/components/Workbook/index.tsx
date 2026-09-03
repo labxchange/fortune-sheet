@@ -624,41 +624,56 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
         // workbook binds them itself and calls the matching imperative method;
         // because it can stop propagation before this handler runs, the two do
         // not double-fire.
-        const withPrimary = e.ctrlKey || e.metaKey;
 
         // AltGr is delivered as Ctrl+Alt on Windows and Linux, so on any layout
         // that composes characters with it — Polish ą/ń/ś, and German, Spanish,
         // Czech, Turkish and more — those keystrokes are indistinguishable from
-        // the two chords below by ctrlKey/altKey/code alone, and would be
-        // swallowed mid-cell. A genuine Ctrl+Alt reports AltGraph as false.
+        // a Ctrl(+Shift)-bound command by ctrlKey/altKey/code alone: e.code
+        // reflects the physical key regardless of what character was composed,
+        // so AltGr+Z (composing "ż" on Polish) still reports code "KeyZ" and
+        // would fire Undo below, and AltGr+X (composing "ź") would fire Cut and
+        // lose the selection's content. This has to sit ahead of everything in
+        // this handler and everything handleGlobalKeyDown does after it — not
+        // scoped to individual branches — because e.code collisions like these
+        // are exactly as reachable through undo/redo, the context-menu chords
+        // and core's own dispatch as through the two chords directly below. A
+        // genuine Ctrl+Alt reports AltGraph as false, so this costs the
+        // Windows/Linux protection nothing.
+        //
+        // `e.key.length === 1` is what keeps this from also swallowing plain
+        // navigation while AltGr happens to still be physically held (e.g. the
+        // instant after composing a character, before releasing it): the
+        // browser reports AltGraph as true for that arrow keydown too, but no
+        // AltGr chord composes a named key like "ArrowRight" into anything, so
+        // there is nothing to protect a command from there — only a
+        // single-character `key` can collide with a Ctrl+letter binding.
         //
         // `!e.metaKey` is what keeps this off macOS. MDN documents AltGraph as
         // true whenever Option is held there, and every Mac binding here is
-        // Cmd+Option+letter — so an unqualified guard killed all of them. The
-        // Windows/Linux protection loses nothing by the qualifier, because
-        // AltGr arrives there as ctrlKey and never as metaKey.
-        //
-        // Scoped to the two branches it protects rather than sitting at the top
-        // of the handler, mirroring how core scopes the same guard onto its
-        // Ctrl+Alt+R branch. At the top it also gated undo/redo, Alt+Up/Down
-        // and the context-menu chords, none of which it was meant to protect.
-        const composedWithAltGr = !e.metaKey && e.getModifierState("AltGraph");
+        // Cmd+Option+letter — so an unqualified guard killed all of them.
+        if (
+          !e.metaKey &&
+          e.key.length === 1 &&
+          e.getModifierState("AltGraph")
+        ) {
+          return;
+        }
+
+        const withPrimary = e.ctrlKey || e.metaKey;
 
         // No `!e.shiftKey` here: `e.key` is the composed character, and `/` is
         // Shift+7 on German and Nordic layouts and Shift+: on AZERTY, so
         // requiring Shift to be up made the dialog unreachable on all of them.
         // It costs nothing on a US layout, where Shift+/ produces "?" and this
-        // comparison is already false. The AltGr guard applies here too: `/` is
-        // itself an AltGr-composed character on several layouts, so without it
-        // typing a slash would open the dialog.
-        if (withPrimary && !composedWithAltGr && e.key === "/") {
+        // comparison is already false.
+        if (withPrimary && e.key === "/") {
           e.preventDefault();
           setContextWithProduce((draftCtx) => {
             draftCtx.showShortcutsDialog = true;
           });
           return;
         }
-        if (withPrimary && !composedWithAltGr && e.altKey && !e.shiftKey) {
+        if (withPrimary && e.altKey && !e.shiftKey) {
           const region = {
             KeyT: ".fortune-toolbar",
             KeyS: `.${GRID_ROOT_CLASS}`,

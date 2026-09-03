@@ -128,6 +128,28 @@ describe("Formula bar entry does not start an edit", () => {
     expect(isEditing()).toBe(true);
   });
 
+  it("mirrors a context-menu paste into the grid's cell input, even with no preceding keydown at all", () => {
+    const { container, fx, isEditing } = setup();
+    const cellInput = container.querySelector<HTMLElement>(
+      "#luckysheet-rich-text-editor"
+    )!;
+
+    fireEvent.focus(fx);
+    expect(isEditing()).toBe(false);
+
+    // A context-menu paste (or a drop) fires no keydown at all -- unlike
+    // Ctrl+V, lastKeyDownEventRef.current is still null when onChange runs,
+    // so the kcode-gated mirror below can't be relied on to sync the grid's
+    // own cell-input overlay. Without a direct mirror, the formula bar would
+    // show the new text while the grid still shows whatever was there before.
+    fx.innerHTML = "pasted from the menu";
+    fx.innerText = "pasted from the menu";
+    fireEvent.input(fx);
+
+    expect(isEditing()).toBe(true);
+    expect(cellInput.innerHTML).toContain("pasted from the menu");
+  });
+
   it("leaves the pointer flag clean, so a later keyboard entry still defers", () => {
     const { container, fx, isEditing } = setup();
     const cellInput = container.querySelector<HTMLElement>(

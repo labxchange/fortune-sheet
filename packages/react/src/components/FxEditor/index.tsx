@@ -317,7 +317,32 @@ const FxEditor: React.FC = () => {
     // or composed text sits in the DOM with no luckysheetCellUpdate behind it,
     // and a later Enter or blur has nothing to commit.
     if (context.luckysheetCellUpdate.length === 0 && canStartEdit()) {
+      // A context-menu paste or a drop as the very first interaction carries
+      // no keydown at all, so lastKeyDownEventRef.current is still whatever
+      // (possibly nothing) preceded this session -- the kcode-gated mirror
+      // below cannot be relied on to run for it. Mirror directly instead,
+      // rather than leaving the grid's own cell-input overlay showing stale
+      // content until some later keystroke happens to trigger the gated path.
+      //
+      // doNotUpdateCell suppresses InputBox's own cell-value sync effect for
+      // this transition -- the same one-shot mechanism FormulaSearch uses
+      // when it writes into cellInput directly. Without it, that effect
+      // resyncs cellInput from the *stored* (still-empty) cell value the
+      // moment luckysheetCellUpdate goes from empty to set, clobbering the
+      // mirror written below on the very same render pass.
+      refs.globalCache.doNotUpdateCell = true;
       beginCellEdit();
+      // recentText is intentionally omitted (not read from a possibly-stale
+      // prior keydown) so handleFormulaInput diffs the editor's own current
+      // text against itself.
+      setContext((draftCtx) => {
+        handleFormulaInput(
+          draftCtx,
+          refs.cellInput.current!,
+          refs.fxInput.current!,
+          0
+        );
+      });
     }
     const e = lastKeyDownEventRef.current;
     if (!e) return;
@@ -356,6 +381,7 @@ const FxEditor: React.FC = () => {
     beginCellEdit,
     refs.cellInput,
     refs.fxInput,
+    refs.globalCache,
     setContext,
   ]);
 

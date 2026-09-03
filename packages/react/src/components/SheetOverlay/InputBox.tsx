@@ -150,17 +150,18 @@ const InputBox: React.FC = () => {
     }
   }, [getActiveFormula]);
 
-  // Reports whether it actually consumed the key (an active suggestion whose
-  // function-name node is present -- the only case this does anything), so a
-  // caller can gate its own preventDefault/stopPropagation on the return
-  // value instead of re-deriving "is there a real suggestion open" from
-  // getActiveFormula() alone. The two guards could otherwise drift: an active
-  // item without that child would look active to getActiveFormula() while
-  // this quietly did nothing, so a caller gating on that instead would
-  // swallow the key with no effect -- the dead-Tab-in-edit-mode bug this hunk
-  // exists to fix, reached by a narrower route.
+  // Calls preventDefault/stopPropagation itself, and only when there is an
+  // active suggestion whose function-name node is present -- the only case
+  // this does anything. A caller that instead gated its own
+  // preventDefault/stopPropagation on getActiveFormula() alone would drift
+  // from this: an active item without that child looks active to
+  // getActiveFormula() while this quietly does nothing, so such a caller
+  // would swallow the key with no effect -- the dead-Tab-in-edit-mode bug
+  // this hunk exists to fix, reached by a narrower route. A caller should
+  // therefore just call this and let it decide, rather than re-deriving
+  // "is there a real suggestion open" itself.
   const selectActiveFormula = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>): boolean => {
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
       const activeFormula = getActiveFormula();
       const formulaNameDiv = activeFormula?.querySelector(
         ".luckysheet-formula-search-func"
@@ -226,9 +227,7 @@ const InputBox: React.FC = () => {
         }
         e.preventDefault();
         e.stopPropagation();
-        return true;
       }
-      return false;
     },
     [getActiveFormula, setContext]
   );
@@ -268,11 +267,12 @@ const InputBox: React.FC = () => {
         // edit mode: with no suggestion open `selectActiveFormula` does
         // nothing, and the `preventDefault()` beside it stopped the browser
         // moving focus while core's Tab branch bailed on the edit -- so the key
-        // did nothing at all. Gating on selectActiveFormula's own return value
-        // (rather than getActiveFormula() here too) is what keeps this branch
-        // and the guard it is deferring to from being able to drift apart --
-        // it, not this branch, decides whether Tab was actually consumed, and
-        // its own preventDefault/stopPropagation only fire when it was.
+        // did nothing at all. Calling `selectActiveFormula` and leaving the
+        // decision to it -- rather than re-deriving "is there a real
+        // suggestion open" from `getActiveFormula()` here too -- is what keeps
+        // this branch from being able to drift from it: `selectActiveFormula`
+        // itself decides whether Tab was actually consumed, and its own
+        // preventDefault/stopPropagation only fire when it was.
         selectActiveFormula(e);
       } else if (e.key === "F4" && context.luckysheetCellUpdate.length > 0) {
         // formula.setfreezonFuc(event);

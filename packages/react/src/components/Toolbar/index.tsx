@@ -35,7 +35,7 @@ import {
   createFilter,
   clearFilter,
   applyLocation,
-  getSrSelectionCoreText,
+  getSrSelectionCore,
 } from "@fortune-sheet/core";
 import _ from "lodash";
 import WorkbookContext from "../../context";
@@ -293,11 +293,13 @@ const Toolbar: React.FC<{
    * `#sr-selection` is built from, and that region simply repeats itself.
    * `toolbarFocusReturnCount` bumped here is what `#sr-toolbarFocusReturn`
    * (SheetOverlay) watches to announce the cell the user landed back on --
-   * but only when `getSrSelectionCoreText` reads the same before and after.
-   * A command that *did* move the selection or the cell's value (a merge, an
+   * but only when `getSrSelectionCore` reads the same before and after. A
+   * command that *did* move the selection or the cell's value (a merge, an
    * undo that restores content) already made `#sr-selection` re-announce on
    * its own; bumping the counter for that too would speak the same cell
-   * twice.
+   * twice. Joined to a string because `withFocusReturn` compares the stamp
+   * with `===`, which a fresh object from `getSrSelectionCore` would always
+   * fail even when both fields are unchanged.
    */
   const withFocusReturn = useCallback(
     <A extends unknown[]>(run: (...args: A) => void) =>
@@ -313,7 +315,12 @@ const Toolbar: React.FC<{
               (ctx.toolbarFocusReturnCount ?? 0) + 1;
           });
         },
-        () => getSrSelectionCoreText(contextRef.current)
+        () => {
+          const { rangeText, cellValue } = getSrSelectionCore(
+            contextRef.current
+          );
+          return `${rangeText}|${cellValue}`;
+        }
       ),
     [refs.cellInput, setContext]
   );
