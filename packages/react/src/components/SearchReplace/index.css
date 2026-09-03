@@ -2,7 +2,13 @@
 #fortune-search-replace {
   position: absolute;
   padding: 30px 42px;
-  z-index: 1002;
+  /* Was 1002. SheetOverlay's own scrollbars (.luckysheet-scrollbar-ltr) and
+     formula hint/search popups are 1003 — above this dialog despite the
+     grid being what it floats over, so the results list sat under the
+     horizontal scrollbar rather than above it. 1004 matches the other
+     floating chrome (ContextMenu, ConditionFormat, ZoomControl, Toolbar
+     dropdowns) that's meant to sit above the grid's own overlay pieces. */
+  z-index: 1004;
 }
 
 #fortune-search-replace .icon-close {
@@ -25,9 +31,18 @@
   line-height: 2;
 }
 
+/*
+ * #8c89fe carried white text at 2.95:1, against the 4.5:1 WCAG 1.4.3 asks for
+ * — and it is the only thing distinguishing the selected tab, so the failure
+ * was on the one control that has to be readable. #5b57d1 is the same hue at
+ * 5.63:1. The next lighter step that clears the bar, #6b67e0, sits at 4.52:1;
+ * landing two hundredths above a threshold leaves nothing for a future tweak,
+ * so this keeps a margin instead. The border darkens with it, or it
+ * disappears into its own fill.
+ */
 #fortune-search-replace .tabBox span.on {
-  background-color: #8c89fe;
-  border-color: #726efe;
+  background-color: #5b57d1;
+  border-color: #4a46b8;
   color: #fff;
 }
 
@@ -47,6 +62,30 @@
   display: flex;
   flex-direction: row;
   justify-content: space-between;
+}
+
+/*
+ * findTextbox/replaceTextbox/regCheck/wordCheck/caseCheck used to be plain
+ * text or a <span>, so a host page's own `label` rules (block display,
+ * margin, bold — Bootstrap-style form resets are the common case) never
+ * reached this dialog. Naming these controls with real <label> elements
+ * made them match for the first time, and the fixed 30px row height below
+ * has no room for a label that now wants its own block or margin: the
+ * overflow lands on top of the input or the row after it. Reset back to
+ * what a <span> looked like so the row's fixed height keeps holding.
+ */
+#fortune-search-replace label {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  float: none;
+  width: auto;
+  max-width: none;
+  line-height: inherit;
+  font-weight: normal;
+  font-size: inherit;
+  color: inherit;
 }
 
 #fortune-search-replace .inputBox {
@@ -93,79 +132,105 @@
   margin-top: 10px;
   overflow-y: auto;
   position: relative;
+  /*
+   * The results box is its own scrolling context and stops there. Without
+   * this, a wheel gesture that reaches the end of the list chains to the
+   * nearest scrollable ancestor — the grid — so the sheet lurched behind the
+   * dialog instead of the list moving.
+   *
+   * This is half the fix. The other half is in JS: Sheet binds a wheel
+   * listener over the whole grid, and it used to scroll the sheet and cancel
+   * the gesture before the browser could scroll this box at all — the grid
+   * declines to do either here now. Chaining is what remains once that handler
+   * correctly stands aside, and this is what stops it.
+   *
+   * The two halves are load-bearing for each other, so neither may move alone.
+   * `#searchAllbox` is the whole of core's SELF_SCROLLING_SELECTOR, and the
+   * guard reads the computed value of the overflow property above before it
+   * declines to cancel — so dropping that declaration turns the exemption off
+   * rather than corrupting it, while dropping this one leaves the exemption on
+   * with nothing to stop the chain, which is the direction that leaks. Rename
+   * the id and the exemption goes off too. sheetWheelCancel.test.tsx asserts
+   * this rule against that selector for exactly those reasons.
+   */
+  overscroll-behavior: contain;
+}
+
+#fortune-search-replace #searchAllbox .searchResultsList {
+  width: 100%;
+}
+
+/* The three columns are declared once, on the row, and both the caption row
+   and every option inherit them. The old markup was a fixed-layout table for
+   the same reason this is a grid with explicit tracks: a long cell value must
+   not be allowed to renegotiate a column's width. */
+#fortune-search-replace #searchAllbox .boxTitle,
+#fortune-search-replace #searchAllbox .boxItem {
+  display: grid;
+  grid-template-columns: 25% 25% 50%;
+  height: 30px;
+  line-height: 29px;
+  border-bottom: 1px solid #d4d4d4;
+  box-sizing: border-box;
 }
 
 #fortune-search-replace #searchAllbox .boxTitle {
-  width: 100%;
-  height: 30px;
-  line-height: 29px;
-  padding: 0 5px;
   background-color: #fff;
-  border-bottom: 1px solid #d4d4d4;
-  box-sizing: border-box;
+  /* A grid row can be sticky as a whole, where a <tr> could not — that was the
+     reason the caption's stickiness used to live on its cells. */
   position: sticky;
-  left: 0;
   top: 0;
+  z-index: 1;
 }
 
-#fortune-search-replace #searchAllbox .boxTitle span {
-  display: inline-block;
-  text-align: center;
-}
-
-#fortune-search-replace #searchAllbox .boxTitle span:nth-of-type(1) {
-  width: 25%;
-}
-
-#fortune-search-replace #searchAllbox .boxTitle span:nth-of-type(2) {
-  width: 25%;
-}
-
-#fortune-search-replace #searchAllbox .boxTitle span:nth-of-type(3) {
-  width: 50%;
-}
-
-#fortune-search-replace #searchAllbox .boxMain .boxItem {
-  height: 30px;
-  line-height: 29px;
-  border-bottom: 1px solid #d4d4d4;
-  padding: 0 5px;
-  box-sizing: border-box;
-}
-
-#fortune-search-replace #searchAllbox .boxMain .boxItem.on {
-  background-color: #8c89fe;
+/* The highlight marks the option the user is on. It is keyed to selection
+ * rather than to focus because a listbox has somewhere to put that: the active
+ * option is the selected one, and aria-selected already says so to a screen
+ * reader, so the visual and the announced state cannot drift apart. Same
+ * colour pair throughout — white on #5b57d1, the value the contrast ticket
+ * landed on; only what puts an option into the state has changed. */
+#fortune-search-replace #searchAllbox .boxItem[aria-selected="true"] {
+  background-color: #5b57d1;
   color: #fff;
 }
 
-#fortune-search-replace #searchAllbox .boxMain .boxItem:focus-visible {
+/* Forced colours replaces both of the properties above with system ones, so
+   the selected option would be indistinguishable from the rest of the list.
+   Highlight/HighlightText are the system pair meant for exactly this, and the
+   outline is there because the fill alone is not guaranteed to survive every
+   high-contrast theme. */
+@media (forced-colors: active) {
+  #fortune-search-replace #searchAllbox .boxItem[aria-selected="true"] {
+    background-color: Highlight;
+    color: HighlightText;
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+    forced-color-adjust: none;
+  }
+}
+
+#fortune-search-replace #searchAllbox .boxItem:focus-visible {
   outline: var(--border_focus_outer, 3px) solid
     var(--color_border_focus_outer, #0063c3);
   outline-offset: -2px;
 }
 
-#fortune-search-replace #searchAllbox .boxMain .boxItem span {
-  display: block;
+/* The focused option is always the selected one — onFocus sets activeRow, and
+   aria-selected keys off activeRow — so this ring is only ever drawn on the
+   #5b57d1 fill above, never on white. #0063c3 on that fill is 1.04:1, i.e.
+   painted and invisible, against the 3:1 that 1.4.11 asks of an indicator.
+   White is 5.63:1 on it, and the negative offset keeps the fill on both sides
+   of the ring, so that is the only pair that has to hold. */
+#fortune-search-replace
+  #searchAllbox
+  .boxItem[aria-selected="true"]:focus-visible {
+  outline-color: #fff;
+}
+
+#fortune-search-replace #searchAllbox .boxTitle span,
+#fortune-search-replace #searchAllbox .boxItem span {
+  padding: 0 5px;
   text-align: center;
-  float: left;
-}
-
-#fortune-search-replace #searchAllbox .boxMain .boxItem span:nth-of-type(1) {
-  width: 25%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-#fortune-search-replace #searchAllbox .boxMain .boxItem span:nth-of-type(2) {
-  width: 25%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-#fortune-search-replace #searchAllbox .boxMain .boxItem span:nth-of-type(3) {
-  width: 50%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

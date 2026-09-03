@@ -11775,6 +11775,13 @@ export default {
     space: "स्थान",
   },
   findAndReplace: {
+    resultRowLabel: "शीट ${sheet}, सेल ${cell}, मूल्य ${value}",
+    resultsListName: "खोज परिणाम",
+    resultsUsageHint: "उस सेल पर जाने के लिए किसी परिणाम को सक्रिय करें",
+    matchesFoundTip: "मिलान मिले: ${xlength}",
+    replacedTip: "बदली गई घटनाएं: ${xlength}",
+    resultsShownTip: "परिणाम सूची प्रदर्शित",
+    dialogTitle: "ढूंढें और बदलें",
     find: "खोजें",
     replace: "बदलें",
     goto: "जाएं",

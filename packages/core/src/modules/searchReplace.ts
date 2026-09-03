@@ -596,7 +596,10 @@ export function replaceAll(
 
   ctx.luckysheet_select_save = normalizeSelection(ctx, range);
 
-  const succeedInfo = replaceHtml(findAndReplace.successTip, {
+  // `successTip` is "${xlength} items found" — the wrong sentence for an
+  // action that just rewrote them, and the text the user is shown as well as
+  // the text a screen reader reads out of the alert.
+  const succeedInfo = replaceHtml(findAndReplace.replacedTip, {
     xlength: replaceCount,
   });
   // if (isEditMode()) {

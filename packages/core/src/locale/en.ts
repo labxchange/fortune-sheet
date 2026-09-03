@@ -11789,6 +11789,23 @@ export default {
     space: "space",
   },
   findAndReplace: {
+    resultRowLabel: "Sheet ${sheet}, cell ${cell}, value ${value}",
+    resultsListName: "Search results",
+    resultsUsageHint: "Activate a result to go to that cell",
+    // Label first, count second, on purpose. Count first reads "1 matches
+    // found" and "1 occurrences replaced", and both of these are spoken by a
+    // screen reader; there is no pluralization layer in this package to
+    // inflect them. The label-first form is correct at every count, and is
+    // already how the Russian translation of these two reads. Reordering them
+    // back reintroduces the disagreement in en, es and hi.
+    matchesFoundTip: "Matches found: ${xlength}",
+    replacedTip: "Occurrences replaced: ${xlength}",
+    // Names the widget Find All builds, so it has to track the markup:
+    // this said "table" until the results became a listbox, which told a
+    // reader to reach for table navigation — the dead end the listbox
+    // exists to escape. All six locales say list.
+    resultsShownTip: "Results list displayed",
+    dialogTitle: "Find and Replace",
     find: "Find",
     replace: "Replace",
     goto: "Go to",

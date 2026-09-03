@@ -14341,6 +14341,13 @@ export default {
     space: "Пробел",
   },
   findAndReplace: {
+    resultRowLabel: "Лист ${sheet}, ячейка ${cell}, значение ${value}",
+    resultsListName: "Результаты поиска",
+    resultsUsageHint: "Активируйте результат, чтобы перейти к этой ячейке",
+    matchesFoundTip: "Найдено совпадений: ${xlength}",
+    replacedTip: "Заменено вхождений: ${xlength}",
+    resultsShownTip: "Показан список результатов",
+    dialogTitle: "Найти и заменить",
     find: "Найти",
     replace: "Заменить",
     goto: "Перейти к",
