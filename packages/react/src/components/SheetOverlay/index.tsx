@@ -55,6 +55,7 @@ import { useFilterAnnouncements } from "../../hooks/useFilterAnnouncements";
 import { useSelectionModeAnnouncement } from "../../hooks/useSelectionModeAnnouncement";
 import { useSelectAllAnnouncement } from "../../hooks/useSelectAllAnnouncement";
 import { useNameBoxClampAnnouncement } from "../../hooks/useNameBoxClampAnnouncement";
+import { useContextMenuAnnouncements } from "../../hooks/useContextMenuAnnouncements";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
@@ -565,6 +566,14 @@ const SheetOverlay: React.FC = () => {
   const selectionModeAnnouncement = useSelectionModeAnnouncement(context);
   const selectAllAnnouncement = useSelectAllAnnouncement(context);
   const clampAnnouncement = useNameBoxClampAnnouncement(context, info);
+  // The id comes back from the hook rather than being a module constant: this
+  // fork is embedded once per sim section, and a fixed id made every instance's
+  // `aria-describedby` resolve to the first instance's (empty) region. See
+  // CONTEXT_MENU_REGION_ID_SUFFIX.
+  const {
+    regionId: contextMenuRegionId,
+    announcement: contextMenuAnnouncement,
+  } = useContextMenuAnnouncements(context, refs.cellInput);
   const cellAreaId = useId();
   const { cellAnnouncement: filterCellAnnouncement, regionAnnouncement } =
     useFilterAnnouncements(context, info);
@@ -1061,6 +1070,30 @@ const SheetOverlay: React.FC = () => {
           Polite, for the same reason as above. */}
       <div id="sr-selectAll" className="sr-only" role="status">
         {selectAllAnnouncement}
+      </div>
+      {/* Context-menu actions were silent: the grid rearranges and `#sr-selection`
+          reports the new cell, but nothing says what the action did — "3 columns
+          inserted" is not recoverable from the after-state.
+
+          This element is both an assertive live region and the target of the cell
+          input's `aria-describedby`. Almost every one of these actions also moves
+          focus to the cell input, VoiceOver announces the newly focused element,
+          and that utterance discards a *polite* message queued in the same
+          moment — which is why this is not polite. So the text is delivered as
+          part of the focus announcement through the description, and the region
+          reaches the actions that do not move focus. Assertive specifically
+          because the sheet-rename announcement shares this region and
+          `sr-virtual.test.tsx` asserts it survives a focus move that way. The
+          full reasoning, including the double-speak question the two mechanisms
+          raise together, is in useContextMenuAnnouncements. */}
+      <div
+        id={contextMenuRegionId}
+        className="sr-only"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+      >
+        {contextMenuAnnouncement}
       </div>
     </main>
   );

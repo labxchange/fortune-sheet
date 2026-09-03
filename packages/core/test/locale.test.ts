@@ -13,7 +13,81 @@ const LANGS = ["en", "zh", "es", "hi", "ru", "zh-TW"];
 
 const infoFor = (lang: string) => locale({ lang } as unknown as Context).info;
 
+const PLACEHOLDER = /\$\{\w+\}/g;
+
+/** Every `[dotted.path, englishValue]` in `en` whose value is a string. */
+const englishStrings = (obj: unknown, prefix = ""): [string, string][] =>
+  Object.entries(obj as Record<string, unknown>).flatMap(([key, value]) => {
+    if (typeof value === "string") {
+      return [[`${prefix}${key}`, value] as [string, string]];
+    }
+    // Arrays are taken whole by the merge, so their contents are not compared.
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      return englishStrings(value, `${prefix}${key}.`);
+    }
+    return [];
+  });
+
+// `match` rather than `test`, because `PLACEHOLDER` is global and `test`
+// advances `lastIndex` — filtering with it would skip every other match.
+const interpolatedStrings = englishStrings(en).filter(
+  ([, value]) => value.match(PLACEHOLDER) != null
+);
+
+/** Every `announce*` string English defines, wherever it lives. */
+const announcementStrings = englishStrings(en).filter(([path]) =>
+  /(^|\.)announce[A-Z]/.test(path)
+);
+
+/**
+ * The locale files themselves, `en` included.
+ *
+ * Keyed by file name rather than by the locale map's key, because a case that
+ * reads the file is asking about the translation and not about what `locale()`
+ * would serve after merging English underneath it.
+ */
+const LOCALE_FILES: Record<string, unknown> = { en, es, hi, ru, zh, zh_tw };
+
 describe("screen-reader locale coverage", () => {
+  // Both walkers above derive their list from `en` rather than a hand-written
+  // one, so an empty list would make every case that iterates it vacuously
+  // green — the failure mode is the test passing, not failing. These two hold
+  // them to a floor. Exact counts are deliberately not asserted: adding a
+  // string should not fail a test that has nothing to do with it.
+  it("finds the strings the cases below iterate", () => {
+    expect(interpolatedStrings.length).toBeGreaterThan(20);
+    expect(announcementStrings.length).toBeGreaterThan(25);
+  });
+
+  it.each(Object.keys(LOCALE_FILES))(
+    "%s translates every result announcement, none of them blank",
+    (lang) => {
+      // `announce(key)` is checked against the locale shape by `tsc`, so a
+      // *typo* cannot ship. What tsc cannot see is a key that resolves to an
+      // empty string: `useContextMenuAnnouncements` treats that the same as an
+      // unresolved one and returns early, so the action ships silent — the
+      // WCAG 4.1.3 failure the announcements exist to fix, with nothing to
+      // notice at runtime. Only 8 of the 31 are asserted end-to-end in the
+      // react suite; the rest need a merged range, a read-only sheet or a
+      // hidden row to reach through the UI.
+      //
+      // Asserted against the raw locale **files**, the way "locale key parity"
+      // below does — not through `locale()`. An earlier version of this case
+      // resolved through `locale()`, and `resolveLang` merges each language
+      // *over* `en`, so every missing key fell back to the English string:
+      // deleting all 31 announcements from `es` left it green. It was one
+      // assertion about `en` repeated six times, and the PR description
+      // claiming it as cross-language coverage was wrong. Reading the files is
+      // what makes the six cases six different questions.
+      const file = LOCALE_FILES[lang] as any;
+      announcementStrings.forEach(([path]) => {
+        const value = path.split(".").reduce((acc, key) => acc?.[key], file);
+        expect(typeof value).toBe("string");
+        expect(value).not.toBe("");
+      });
+    }
+  );
+
   // Strings only a screen reader reads are not noticeable by eye when a
   // translation omits one, the locale files are each `@ts-ignore`d in the map so
   // tsc does not catch it, and `replaceHtml` throws during render on an
@@ -50,15 +124,31 @@ describe("screen-reader locale coverage", () => {
     it(`keeps every English placeholder in ${lang}`, () => {
       // Substituted by name, so a translation that drops one renders a static
       // sentence instead — a count region that reports the same number for
-      // every search, or a boundary announcement that omits where it runs. No
+      // every search, or "columns inserted to the left." with no number. No
       // fallback covers this: the key is present, just malformed. Derived from
       // English rather than hand-listed, so the next such string is covered
       // without anyone remembering to add it.
-      const info = infoFor(lang) as unknown as Record<string, string>;
-      Object.entries(en.info).forEach(([key, value]) => {
-        if (typeof value !== "string") return;
-        (value.match(/\$\{\w+\}/g) ?? []).forEach((placeholder) => {
-          expect(info[key]).toContain(placeholder);
+      //
+      // Walks the whole tree, not `en.info`. Scoped to `info` it covered 9 of
+      // the 26 interpolated strings English defines: `rightclick` has 10 (the
+      // context-menu result announcements), `findAndReplace` 4, and `filter`,
+      // `sheetconfig` and `insertLink` one each — none of them visible to it.
+      // All 26 are correct in all six languages today, so nothing was broken by
+      // the gap; the point is that a section is the wrong unit for a rule about
+      // every string.
+      //
+      // Asserted against the *resolved* locale rather than the file, because
+      // that is what a consumer reads: a key the translation omits resolves to
+      // the English string, which carries the placeholder by construction. The
+      // failure this catches is a key that is present and malformed.
+      const resolved = locale({ lang } as unknown as Context) as any;
+      interpolatedStrings.forEach(([path, value]) => {
+        const translated = path
+          .split(".")
+          .reduce((acc, key) => acc?.[key], resolved);
+        (value.match(PLACEHOLDER) ?? []).forEach((placeholder) => {
+          expect(typeof translated).toBe("string");
+          expect(translated).toContain(placeholder);
         });
       });
     });

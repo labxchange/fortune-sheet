@@ -4,6 +4,24 @@ import Workbook from "../src/components/Workbook";
 import Button from "../src/components/Toolbar/Button";
 import Combo from "../src/components/Toolbar/Combo";
 
+/**
+ * Somewhere inside the open popup to hold focus while a submenu row is hovered.
+ *
+ * These three cases used the Undo button for this. Since popups now dismiss on
+ * focus leaving them (WCAG 2.4.11), parking focus on the toolbar behind the
+ * popup closes it — correctly — and the rest of the case then runs against a
+ * detached node. The assertion being made is unchanged: hovering a submenu
+ * trigger must not move focus. It just has to be held somewhere the popup still
+ * owns.
+ */
+const parkFocusInsidePopup = (popup: HTMLElement, notThis: HTMLElement) => {
+  const spot = Array.from(
+    popup.querySelectorAll<HTMLElement>('[role="button"], button')
+  ).find((el) => el !== notThis && !el.contains(notThis));
+  spot!.focus();
+  return spot!;
+};
+
 describe("Toolbar keyboard accessibility", () => {
   it("does not activate a disabled button (Undo, with no history) via Enter or Space", () => {
     const { getByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
@@ -132,15 +150,17 @@ describe("Toolbar keyboard accessibility", () => {
   });
 
   it("hovering the border color/style submenus does not steal focus, while keyboard opening still autofocuses and Escape restores it", () => {
-    const { getAllByRole, getByRole, getByText } = render(
+    const { getAllByRole, getByText } = render(
       <Workbook data={[{ name: "Sheet1" }]} />
     );
     // index 1 is the dropdown-arrow region, which always toggles the popup
     // (the main button applies the border directly, when clicked)
     const [, borderArrow] = getAllByRole("button", { name: /^Border/ });
-    const undoButton = getByRole("button", { name: "Undo" });
 
     fireEvent.mouseDown(borderArrow);
+    const popup = document.querySelector(
+      ".fortune-toolbar-combo-popup"
+    ) as HTMLElement;
 
     [
       { label: "border color", menuClass: "fortune-border-select-menu" },
@@ -150,11 +170,11 @@ describe("Toolbar keyboard accessibility", () => {
         '[role="button"]'
       ) as HTMLElement;
 
-      undoButton.focus();
+      const parked = parkFocusInsidePopup(popup, trigger);
       fireEvent.mouseEnter(trigger);
-      expect(document.activeElement).toBe(undoButton);
+      expect(document.activeElement).toBe(parked);
       fireEvent.mouseLeave(trigger);
-      expect(document.activeElement).toBe(undoButton);
+      expect(document.activeElement).toBe(parked);
 
       trigger.focus();
       fireEvent.keyDown(trigger, { key: "Enter" });
@@ -176,24 +196,23 @@ describe("Toolbar keyboard accessibility", () => {
   });
 
   it("hovering the Custom-formats submenu does not steal focus, while keyboard opening still autofocuses and Escape restores it", () => {
-    const { getAllByRole, getByRole } = render(
-      <Workbook data={[{ name: "Sheet1" }]} />
-    );
+    const { getAllByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
     const [formatCombo] = getAllByRole("button", { name: /^Format:/ });
-    const undoButton = getByRole("button", { name: "Undo" });
 
     formatCombo.focus();
     fireEvent.keyDown(formatCombo, { key: "Enter" });
-    const popup = document.querySelector(".fortune-toolbar-combo-popup")!;
-    const customFormatsRow = within(popup as HTMLElement)
+    const popup = document.querySelector(
+      ".fortune-toolbar-combo-popup"
+    ) as HTMLElement;
+    const customFormatsRow = within(popup)
       .getByText("Custom formats")
       .closest('[role="button"]') as HTMLElement;
 
-    undoButton.focus();
+    const parked = parkFocusInsidePopup(popup, customFormatsRow);
     fireEvent.mouseEnter(customFormatsRow);
-    expect(document.activeElement).toBe(undoButton);
+    expect(document.activeElement).toBe(parked);
     fireEvent.mouseLeave(customFormatsRow);
-    expect(document.activeElement).toBe(undoButton);
+    expect(document.activeElement).toBe(parked);
 
     customFormatsRow.focus();
     fireEvent.keyDown(customFormatsRow, { key: "Enter" });
@@ -212,25 +231,23 @@ describe("Toolbar keyboard accessibility", () => {
   });
 
   it("hovering the Highlight-cell-rules condition-format submenu does not steal focus, while keyboard opening still autofocuses and Escape restores it", () => {
-    const { getAllByRole, getByRole } = render(
-      <Workbook data={[{ name: "Sheet1" }]} />
-    );
+    const { getAllByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
     const [conditionFormatCombo] = getAllByRole("button", {
       name: /^Conditional format:/,
     });
-    const undoButton = getByRole("button", { name: "Undo" });
-
     fireEvent.mouseDown(conditionFormatCombo);
-    const popup = document.querySelector(".fortune-toolbar-combo-popup")!;
-    const highlightRow = within(popup as HTMLElement)
+    const popup = document.querySelector(
+      ".fortune-toolbar-combo-popup"
+    ) as HTMLElement;
+    const highlightRow = within(popup)
       .getByText("Highlight cell rules")
       .closest('[role="button"]') as HTMLElement;
 
-    undoButton.focus();
+    const parked = parkFocusInsidePopup(popup, highlightRow);
     fireEvent.mouseEnter(highlightRow);
-    expect(document.activeElement).toBe(undoButton);
+    expect(document.activeElement).toBe(parked);
     fireEvent.mouseLeave(highlightRow);
-    expect(document.activeElement).toBe(undoButton);
+    expect(document.activeElement).toBe(parked);
 
     highlightRow.focus();
     fireEvent.keyDown(highlightRow, { key: "Enter" });
