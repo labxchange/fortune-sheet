@@ -133,8 +133,12 @@ dist
 **/dist
 /.vscode
 /.idea
+/.claude
 **/**/lib/**
 **/**/es/**
 
 # storybook
 /storybook-static
+
+#claude
+/.claude

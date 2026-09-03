@@ -87,6 +87,44 @@ describe("sheet tab announcements", () => {
     expect(spoken).toContain("polite: Sheet1 moved to position 2 of 2.");
   });
 
+  it("stays silent on a move that does not change the visible position", async () => {
+    // Sheet1 is already leftmost, and setSheetOrder re-normalises orders from
+    // 0, so Move left is a no-op. Announcing "moved to position 1 of 2" there
+    // would assert a change that never happened — on a two-sheet workbook
+    // that is half of all move presses.
+    const openMenu = async () => {
+      await act(async () => {
+        fireEvent.mouseDown(
+          container.querySelector<HTMLElement>(
+            ".luckysheet-sheets-item-function"
+          )!
+        );
+      });
+    };
+    const clickMenuItem = async (label: string) => {
+      const item = Array.from(
+        container.querySelectorAll<HTMLElement>(
+          '#fortune-sheet-tab-options-menu [role="button"]'
+        )
+      ).find((el) => el.textContent === label)!;
+      await act(async () => {
+        fireEvent.click(item);
+      });
+    };
+    const region = () =>
+      container.querySelector<HTMLElement>("#sr-sheetMove")?.textContent;
+
+    await openMenu();
+    await clickMenuItem("Move left");
+    expect(region()).toBe("");
+
+    // The same region does fill in for a move that really happens, so the
+    // silence above is the guard working rather than a broken wiring.
+    await openMenu();
+    await clickMenuItem("Move right");
+    expect(region()).toBe("Sheet1 moved to position 2 of 2.");
+  });
+
   it("announces a sheet tab colour change and a subsequent reset", async () => {
     const trigger = container.querySelector<HTMLElement>(
       ".luckysheet-sheets-item-function"
@@ -116,7 +154,7 @@ describe("sheet tab announcements", () => {
     // mutations reads as the same (final) phrase twice once both have
     // happened — this is the one point where only the first has.
     expect(await virtual.spokenPhraseLog()).toContain(
-      "polite: Sheet1 tab colour changed to Black."
+      "polite: Sheet1 tab color changed to Black."
     );
 
     const reset = container.querySelector<HTMLElement>(".color-reset")!;
@@ -129,7 +167,7 @@ describe("sheet tab announcements", () => {
     const spoken = (await virtual.spokenPhraseLog()).map((p) =>
       p.split(zeroWidthSpace).join("")
     );
-    expect(spoken).toContain("polite: Sheet1 tab colour reset.");
+    expect(spoken).toContain("polite: Sheet1 tab color reset.");
   });
 
   it("announces a copied sheet as added but not selected", async () => {

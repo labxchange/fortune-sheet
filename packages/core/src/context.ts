@@ -144,11 +144,15 @@ export type Context = {
    *  Carried on the context so the grid's own cell announcement can report it,
    *  rather than a second region racing that one. */
   nameBoxClampCount?: number;
-  /** Bumped by the sheet-tab options menu's Move left/right actions. The menu
-   *  only ever opens for the current sheet (it switches to the owning sheet
-   *  before opening), so the announcement hook can read the new position
-   *  straight off `currentSheetId` rather than this counter carrying a value
-   *  of its own — it only marks that a move actually happened. */
+  /** Bumped by the sheet-tab options menu's Move left/right actions, but only
+   *  when the sheet's position among the *visible* sheets actually changed —
+   *  a move past either end, or a hop over a hidden neighbour, leaves the tab
+   *  strip looking the same and must not be announced. The check belongs at
+   *  the mutation site, the only place that sees both the before and after
+   *  order. The menu only ever opens for the current sheet (it switches to the
+   *  owning sheet before opening), so the announcement hook can read the new
+   *  position straight off `currentSheetId` rather than this counter carrying
+   *  a value of its own — it only marks that a move happened. */
   sheetTabMoveCount?: number;
   /** Bumped when a sheet tab's colour is applied or reset from the options
    *  menu. Same one-sheet-at-a-time reasoning as `sheetTabMoveCount`: the

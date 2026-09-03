@@ -11094,8 +11094,8 @@ export default {
     sheetSelectedAnnouncement: "${name} selected.",
     sheetMovedAnnouncement:
       "${name} moved to position ${position} of ${total}.",
-    sheetColorChangedAnnouncement: "${name} tab colour changed to ${color}.",
-    sheetColorResetAnnouncement: "${name} tab colour reset.",
+    sheetColorChangedAnnouncement: "${name} tab color changed to ${color}.",
+    sheetColorResetAnnouncement: "${name} tab color reset.",
     Dropdown: "Dropdown",
     selectAllCells: "Select all cells",
     columnOptions: "Column options",

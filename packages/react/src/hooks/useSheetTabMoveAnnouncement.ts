@@ -17,6 +17,20 @@ type LocaleInfo = ReturnType<typeof locale>["info"];
  * needs to say "a move happened" and this hook re-reads the resulting
  * position off `currentSheetId`. Position is counted over visible sheets
  * only, matching the order the tab strip and Alt+Arrow shortcut use.
+ *
+ * The counter only bumps when that visible position really changed, so there
+ * is nothing to re-check here: `moveSheet` compares the position either side
+ * of the reorder, which is the only point both states exist. Recomputing it
+ * from a previous value held in this hook would be strictly worse — the ref
+ * would go stale on every sheet switch, hide/unhide and drag-reorder that
+ * happens between two moves.
+ *
+ * Note the two sides count differently on purpose and can disagree:
+ * `moveSheet` shifts order by ±1.5 over *all* sheets, so a hop whose
+ * neighbour is hidden changes the stored order without moving the tab in the
+ * strip. That is a no-op as far as this announcement is concerned and stays
+ * silent — the underlying move-over-hidden-sheets behaviour is pre-existing
+ * and unchanged.
  */
 export function useSheetTabMoveAnnouncement(
   context: Context,
