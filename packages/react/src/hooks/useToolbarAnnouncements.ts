@@ -20,28 +20,74 @@ export function anchorCell(ctx: Context): Cell | undefined | null {
 }
 
 /**
+ * Walk every cell of every selection range, skipping the empty ones.
+ *
+ * The shared shape behind the two selection-wide fingerprints below. An
+ * unresolved extent — `row: [0, null]`, which a selection carries until a
+ * layout pass fills it — makes `r <= rowEd` false immediately and visits
+ * nothing, which is the same nothing the loops in `core/modules/toolbar` visit
+ * for it.
+ */
+function forEachSelectedCell(
+  ctx: Context,
+  visit: (cell: Cell, row: number, column: number) => void
+) {
+  const flowdata = getFlowdata(ctx);
+  ctx.luckysheet_select_save?.forEach((selection) => {
+    const [rowSt, rowEd] = selection.row;
+    const [colSt, colEd] = selection.column;
+    for (let r = rowSt; r <= rowEd; r += 1) {
+      for (let c = colSt; c <= colEd; c += 1) {
+        const cell = flowdata?.[r]?.[c];
+        if (cell) visit(cell, r, c);
+      }
+    }
+  });
+}
+
+/**
  * What a toolbar action is capable of changing, as one comparable value.
  *
- * Deliberately narrow. A toolbar button acts on the selection, so the focused
- * cell stands in for the whole of it — but only for the actions that are
- * themselves anchor-driven. The character toggles, the decimal steppers, merge
- * and text wrap all read `row_focus`/`column_focus` in `core/modules/toolbar`
- * and return early on an unsuitable anchor, so watching the anchor watches
- * exactly what they can change. The two exceptions are state rather than data —
- * the paint model, and the filter range — so they are carried alongside.
+ * **This was the anchor cell alone, and that was wrong.** The reasoning was
+ * that the character toggles, the decimal steppers, merge and text wrap "all
+ * read `row_focus`/`column_focus` in `core/modules/toolbar`". The decimal
+ * steppers do (`toolbar.ts:1034`, `:1125`). `updateFormat` (`:232`) does not:
+ * it contains no `row_focus` at all and iterates
+ * `luckysheet_select_save[].row/column`. So bold, italic, underline,
+ * strikethrough, font colour, background colour and text wrap all reach past
+ * the anchor, and the anchor could not see them do it — selecting A1:A2 with
+ * A1 already bold and A2 plain, anchored on A1, bolded A2 and announced
+ * nothing. Half of the "action status not announced" ticket, still open.
  *
- * **Clear format and applying a border are not among them** and must not use
- * this: one rewrites every cell of every selection and rebuilds the border
- * list, the other writes only to that list — none of which the anchor can see.
- * Each has its own fingerprint below.
+ * So the question is asked of the whole selection: every cell of every range,
+ * as a stable string. Snapshotting rather than counting, unlike clear format
+ * below — clear format has one direction (formatting present, then gone) and
+ * can be answered by a count, while a toggle can flip an attribute either way
+ * without changing how many cells carry formatting at all.
+ *
+ * It costs no more than the action it is measuring: `updateFormat` walks the
+ * same cells and writes to each, and only cells that exist are serialised, so
+ * a whole-column selection over ten filled rows visits ten cells and not the
+ * column's nominal length.
+ *
+ * The two non-cell entries are state rather than data — the paint model, and
+ * the filter range — so they are carried alongside.
+ *
+ * **Clear format and applying a border still must not use this**: one rebuilds
+ * `config.borderInfo` alongside its cell rewrite, the other writes *only* to
+ * that list and touches no cell at all. Each has its own fingerprint below.
  */
 function actionFingerprint(ctx: Context): {
-  cell: Cell | undefined | null;
+  cells: string;
   paintModelOn: boolean;
   filterRange: unknown;
 } {
+  const parts: string[] = [];
+  forEachSelectedCell(ctx, (cell, r, c) => {
+    parts.push(`${r}:${c}:${JSON.stringify(cell)}`);
+  });
   return {
-    cell: anchorCell(ctx),
+    cells: parts.join("|"),
     paintModelOn: ctx.luckysheetPaintModelOn === true,
     filterRange: ctx.luckysheet_filter_save,
   };
@@ -84,21 +130,10 @@ export function clearFormatFingerprint(ctx: Context): {
   formattedCells: number;
   borderInfo: unknown;
 } {
-  const flowdata = getFlowdata(ctx);
   let formattedCells = 0;
-  ctx.luckysheet_select_save?.forEach((selection) => {
-    const [rowSt, rowEd] = selection.row;
-    const [colSt, colEd] = selection.column;
-    for (let r = rowSt; r <= rowEd; r += 1) {
-      for (let c = colSt; c <= colEd; c += 1) {
-        const cell = flowdata?.[r]?.[c];
-        if (
-          cell &&
-          Object.keys(cell).some((k) => !PRESERVED_BY_CLEAR_FORMAT.includes(k))
-        ) {
-          formattedCells += 1;
-        }
-      }
+  forEachSelectedCell(ctx, (cell) => {
+    if (Object.keys(cell).some((k) => !PRESERVED_BY_CLEAR_FORMAT.includes(k))) {
+      formattedCells += 1;
     }
   });
   return { formattedCells, borderInfo: ctx.config?.borderInfo };
@@ -145,9 +180,10 @@ export function useToolbarAnnouncements(
    * Announce the outcome of a toolbar action, or stay silent if it had none.
    * `getPhrase` receives the committed context so it can describe the state the
    * action produced; returning an empty string suppresses the announcement.
-   * `fingerprint` decides what counts as "had an effect" — the anchor-cell
-   * default suits the actions that are themselves anchor-driven, and an action
-   * that reaches wider than its anchor passes its own.
+   * `fingerprint` decides what counts as "had an effect" — the default watches
+   * every cell of the selection, which is what the actions routed through
+   * `updateFormat` write to, and an action whose effect lands somewhere else
+   * entirely passes its own.
    */
   const announceAfterCommit = useCallback(
     (
