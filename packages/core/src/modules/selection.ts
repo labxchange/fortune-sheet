@@ -916,6 +916,19 @@ export function moveHighlightCell(
     last.column_focus = col_index;
     last.moveXY = { x: moveX, y: moveY };
 
+    // Moving the highlight lands on a single cell, so that cell is now the
+    // whole selection. Only `last` was collapsed above; the earlier ranges of a
+    // multi-range selection (ctrl-click, several row/column headers) would
+    // otherwise stay painted on the sheet while the focus cell walks away from
+    // them, leaving a selection no key could clear (WCAG 2.4.3).
+    //
+    // Shift+F8 is the exception, and the reason this is conditional: that mode
+    // exists so the arrow keys can carry the newly anchored range somewhere
+    // else while the committed ones stay put. Escape ends it.
+    if (!ctx.selectionModeActive) {
+      ctx.luckysheet_select_save = [last];
+    }
+
     normalizeSelection(ctx, ctx.luckysheet_select_save);
     // TODO pivotTable.pivotclick(row_index, col_index);
     // TODO formula.fucntionboxshow(row_index, col_index);
