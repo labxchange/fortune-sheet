@@ -415,37 +415,50 @@ const InputBox: React.FC = () => {
    * (WCAG 2.4.3, 4.1.2). Naming it for the cell is what makes focus resting here
    * correct rather than something to be moved away from.
    *
-   * The value is left out while an edit is open: the field's own text is then
-   * the value, and repeating it in the name has the screen reader say the
-   * content twice before the user has finished typing it.
+   * **The name carries the reference, not the value.** It used to carry both,
+   * and so does `#sr-selection` — which meant that on the ordinary arrow-key
+   * move the two composed the identical sentence in the same commit, one as an
+   * assertive alert and one as the accessible name of the element holding
+   * focus. NVDA and JAWS re-announce a name change on the focused element, so
+   * the common case spoke the whole cell description twice. `useFilterAnnouncements`
+   * already draws this line for the same reason; this is the same split.
    *
-   * A formula cell says so here as well as in `#sr-selection`, because the two
-   * speak in different situations and neither covers the other. `#sr-selection`
-   * is an alert tied to the selection *changing* — arrowing onto the cell. This
-   * name is what is read when focus arrives without the selection moving: back
-   * from the formula bar, back from the toolbar, or when the user asks what is
-   * focused. Marking only the alert would leave every one of those routes
-   * announcing a computed value as though it had been typed. It rides with the
-   * value, and so is absent while editing for the same reason the value is: the
-   * field then holds the formula source itself, leading `=` and all.
+   * The division is by what each channel is for. `#sr-selection` is an alert
+   * tied to the selection *changing*, so it reads the content: that is the
+   * question "what is in the cell I just moved to". The name is read when focus
+   * arrives *without* the selection moving — back from the formula bar, back
+   * from the toolbar, or when the user asks what is focused — where the
+   * question is "where am I", and the answer is the reference. A user who wants
+   * the content from here has the field's own text, which a screen reader reads
+   * after the name.
+   *
+   * Dropping the value also settles which selection the name describes. The
+   * value was read from `luckysheet_select_save[0]` while `cellRef` and the
+   * formula marker come from `_.last(...)`, so a multi-range selection —
+   * ctrl-click A1 then C5 — named the cell that would actually be edited and
+   * paired it with a *different* cell's value. There is no longer a second
+   * selection to disagree with.
+   *
+   * The formula marker stays, because it is a property of the named cell rather
+   * than its content, and every route that arrives without the selection moving
+   * would otherwise present a computed value as though it had been typed. It is
+   * absent while editing, as the reference alone is: the field then holds the
+   * formula source itself, leading `=` and all, and reading a name over the top
+   * of it says the content twice before the user has finished typing it.
+   *
+   * **The marker is deliberately in both channels, and that was tested.** On an
+   * arrow-key move `#sr-selection` and this name both end in "Has formula.", so
+   * on paper it is the same doubling the value split above was made to remove.
+   * It is not: a name change on an already-focused element is not re-announced
+   * the way a live region is, and Ayesha's VoiceOver pass (2026-09-03) confirmed
+   * the marker is spoken once. Verified by ear, so it is recorded here — do not
+   * "fix" the apparent duplication from reading alone. If a future AT does
+   * double it, drop the marker from the name and keep `#sr-selection`'s.
    */
   const cellInputLabel = useMemo(() => {
     if (!cellRef) return "";
-    if (editing) return cellRef;
-    const flowdata = getFlowdata(context);
-    const displayed = flowdata?.[row_index]?.[col_index]?.m;
-    const named = displayed ? `${cellRef} ${displayed}` : cellRef;
-    return `${named}${formulaAnnouncement}`;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    cellRef,
-    editing,
-    formulaAnnouncement,
-    context.luckysheetfile,
-    context.currentSheetId,
-    row_index,
-    col_index,
-  ]);
+    return editing ? cellRef : `${cellRef}${formulaAnnouncement}`;
+  }, [cellRef, editing, formulaAnnouncement]);
 
   const cfg = context.config || {};
   const rowReadOnly: Record<number, number> = cfg.rowReadOnly || {};
