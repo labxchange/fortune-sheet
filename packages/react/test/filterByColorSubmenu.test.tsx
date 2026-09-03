@@ -177,4 +177,42 @@ describe("Filter by color submenu", () => {
     // what the shared open-instance stack buys.
     expect(screen.getByText("Filter by color")).toBeTruthy();
   });
+
+  it("lands focus on the grid after Confirm, not back on the funnel", async () => {
+    // Confirm closes *both* layers, from inside the satellite submenu, and
+    // moves focus to the cell the filter was built around itself.
+    //
+    // This is the case that keeps `useEscapeToClose`'s restore-on-close gated
+    // on the narrow `containerRef.contains()` rather than the satellite-aware
+    // `isWithinPopupContent`: focus is on the Confirm button, which is in the
+    // submenu and not in the filter menu's container, so the parent instance's
+    // cleanup declines to restore and the deliberate move to the grid stands.
+    // Widening that check would make the hook pull focus back to the funnel and
+    // undo it.
+    await openFilterMenu();
+    act(() => {
+      trigger().focus();
+      fireEvent.keyDown(trigger(), { key: "Enter" });
+    });
+    await waitFor(() => expect(submenu()).not.toBeNull());
+
+    const confirm = submenu()!.querySelector("button")!;
+    act(() => {
+      confirm.focus();
+      fireEvent.click(confirm);
+    });
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByText("Filter by color")).toBeNull()
+    );
+    expect(document.activeElement).toBe(
+      document.querySelector("#luckysheet-rich-text-editor")
+    );
+    expect(funnels()).not.toContain(document.activeElement);
+  });
 });

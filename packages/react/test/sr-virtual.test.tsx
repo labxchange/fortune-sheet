@@ -283,6 +283,22 @@ describe("what a screen reader announces", () => {
     // result was never heard. Two mechanisms carry it now — this region, and the
     // cell input's `aria-describedby` pointing at it — so this asserts the region
     // speaks and the description is wired for the platform path.
+    // Captured when focus arrives, not read afterwards — the same rule as the
+    // Sort case below, and for a sharper reason here. The description is
+    // deliberately temporary (`CLEAR_AFTER_MS`, 4s) and the virtual reader is
+    // slow: under a full-suite run this case takes over six seconds, so a read
+    // taken after the interaction was racing the clear and losing. It was a
+    // wall-clock coin flip — green run on its own, red in the full suite, at
+    // `ad69182` as much as here. A screen reader composes the utterance from
+    // what exists when focus lands, so that is also the only correct moment.
+    let describedByAtFocus: string | null = null;
+    const captureAtFocus = (e: Event) => {
+      const el = e.target as HTMLElement;
+      if (el?.id !== "luckysheet-rich-text-editor") return;
+      describedByAtFocus = el.getAttribute("aria-describedby");
+    };
+    document.addEventListener("focusin", captureAtFocus);
+
     await virtual.start({ container });
     act(() => {
       ref.current?.setSelection([{ row: [0, 0], column: [0, 0] }]);
@@ -303,20 +319,27 @@ describe("what a screen reader announces", () => {
     const clearRow = Array.from(
       document.querySelectorAll<HTMLElement>('[role="button"]')
     ).find((el) => el.textContent === "Clear content");
-    if (!clearRow) return; // menu shape differs; covered by the DOM-level suite
+    // Throws rather than returning: a `return` here made the case's two
+    // strongest assertions — the assertive utterance and the
+    // `aria-describedby` wiring — vanish silently if the lookup ever broke on a
+    // locale change, a reordered menu or render timing. Matches the Sort case
+    // below.
+    if (!clearRow) throw new Error("no Clear content row in the context menu");
     await act(async () => {
       clearRow.focus();
       fireEvent.keyDown(clearRow, { key: "Enter" });
     });
     await settle();
+    document.removeEventListener("focusin", captureAtFocus);
 
     const spoken = await virtual.spokenPhraseLog();
     expect(spoken).toContain("assertive: Contents cleared.");
     // And the description path, which is what survives a real focus utterance.
-    const clearedDescribedBy = container
-      .querySelector("#luckysheet-rich-text-editor")
-      ?.getAttribute("aria-describedby");
-    expect(document.getElementById(clearedDescribedBy!)).toBe(
+    // Resolved through `getElementById` over the whole document, the way an
+    // assistive technology resolves an IDREF, so a description naming another
+    // workbook's region fails here rather than passing on the string alone.
+    expect(describedByAtFocus).toBeTruthy();
+    expect(document.getElementById(describedByAtFocus!)).toBe(
       container.querySelector(`[id$="-${CONTEXT_MENU_REGION_ID_SUFFIX}"]`)
     );
   });

@@ -271,6 +271,13 @@ describe("context-menu action status announcements", () => {
   // handler checks itself. These cover the bails that live inside the core
   // routines — invisible to the row, and the reason `sortSelection`,
   // `handleCopy` and `handlePasteByClick` now report whether they acted.
+  //
+  // The multi-range cases below are the row-level guard, not the core one:
+  // `sortAndSettle` checks `length > 1` itself and returns before calling
+  // `sortSelection` (see the alert case). They are kept because the row guard
+  // and the core guard are two different things that can each regress, but the
+  // three cases that actually exercise a core boolean are the merged-range
+  // sort, the partially-merged copy and the vetoed paste.
   describe("stays silent when the core operation refuses", () => {
     it("does not announce a sort of a multi-range selection", async () => {
       const { container, ref } = renderSheet();
@@ -284,10 +291,49 @@ describe("context-menu action status announcements", () => {
       activateRow("Ascending sort");
       await flush();
 
-      // `sortSelection` returns on `length > 1` with no throw and no alert of
-      // its own, so this previously said "Sorted in ascending order." for a
-      // sheet that had not moved.
       expect(statusRegion(container)!.textContent).toBe("");
+    });
+
+    it("does not announce a sort of a range containing a merged cell", async () => {
+      const { container, ref } = renderSheet();
+      // The row-level guard cannot see this one: a single range, so it hands
+      // straight to `sortSelection`, which walks the range for `mc` and returns
+      // false with no throw and no alert. This is the case that exercises
+      // `sortSelection`'s boolean through the context menu — the multi-range
+      // case above never reaches the call.
+      act(() => {
+        ref.current?.mergeCells([{ row: [1, 2], column: [1, 1] }], "merge-all");
+      });
+      act(() => {
+        ref.current?.setSelection([{ row: [0, 3], column: [0, 1] }]);
+      });
+      openContextMenu(container);
+      activateRow("Ascending sort");
+      await flush();
+
+      expect(statusRegion(container)!.textContent).toBe("");
+      expect(document.activeElement).not.toBe(cellInput(container));
+    });
+
+    it("does not announce a copy that cuts a partially-merged cell", async () => {
+      const { container, ref } = renderSheet();
+      // `copy.ts`'s docblock calls this "the one that bites in a real sheet",
+      // and it is the only refusal `handleCopy` reports that the row cannot
+      // check for itself: one range, so the row-level guard passes, and the
+      // alert that used to report it is commented out in core. Selecting A1:A2
+      // over a merge spanning A2:B3 leaves half a merged cell inside the range.
+      act(() => {
+        ref.current?.mergeCells([{ row: [1, 2], column: [0, 1] }], "merge-all");
+      });
+      act(() => {
+        ref.current?.setSelection([{ row: [0, 1], column: [0, 0] }]);
+      });
+      openContextMenu(container);
+      activateRow("Copy");
+      await flush();
+
+      expect(statusRegion(container)!.textContent).toBe("");
+      expect(document.activeElement).not.toBe(cellInput(container));
     });
 
     it("does not move focus to the grid for a refused sort", async () => {
@@ -325,12 +371,16 @@ describe("context-menu action status announcements", () => {
       expect(screen.queryByText(/multiple selection areas/)).not.toBeNull();
     });
 
-    // The insert inputs are `type="text"`, so letters reach `parseInt` and come
-    // out NaN. Every comparison against NaN is false, so a `count < 1` guard let
-    // it through: the region said "NaN columns inserted to the left." and
-    // `commitAndSettle` settled focus on the grid for a sheet that had not
-    // changed. The sibling row-height and column-width rows are `type="number"`,
-    // so sanitization empties the field before their own guard sees it.
+    // Every comparison against NaN is false, so a `count < 1` — or a
+    // `<= 0 || > 545` — guard let a non-numeric value straight through: the
+    // region said "NaN columns inserted to the left." and `commitAndSettle`
+    // settled focus on the grid for a sheet that had not changed.
+    //
+    // All four numeric rows, not just the two the ticket was about. The insert
+    // inputs are `type="text"`, so letters reach `parseInt` in any browser;
+    // row-height and column-width are `type="number"`, so a browser sanitises
+    // most of these to "" first — which makes them harder to reach, not
+    // guarded, and jsdom does not sanitise at all.
     it.each([
       ["Insert 1 column left", "columns"],
       ["Insert 1 row above", "rows"],
@@ -353,8 +403,78 @@ describe("context-menu action status announcements", () => {
       await flush();
 
       expect(statusRegion(container)!.textContent).toBe("");
-      expect(statusRegion(container)!.textContent).not.toContain("NaN");
       expect(document.activeElement).not.toBe(cellInput(container));
+    });
+
+    it.each([
+      [
+        "Row height",
+        { row: [0, 0], column: [0, 5], row_select: true },
+        /Row height must be between/,
+      ],
+      [
+        "Column width",
+        { row: [0, 9], column: [0, 0], column_select: true },
+        /column width must be between/,
+      ],
+    ])(
+      "stays silent when %s is given a non-number",
+      async (label, selection, alert) => {
+        const { container, ref } = renderSheet();
+        act(() => {
+          ref.current?.setSelection([selection as any]);
+        });
+        openContextMenu(container);
+
+        const input = container.querySelector<HTMLInputElement>(
+          `input[aria-label^="${label}"]`
+        )!;
+        const row = input.closest(".luckysheet-cols-menuitem") as HTMLElement;
+        act(() => {
+          fireEvent.change(input, { target: { value: "abc" } });
+          row.focus();
+          fireEvent.keyDown(row, { key: "Enter" });
+        });
+        await flush();
+
+        // `setRowHeight`/`setColumnWidth` drop a NaN length without a word, so
+        // the old guard's reward for letting it through was "Row height set to
+        // NaN pixels." over an unchanged sheet. The alert is what should
+        // happen, and it is also why focus must stay put.
+        expect(statusRegion(container)!.textContent).toBe("");
+        expect(document.activeElement).not.toBe(cellInput(container));
+        expect(screen.queryByText(alert as RegExp)).not.toBeNull();
+      }
+    );
+
+    it("still accepts a column width above the row-height limit", async () => {
+      const { container, ref } = renderSheet();
+      act(() => {
+        ref.current?.setSelection([
+          { row: [0, 9], column: [0, 0], column_select: true } as any,
+        ]);
+      });
+      openContextMenu(container);
+
+      // 546 is over the row-height limit and well under the column-width one,
+      // so it separates the two: the input's `max` claimed 545 while the
+      // handler validated 2038, and `max` is what a reader announces as the
+      // control's maximum.
+      const input = container.querySelector<HTMLInputElement>(
+        'input[aria-label^="Column width"]'
+      )!;
+      expect(input.getAttribute("max")).toBe("2038");
+      const row = input.closest(".luckysheet-cols-menuitem") as HTMLElement;
+      act(() => {
+        fireEvent.change(input, { target: { value: "546" } });
+        row.focus();
+        fireEvent.keyDown(row, { key: "Enter" });
+      });
+      await flush();
+
+      expect(statusRegion(container)!.textContent).toMatch(
+        /Column width set to 546 pixels/
+      );
     });
 
     it("does not announce a paste a host app vetoed", async () => {
@@ -385,6 +505,44 @@ describe("context-menu action status announcements", () => {
 
       sessionStorage.removeItem("localClipboard");
       document.getElementById("fortune-copy-content")?.remove();
+    });
+  });
+
+  // The filter row does not use `commitAndSettle`: `createFilter` is a toggle,
+  // so the gate is a before/after comparison rather than a boolean return, and
+  // focus is settled by `filterUnchanged` on the same signal. Both directions,
+  // because a gate that is stuck open and one that is stuck shut are different
+  // bugs and only one of them is visible as silence.
+  describe("the filter row's create/remove gate", () => {
+    it("announces which way the toggle went", async () => {
+      const { container, ref } = renderSheet();
+
+      await runAction(container, ref, "Create filter");
+      expect(statusRegion(container)!.textContent).toMatch(/Filter created/);
+
+      // The row's label follows the same value the gate reads, so the second
+      // pass has to be found under the other name.
+      await runAction(container, ref, "Remove filter");
+      expect(statusRegion(container)!.textContent).toMatch(/Filter removed/);
+    });
+
+    it("says nothing when createFilter declines to act", async () => {
+      const { container, ref } = renderSheet();
+      // `createFilter` returns on a multi-range selection, and the row has no
+      // guard of its own — so without the `had !== has` comparison this
+      // announced "Filter created." and moved focus for a sheet with no filter.
+      act(() => {
+        ref.current?.setSelection([
+          { row: [0, 0], column: [0, 0] },
+          { row: [2, 2], column: [0, 0] },
+        ]);
+      });
+      openContextMenu(container);
+      activateRow("Create filter");
+      await flush();
+
+      expect(statusRegion(container)!.textContent).toBe("");
+      expect(document.activeElement).not.toBe(cellInput(container));
     });
   });
 

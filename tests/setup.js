@@ -76,12 +76,24 @@ global.CSS = global.CSS || {
 // `editSheetName`) cannot be tested at all: it neither works nor visibly
 // fails. `textContent` is the standard approximation and is exact for the
 // single-line, unstyled spans these components use.
-Object.defineProperty(global.HTMLElement.prototype, "innerText", {
-  configurable: true,
-  get() {
-    return this.textContent;
-  },
-  set(value) {
-    this.textContent = value;
-  },
-});
+//
+// Guarded like `global.CSS` above rather than assigned unconditionally: if a
+// later jsdom implements `innerText`, its real semantics — a `<br>` becoming a
+// newline, whitespace collapsed per layout — are what the components should be
+// tested against, and clobbering it would hide that. The approximation is not
+// exact, so where the difference is load-bearing a test emulates the real
+// behaviour on the one element it cares about; see "announces the name the
+// sheet actually got" in `sheetRenameA11y.test.tsx`.
+if (
+  !Object.getOwnPropertyDescriptor(global.HTMLElement.prototype, "innerText")
+) {
+  Object.defineProperty(global.HTMLElement.prototype, "innerText", {
+    configurable: true,
+    get() {
+      return this.textContent;
+    },
+    set(value) {
+      this.textContent = value;
+    },
+  });
+}

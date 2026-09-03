@@ -128,8 +128,15 @@ describe("context menu input accessible names", () => {
 
     // The placeholder stays as a visual affordance; what changed is that it is
     // no longer the only thing naming the control.
+    //
+    // Asserted positively. `not.toBe("Number")` passed with the fix reverted:
+    // with no `aria-label` at all `getAttribute` returns `null`, and `null` is
+    // not `"Number"` — so the assertion was satisfied by the exact bug it was
+    // written to guard.
     expect(input.getAttribute("placeholder")).toBe("Number");
-    expect(input.getAttribute("aria-label")).not.toBe("Number");
+    expect(input.getAttribute("aria-label")).toMatch(
+      /^Number of columns to insert/
+    );
   });
 
   it("keeps the guards that stop a keypress activating the row", () => {

@@ -218,6 +218,10 @@ describe("Sheet rename accessibility", () => {
     });
     await flush();
 
+    // The commit path has to have run for the silence to mean anything: a
+    // `startRename` that quietly did nothing would satisfy the negative on its
+    // own. Leaving edit mode is the observable proof it got as far as `onBlur`.
+    expect(field.getAttribute("contenteditable")).toBe("false");
     expect(statusRegion()?.textContent).not.toContain("Sheet renamed");
   });
 
@@ -236,6 +240,52 @@ describe("Sheet rename accessibility", () => {
 
     expect(screen.getByText("Sheet1")).toBeTruthy();
     expect(statusRegion()?.textContent).not.toContain("Sheet renamed");
+  });
+
+  it("announces the name the sheet actually got, not a tidied-up one", async () => {
+    // `tests/setup.js` approximates jsdom's missing `innerText` with
+    // `textContent`, which is exact for a plain single-line span and not exact
+    // for the one shape a contenteditable really produces: Chrome leaves a
+    // trailing `<br>` in an edited field, so real `innerText` reports
+    // "Results\n" where `textContent` reports "Results". Every other case in
+    // this file therefore reads a value a browser would not necessarily give,
+    // and the success gate *is* an `innerText` comparison. Emulated on this one
+    // element so the gate meets the shape it will actually see.
+    renderTabs();
+    await startRename();
+    const field = nameFieldFor("Sheet1");
+
+    typeName(field, "Results");
+    Object.defineProperty(field, "innerText", {
+      configurable: true,
+      get() {
+        return `${this.textContent}\n`;
+      },
+      set(value: string) {
+        this.textContent = value;
+      },
+    });
+
+    act(() => {
+      fireEvent.keyDown(field, { key: "Enter" });
+    });
+    await flush();
+
+    // `editSheetName` writes the sheet name from the same accessor the gate
+    // compares, so the two agree by construction — the announcement names
+    // exactly what the sheet is now called. Normalising in the gate would be
+    // the bug, not the fix: it would speak a name the sheet does not have.
+    // Read off the tab's own accessible name rather than through `getByText`,
+    // whose normaliser collapses the trailing newline this case is about.
+    const stored = document
+      .querySelector(".luckysheet-sheets-item")!
+      .getAttribute("aria-label");
+    expect(stored).toBe("Results\n");
+    await waitFor(() =>
+      expect(statusRegion()?.textContent).toContain(
+        `Sheet renamed to ${stored}`
+      )
+    );
   });
 
   it("keeps arrow keys inside the name instead of moving between tabs", async () => {
