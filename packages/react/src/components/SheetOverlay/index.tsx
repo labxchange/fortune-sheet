@@ -36,6 +36,7 @@ import {
   formatRefForSr,
   api,
   GRID_ROOT_CLASS,
+  normalizeSelection,
 } from "@fortune-sheet/core";
 import _ from "lodash";
 import WorkbookContext, { SetContextOptions } from "../../context";
@@ -443,6 +444,57 @@ const SheetOverlay: React.FC = () => {
       { insertRowColOp }
     );
   }, [context, rightclick.rowOverLimit, setContext, showAlert]);
+
+  /**
+   * "Back to the top" — the second button in the bottom add-row strip.
+   *
+   * It used to set `scrollTop` and nothing else, which moved the viewport out
+   * from under the selection: from row 989 the grid showed row 1 while the
+   * active cell, the name box and `#sr-selection` all still said G989, so the
+   * next arrow key resumed a thousand rows below the fold (WCAG 2.4.3).
+   *
+   * So take the selection along, to A1 — what the label means, and what
+   * Ctrl+Home does in every other spreadsheet. `scrollLeft` goes back to the
+   * origin with it: A1 is at the left edge, and leaving the horizontal offset
+   * where it was would land the active cell off-screen on the other axis, which
+   * is the same defect turned sideways. Assigned outright rather than routed
+   * through `scrollToHighlightCell`, which computes an offset *relative* to the
+   * target — for row 0 that is `-20`, a negative scroll no scrollbar can hold.
+   *
+   * Focus follows, for the same reason it follows a name box commit: it is
+   * sitting on this button, the button is in the strip below the last row, and
+   * the scroll this just performed takes that strip off-screen. Worse, the
+   * button is a `[tabindex="0"]` control, so `handleGlobalKeyDown` reads it as
+   * outside the grid and leaves the arrow keys to the browser entirely.
+   */
+  const handleBackToTop = useCallback(() => {
+    setContext((draftCtx) => {
+      draftCtx.luckysheet_select_status = false;
+      draftCtx.luckysheet_select_save = [
+        { row: [0, 0], column: [0, 0], row_focus: 0, column_focus: 0 },
+      ];
+      normalizeSelection(draftCtx, draftCtx.luckysheet_select_save);
+      draftCtx.scrollTop = 0;
+      draftCtx.scrollLeft = 0;
+    });
+
+    // The cell input, exactly where a plain click on a cell leaves focus, and
+    // deferred the same way the name box defers it so the grid has repositioned
+    // it onto A1 first. The grid *root* is the wrong target: it is an unnamed
+    // container whose first focusable descendant is the select-all corner, so a
+    // screen reader landing there announces "Select all cells" instead of the
+    // cell the user just travelled to.
+    setTimeout(() => {
+      const cellInput = refs.cellInput.current;
+      if (cellInput) {
+        cellInput.focus();
+        return;
+      }
+      refs.workbookContainer.current
+        ?.querySelector<HTMLElement>(`.${GRID_ROOT_CLASS}`)
+        ?.focus();
+    });
+  }, [refs.cellInput, refs.workbookContainer, setContext]);
 
   useEffect(() => {
     setContext((draftCtx) => {
@@ -1029,11 +1081,7 @@ const SheetOverlay: React.FC = () => {
                   <span className="fortune-add-row-hint">({info.addLast})</span>
                   <span
                     className="fortune-add-row-button"
-                    onClick={() => {
-                      setContext((ctx) => {
-                        ctx.scrollTop = 0;
-                      });
-                    }}
+                    onClick={handleBackToTop}
                     onKeyDown={activateOnEnterOrSpace}
                     tabIndex={0}
                     role="button"
