@@ -32,6 +32,45 @@ export const CONTEXT_MENU_REGION_ID_SUFFIX = "sr-contextMenuRegion";
  */
 const CLEAR_AFTER_MS = 4000;
 
+/** The object `locale()` resolves to — the shape `key` below indexes into. */
+type Strings = ReturnType<typeof locale>;
+
+/** The keys of one locale section whose values are strings. */
+type StringKeys<T> = {
+  [K in keyof T]-?: T[K] extends string ? K : never;
+}[keyof T];
+
+/** Dotted paths into one locale section that resolve to a string. */
+type PathsIn<S extends keyof Strings> = `${S & string}.${StringKeys<
+  Strings[S]
+> &
+  string}`;
+
+/**
+ * Every key `announce` accepts.
+ *
+ * Typed rather than left as `string`, because the failure mode of a wrong key is
+ * the exact WCAG 4.1.3 failure this hook exists to fix: `_.get` returns
+ * `undefined`, the effect below returns early, and the action ships **silent** —
+ * no throw, no console warning, nothing to notice. Only 8 of the ~32 keys in use
+ * are asserted end-to-end anywhere in the suite (the rest need a merged range, a
+ * read-only sheet or a hidden row to reach), so a typo in the other 24 would not
+ * have failed a test either. `tsc` covers all of them at once.
+ *
+ * The template-built keys stay covered too: `countKey` is generic, so
+ * `` `rightclick.announceRowInserted${"Above" | "Below"}` `` is inferred as a
+ * union of literals against this type rather than widening to `string`.
+ *
+ * Three sections, because that is what the two menus and the sheet tab use.
+ * Naming a string in a fourth is a type error asking you to add the section
+ * here — deliberately, since the whole locale flattened is a union large enough
+ * to be worth not asking `tsc` to build on every check.
+ */
+export type AnnouncementKey =
+  | PathsIn<"rightclick">
+  | PathsIn<"filter">
+  | PathsIn<"sheetconfig">;
+
 /**
  * Record the result of a menu action for the screen reader (WCAG 4.1.3).
  *
@@ -50,7 +89,7 @@ const CLEAR_AFTER_MS = 4000;
  */
 export function announce(
   draftCtx: Context,
-  key: string,
+  key: AnnouncementKey,
   params?: Record<string, string | number>
 ) {
   draftCtx.contextMenuAnnouncement = {
@@ -116,13 +155,33 @@ export function useContextMenuAnnouncements(
   // on every context commit, since immer hands back a new object each time.
   const seq = request?.seq;
 
+  // The request is never cleared from the context — only this hook's local
+  // state is — which would matter if this component could mount fresh next to a
+  // context that already holds one: the effect keys on `seq`, so a first mount
+  // would replay the last result as if it had just happened. It cannot. The
+  // only owner of a non-null request is `Workbook`'s own state, and `Sheet` (and
+  // so `SheetOverlay`) is rendered without a `key`, so switching sheets
+  // reconciles rather than remounts. The one route that does remount
+  // `SheetOverlay` is remounting `Workbook`, which re-runs `defaultContext` and
+  // starts from `undefined`. Clearing it would need a second commit per
+  // announcement to buy nothing.
+
   useEffect(() => {
     if (request == null) return undefined;
     // Dotted path, so a caller can name a string in any locale section.
     const template = _.get(strings, request.key);
     // A key that does not resolve is left silent rather than announced as
-    // "undefined". The locale parity test is what stops this happening; this is
-    // the runtime half of the same guard.
+    // "undefined" — so this branch is a fallback, not a guard: reaching it means
+    // the action has already failed 4.1.3 quietly. Three things keep it
+    // unreachable, and it is worth being exact about which covers what:
+    //
+    //  * `AnnouncementKey` — `tsc` rejects a key English does not define.
+    //  * "locale key parity" (`core/test/locale.test.ts`) — every key English
+    //    defines exists in the other five files, or is on a recorded backlog
+    //    that `locale()` fills from English.
+    //  * "keeps every English placeholder" (same file) — a translation cannot
+    //    drop a `${count}` and render the sentence with no number. That case
+    //    resolves to a non-empty string, so nothing here would catch it.
     if (typeof template !== "string" || template === "") return undefined;
     const text = request.params
       ? replaceHtml(template, request.params)

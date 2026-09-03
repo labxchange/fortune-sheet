@@ -54,13 +54,16 @@ export type UseEscapeToCloseOptions = {
  * nested-popup rule in particular has to be answered identically by Escape and
  * by focus-out, and `openInstanceStack` above already exists to answer it once.
  *
- * One caveat on that "identically": `focusInsideContainer` below, which gates
- * the restore-on-close, still asks the narrow `containerRef.contains()` version
- * rather than `isWithinPopupContent`. Every route that closes a popup while
- * focus sits in a *satellite* submenu currently either restores focus itself
- * (Escape, via the submenu's own instance) or should not restore at all
- * (focus-out, outside click), so nothing depends on the difference today —
- * but a new route that does would silently skip its restore.
+ * One deliberate exception to that "identically": `focusInsideContainer` below,
+ * which gates the restore-on-close, asks the narrow `containerRef.contains()`
+ * version rather than `isWithinPopupContent`. That is the behaviour the
+ * satellite submenus need, not a gap in them — a popup closed from *inside* a
+ * satellite is always closed by a handler that owns where focus goes next, and
+ * a restore here would undo it. `FilterMenu`'s Filter-by-colour Confirm is the
+ * live case: it closes both layers from a button in the submenu and calls
+ * `restoreFocusToGrid` itself, so the parent instance must decline. Widening
+ * the check would pull focus back to the funnel instead
+ * (`filterByColorSubmenu.test.tsx`, "lands focus on the grid after Confirm").
  *
  * It is not renamed because all eight call sites would churn for no behaviour
  * change, on a diff whose main risk is review size. Folding `useOutsideClick`

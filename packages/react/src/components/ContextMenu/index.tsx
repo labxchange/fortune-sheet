@@ -39,10 +39,25 @@ import Divider from "./Divider";
 import "./index.css";
 import Menu from "./Menu";
 import CustomSort from "../CustomSort";
-import { announce } from "../../hooks/useContextMenuAnnouncements";
+import {
+  announce,
+  AnnouncementKey,
+} from "../../hooks/useContextMenuAnnouncements";
 
-/** Singular and plural are separate keys so no reader ever hears "1 rows". */
-function countKey(count: number, singular: string, plural: string) {
+/**
+ * Singular and plural are separate keys so no reader ever hears "1 rows".
+ *
+ * Generic rather than `(string, string) => string`, so a key assembled from a
+ * direction — `` `rightclick.announceRowInserted${"Above" | "Below"}` `` — is
+ * inferred as a union of literals and still checked against
+ * `AnnouncementKey`. Widening to `string` here would have made `announce`'s
+ * type gate stop at exactly the eight keys that are built rather than written.
+ */
+function countKey<S extends AnnouncementKey, P extends AnnouncementKey>(
+  count: number,
+  singular: S,
+  plural: P
+): S | P {
   return count === 1 ? singular : plural;
 }
 
@@ -257,7 +272,11 @@ const ContextMenu: React.FC = () => {
       if (name === "insert-column") {
         return selection?.row_select
           ? null
-          : ["left", "right"].map((dir) => (
+          : // `as const` so `dir` is "left" | "right" rather than string: both
+            // `rightclick[dir]` below and the announcement key built from it are
+            // then checked against the locale shape instead of being cast past
+            // it. The direction keys are the ones a rename would break silently.
+            (["left", "right"] as const).map((dir) => (
               <Menu
                 key={`add-col-${dir}`}
                 onClick={(_e, container) => {
@@ -328,7 +347,7 @@ const ContextMenu: React.FC = () => {
                     <>
                       {rightclick.to}
                       <span className={`luckysheet-cols-rows-shift-${dir}`}>
-                        {(rightclick as any)[dir]}
+                        {rightclick[dir]}
                       </span>
                     </>
                   )}
@@ -347,9 +366,7 @@ const ContextMenu: React.FC = () => {
                     tabIndex={0}
                     type="text"
                     className="luckysheet-mousedown-cancel"
-                    aria-label={`${rightclick.insertColumnCountLabel} ${
-                      (rightclick as any)[dir]
-                    }`}
+                    aria-label={`${rightclick.insertColumnCountLabel} ${rightclick[dir]}`}
                     placeholder={rightclick.number}
                     defaultValue="1"
                   />
@@ -358,7 +375,7 @@ const ContextMenu: React.FC = () => {
                   </span>
                   {!_.startsWith(context.lang ?? "", "zh") && (
                     <span className={`luckysheet-cols-rows-shift-${dir}`}>
-                      {(rightclick as any)[dir]}
+                      {rightclick[dir]}
                     </span>
                   )}
                 </>
@@ -368,7 +385,8 @@ const ContextMenu: React.FC = () => {
       if (name === "insert-row") {
         return selection?.column_select
           ? null
-          : ["top", "bottom"].map((dir) => (
+          : // `as const`, for the same reason as insert-column above.
+            (["top", "bottom"] as const).map((dir) => (
               <Menu
                 key={`add-row-${dir}`}
                 onClick={(e, container) => {
@@ -431,7 +449,7 @@ const ContextMenu: React.FC = () => {
                     <>
                       {rightclick.to}
                       <span className={`luckysheet-cols-rows-shift-${dir}`}>
-                        {(rightclick as any)[dir]}
+                        {rightclick[dir]}
                       </span>
                     </>
                   )}
@@ -443,9 +461,7 @@ const ContextMenu: React.FC = () => {
                     tabIndex={0}
                     type="text"
                     className="luckysheet-mousedown-cancel"
-                    aria-label={`${rightclick.insertRowCountLabel} ${
-                      (rightclick as any)[dir]
-                    }`}
+                    aria-label={`${rightclick.insertRowCountLabel} ${rightclick[dir]}`}
                     placeholder={rightclick.number}
                     defaultValue="1"
                   />
@@ -454,7 +470,7 @@ const ContextMenu: React.FC = () => {
                   </span>
                   {!_.startsWith(context.lang ?? "", "zh") && (
                     <span className={`luckysheet-cols-rows-shift-${dir}`}>
-                      {(rightclick as any)[dir]}
+                      {rightclick[dir]}
                     </span>
                   )}
                 </>
@@ -693,17 +709,22 @@ const ContextMenu: React.FC = () => {
             onClick={(e, container) => {
               const targetRowHeight = container.querySelector("input")?.value;
               commitAndSettle((draftCtx) => {
-                if (
-                  _.isUndefined(targetRowHeight) ||
-                  targetRowHeight === "" ||
-                  parseInt(targetRowHeight, 10) <= 0 ||
-                  parseInt(targetRowHeight, 10) > 545
-                ) {
+                const numRowHeight = parseInt(targetRowHeight ?? "", 10);
+                // Inverted, the same way as the insert rows, and for the same
+                // reason: every comparison against NaN is false, so
+                // `<= 0 || > 545` let a non-numeric value straight through. It
+                // then announced "Row height set to NaN pixels." for a sheet
+                // that had not changed — `setRowHeight` drops a NaN length
+                // without a word. This input is `type="number"`, so a browser
+                // sanitises most of these to "" before the handler sees them,
+                // which is why it was not the case filed; the guard should not
+                // depend on that. The two checks it replaces are subsumed:
+                // undefined and "" both `parseInt` to NaN.
+                if (!(numRowHeight >= 1) || numRowHeight > 545) {
                   showAlert(info.tipRowHeightLimit, "ok");
                   draftCtx.contextMenu = {};
                   return;
                 }
-                const numRowHeight = parseInt(targetRowHeight, 10);
                 const rowHeightList: Record<string, number> = {};
                 _.forEach(draftCtx.luckysheet_select_save, (section) => {
                   for (
@@ -714,6 +735,15 @@ const ContextMenu: React.FC = () => {
                     rowHeightList[rowNum] = numRowHeight;
                   }
                 });
+                // The only two rows that announce with no acted-signal from
+                // their operation, and deliberately: `api.setRowHeight` and
+                // `api.setColumnWidth` have no silent refusal to report. They
+                // throw `INVALID_PARAMS` on a non-plain-object — which the
+                // caller here constructs, so it cannot happen — and otherwise
+                // write. Notably they do *not* consult `isAllowEdit`, unlike
+                // `deleteSelectedCellText`; a read-only sheet's row heights can
+                // be changed today, which is a pre-existing core behaviour and
+                // not something an announcement gate would fix.
                 api.setRowHeight(draftCtx, rowHeightList, {}, true);
                 announce(draftCtx, "rightclick.announceRowHeightSet", {
                   value: numRowHeight,
@@ -763,17 +793,13 @@ const ContextMenu: React.FC = () => {
             onClick={(e, container) => {
               const targetColWidth = container.querySelector("input")?.value;
               commitAndSettle((draftCtx) => {
-                if (
-                  _.isUndefined(targetColWidth) ||
-                  targetColWidth === "" ||
-                  parseInt(targetColWidth, 10) <= 0 ||
-                  parseInt(targetColWidth, 10) > 2038
-                ) {
+                // Same guard as set-row-height above.
+                const numColWidth = parseInt(targetColWidth ?? "", 10);
+                if (!(numColWidth >= 1) || numColWidth > 2038) {
                   showAlert(info.tipColumnWidthLimit, "ok");
                   draftCtx.contextMenu = {};
                   return;
                 }
-                const numColWidth = parseInt(targetColWidth, 10);
                 const colWidthList: Record<string, number> = {};
                 _.forEach(draftCtx.luckysheet_select_save, (section) => {
                   for (
@@ -784,6 +810,7 @@ const ContextMenu: React.FC = () => {
                     colWidthList[colNum] = numColWidth;
                   }
                 });
+                // Same as set-row-height above: nothing to gate on.
                 api.setColumnWidth(draftCtx, colWidthList, {}, true);
                 announce(draftCtx, "rightclick.announceColumnWidthSet", {
                   value: numColWidth,
@@ -801,7 +828,15 @@ const ContextMenu: React.FC = () => {
               tabIndex={0}
               type="number"
               min={1}
-              max={545}
+              // 2038, matching what the handler validates. It said 545 — the
+              // row-height limit, copy-pasted — so the stepper stopped and the
+              // browser reported the value invalid at 546 while the app went on
+              // accepting up to 2038. On a named spinbutton this is not only a
+              // wrong stepper: `max` is what a screen reader announces as the
+              // control's maximum, so it stated a bound that was not the real
+              // one. Pre-existing, and worth fixing in the change that gave
+              // this input an accessible name in the first place.
+              max={2038}
               className="luckysheet-mousedown-cancel"
               aria-label={rightclick.columnWidthLabel}
               placeholder={rightclick.number}
