@@ -509,8 +509,14 @@ const InputBox: React.FC = () => {
           // concerned, and aria-label is prohibited on a role-less div — the
           // name above would be dropped by the accessibility tree rather than
           // announced (axe: aria-prohibited-attr). The role it already behaves
-          // as is the one to declare: a single-line free-text field.
+          // as is the one to declare: a free-text field.
+          //
+          // Multi-line, because it is: Alt+Enter and Meta+Enter insert a
+          // newline in the cell (`onKeyDown`, above). Without saying so, a
+          // screen reader presents this as single-line and Enter reads as
+          // "commit" with no hint that a line break is available at all.
           role="textbox"
+          aria-multiline="true"
           aria-label={cellInputLabel}
           style={{
             transform: `scale(${context.zoomRatio})`,

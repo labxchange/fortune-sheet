@@ -410,6 +410,11 @@ const Toolbar: React.FC<{
             >
               {(setOpen) => (
                 <CustomColor
+                  // Read off the cell rather than from the popup's own draft:
+                  // this is "which colour is applied", and picking one writes
+                  // it to the selection immediately, so the mark follows a
+                  // pick without the popup having to track it.
+                  appliedColor={name === "font-color" ? cell?.fc : cell?.bg}
                   onCustomPick={(color) => {
                     pick(color);
                     setOpen(false);
@@ -1240,8 +1245,17 @@ const Toolbar: React.FC<{
             switch (outcome.result) {
               case "changed":
                 return mergePhrase(ctx);
+              // `handleMerge` answers "every range is one cell" before it
+              // looks at which row was pressed, and the two rows want opposite
+              // words for it: Merge wants "select more cells", while Unmerge on
+              // one cell has nothing to split and is not a request for a bigger
+              // selection. Telling an unmerge to select more cells *to merge*
+              // names the wrong action entirely — and one cell is the sheet's
+              // own mount state, so it is the likeliest press of either.
               case "singleCell":
-                return info.toolbarMergeNeedsRange;
+                return type === "merge-cancel"
+                  ? info.toolbarMergeNothingMerged
+                  : info.toolbarMergeNeedsRange;
               // `isAllowEdit` fails on a read-only row, and this bails before
               // any of the merge logic — the ending reached by a selection
               // inside `config.rowReadOnly`, which nothing on screen marks.

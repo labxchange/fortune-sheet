@@ -9,9 +9,22 @@ import "./index.css";
 type Props = {
   onCustomPick: (color: string | undefined) => void;
   onColorPick: (color: string) => void;
+  /**
+   * The colour currently in force, for the palette to mark as its selected
+   * option. Supplied by the caller because this component cannot know it:
+   * `inputColor` below is a *draft* — what Confirm would apply — seeded to
+   * black and reset every time `Combo` remounts this popup. Wiring the palette
+   * to that draft marked black as the applied colour on every open, whatever
+   * the cell actually held, which is a worse answer than none.
+   */
+  appliedColor?: string;
 };
 
-export const CustomColor: React.FC<Props> = ({ onCustomPick, onColorPick }) => {
+export const CustomColor: React.FC<Props> = ({
+  onCustomPick,
+  onColorPick,
+  appliedColor,
+}) => {
   const { context } = useContext(WorkbookContext);
   const { toolbar, sheetconfig, button } = locale(context);
   const [inputColor, setInputColor] = useState<string | undefined>("#000000");
@@ -59,11 +72,8 @@ export const CustomColor: React.FC<Props> = ({ onCustomPick, onColorPick }) => {
         </div>
       </div>
       <ColorPicker
-        // The swatch and the hex field both write `inputColor`, and so does a
-        // pick, so it is what this popup currently holds.
-        selectedColor={inputColor}
+        selectedColor={appliedColor}
         onPick={(color) => {
-          setInputColor(color);
           onColorPick(color);
         }}
       />
