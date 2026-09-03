@@ -56,6 +56,7 @@ import { useSelectionModeAnnouncement } from "../../hooks/useSelectionModeAnnoun
 import { useSelectAllAnnouncement } from "../../hooks/useSelectAllAnnouncement";
 import { useNameBoxClampAnnouncement } from "../../hooks/useNameBoxClampAnnouncement";
 import { useContextMenuAnnouncements } from "../../hooks/useContextMenuAnnouncements";
+import { useToolbarFocusReturnAnnouncement } from "../../hooks/useToolbarFocusReturnAnnouncement";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
@@ -599,6 +600,16 @@ const SheetOverlay: React.FC = () => {
 
   const computedCellValue = cellValue();
 
+  // Same text `#sr-selection` would show for this cell -- the toolbar-return
+  // announcement is meant to say what that region would have, had a
+  // formatting command touched the selection instead of leaving it alone.
+  const toolbarFocusReturnAnnouncement = useToolbarFocusReturnAnnouncement(
+    context.toolbarFocusReturnCount,
+    !rangeText.includes("NaN")
+      ? `${rangeText} ${computedCellValue}`
+      : `A1. ${info.sheetSrIntro}`
+  );
+
   return (
     <main
       className={GRID_ROOT_CLASS}
@@ -1094,6 +1105,13 @@ const SheetOverlay: React.FC = () => {
         aria-atomic="true"
       >
         {contextMenuAnnouncement}
+      </div>
+      {/* A toolbar command edits the cell in place rather than navigating to
+          it, so `#sr-selection` -- built from the selection -- repeats itself
+          and the focus return the command just made (WCAG 2.4.3) says
+          nothing. Polite, for the same reason as above. */}
+      <div id="sr-toolbarFocusReturn" className="sr-only" role="status">
+        {toolbarFocusReturnAnnouncement}
       </div>
     </main>
   );

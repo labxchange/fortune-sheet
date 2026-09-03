@@ -172,15 +172,28 @@ export function mouseDownToggleHandlers<T extends HTMLElement = HTMLElement>(
  * Both `readStamp` and `getTarget` are called late — after the commit — for the
  * reasons `focusAfterCommit` documents; a caller holding a React ref must read
  * through it rather than closing over a value from render.
+ *
+ * `onReturn`, if given, fires exactly once per actual return — the same branch
+ * that resolves `getTarget()`, never the declined one. It exists so a caller
+ * can announce the return to a screen reader: the move itself is otherwise
+ * silent, because it is not a navigation and so does not touch the selection
+ * `#sr-selection` is built from. Kept as a side effect of this helper rather
+ * than folded into `getTarget` so `getTarget`'s own contract — resolve a
+ * target against the settled DOM — stays just that.
  */
 export function withFocusReturn<A extends unknown[]>(
   run: (...args: A) => void,
   readStamp: () => unknown,
-  getTarget: () => HTMLElement | null | undefined
+  getTarget: () => HTMLElement | null | undefined,
+  onReturn?: () => void
 ): (...args: A) => void {
   return (...args: A) => {
     const before = readStamp();
     run(...args);
-    focusAfterCommit(() => (readStamp() === before ? null : getTarget()));
+    focusAfterCommit(() => {
+      if (readStamp() === before) return null;
+      onReturn?.();
+      return getTarget();
+    });
   };
 }

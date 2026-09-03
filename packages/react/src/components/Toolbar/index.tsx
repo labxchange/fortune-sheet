@@ -286,6 +286,12 @@ const Toolbar: React.FC<{
    * any popup's own focus restoration -- and reads `contextRef`, not `context`,
    * because by then the commit has happened and `context` here is the value
    * from before it.
+   *
+   * The return itself is otherwise silent to a screen reader: it is not a
+   * navigation, so it does not touch the selection `#sr-selection` is built
+   * from, and that region simply repeats itself. `toolbarFocusReturnCount`
+   * bumped here is what `#sr-toolbarFocusReturn` (SheetOverlay) watches to
+   * announce the cell the user landed back on.
    */
   const withFocusReturn = useCallback(
     <A extends unknown[]>(run: (...args: A) => void) =>
@@ -294,9 +300,15 @@ const Toolbar: React.FC<{
         // Through the ref, not `context`: this is read after the commit, when
         // the value captured at render time is already stale.
         () => contextRef.current.luckysheetfile,
-        () => refs.cellInput.current
+        () => refs.cellInput.current,
+        () => {
+          setContext((ctx) => {
+            ctx.toolbarFocusReturnCount =
+              (ctx.toolbarFocusReturnCount ?? 0) + 1;
+          });
+        }
       ),
-    [refs.cellInput]
+    [refs.cellInput, setContext]
   );
 
   const getToolbarItem = useCallback(
