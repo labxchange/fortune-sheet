@@ -67,6 +67,25 @@ describe("Tab while a cell is being edited", () => {
     close();
   });
 
+  it("is left to the grid when the active item has no function-name node", () => {
+    const { cellInput } = setup();
+    // An "active" suggestion item that selectActiveFormula has nothing to act
+    // on -- the same latent mismatch openSuggestion's real case hides. If
+    // consuming Tab here ever drifted back to matching on the active item
+    // alone rather than on selectActiveFormula's own answer, this would
+    // swallow the key with no effect: the dead-Tab-in-edit-mode bug this
+    // whole feature exists to fix, reached by a narrower route.
+    const item = document.createElement("div");
+    item.className = "luckysheet-formula-search-item-active";
+    document.body.appendChild(item);
+
+    const event = createTab();
+    cellInput.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    item.remove();
+  });
+
   // The grid side of Tab -- moving the selection, and committing an open edit
   // before it does -- is covered directly in
   // packages/core/test/events/keyboard.test.js ("tab in edit mode"), where

@@ -150,8 +150,17 @@ const InputBox: React.FC = () => {
     }
   }, [getActiveFormula]);
 
+  // Reports whether it actually consumed the key (an active suggestion whose
+  // function-name node is present -- the only case this does anything), so a
+  // caller can gate its own preventDefault/stopPropagation on the return
+  // value instead of re-deriving "is there a real suggestion open" from
+  // getActiveFormula() alone. The two guards could otherwise drift: an active
+  // item without that child would look active to getActiveFormula() while
+  // this quietly did nothing, so a caller gating on that instead would
+  // swallow the key with no effect -- the dead-Tab-in-edit-mode bug this hunk
+  // exists to fix, reached by a narrower route.
   const selectActiveFormula = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
+    (e: React.KeyboardEvent<HTMLDivElement>): boolean => {
       const activeFormula = getActiveFormula();
       const formulaNameDiv = activeFormula?.querySelector(
         ".luckysheet-formula-search-func"
@@ -168,52 +177,58 @@ const InputBox: React.FC = () => {
           textEditor.focus();
 
           const selection = window.getSelection();
-          if (selection?.rangeCount === 0) return;
+          // A caller with no live Selection/Range still gets a consumed key
+          // below -- this only decides whether there is text to replace, not
+          // whether the suggestion itself is accepted.
+          if (selection && selection.rangeCount !== 0) {
+            const range = selection.getRangeAt(0);
+            if (deleteCount !== 0) {
+              const startOffset = Math.max(range.startOffset - deleteCount, 0);
+              const endOffset = range.startOffset;
 
-          const range = selection?.getRangeAt(0);
-          if (deleteCount !== 0 && range) {
-            const startOffset = Math.max(range.startOffset - deleteCount, 0);
-            const endOffset = range.startOffset;
+              // remove searchTxt
+              range.setStart(range.startContainer, startOffset);
+              range.setEnd(range.startContainer, endOffset);
+              range.deleteContents();
+            }
 
-            // remove searchTxt
-            range.setStart(range.startContainer, startOffset);
-            range.setEnd(range.startContainer, endOffset);
-            range.deleteContents();
+            const functionStr = `<span dir="auto" class="luckysheet-formula-text-func">${formulaName}</span>`;
+            const lParStr = `<span dir="auto" class="luckysheet-formula-text-lpar">(</span>`;
+
+            const functionNode = new DOMParser().parseFromString(
+              functionStr,
+              "text/html"
+            ).body.childNodes[0];
+
+            const lParNode = new DOMParser().parseFromString(
+              lParStr,
+              "text/html"
+            ).body.childNodes[0];
+
+            if (range.startContainer.parentNode) {
+              range.setStart(range.startContainer.parentNode, 1);
+            }
+
+            range.insertNode(lParNode);
+            range.insertNode(functionNode);
+
+            // move the cursor to the end of the inserted text node
+            range.collapse();
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            setContext((draftCtx) => {
+              // clear functionCandidates and set functionHint
+              draftCtx.functionCandidates = [];
+              draftCtx.functionHint = formulaName;
+            });
           }
-
-          const functionStr = `<span dir="auto" class="luckysheet-formula-text-func">${formulaName}</span>`;
-          const lParStr = `<span dir="auto" class="luckysheet-formula-text-lpar">(</span>`;
-
-          const functionNode = new DOMParser().parseFromString(
-            functionStr,
-            "text/html"
-          ).body.childNodes[0];
-
-          const lParNode = new DOMParser().parseFromString(lParStr, "text/html")
-            .body.childNodes[0];
-
-          if (range?.startContainer.parentNode) {
-            range?.setStart(range.startContainer.parentNode, 1);
-          }
-
-          range?.insertNode(lParNode);
-          range?.insertNode(functionNode);
-
-          // move the cursor to the end of the inserted text node
-          range?.collapse();
-          selection?.removeAllRanges();
-
-          if (range) selection?.addRange(range);
-
-          setContext((draftCtx) => {
-            // clear functionCandidates and set functionHint
-            draftCtx.functionCandidates = [];
-            draftCtx.functionHint = formulaName;
-          });
         }
         e.preventDefault();
         e.stopPropagation();
+        return true;
       }
+      return false;
     },
     [getActiveFormula, setContext]
   );
@@ -253,13 +268,12 @@ const InputBox: React.FC = () => {
         // edit mode: with no suggestion open `selectActiveFormula` does
         // nothing, and the `preventDefault()` beside it stopped the browser
         // moving focus while core's Tab branch bailed on the edit -- so the key
-        // did nothing at all. stopPropagation keeps the two jobs exclusive:
-        // when a suggestion is accepted, the grid must not also move the cell.
-        if (getActiveFormula()) {
-          selectActiveFormula(e);
-          e.preventDefault();
-          e.stopPropagation();
-        }
+        // did nothing at all. Gating on selectActiveFormula's own return value
+        // (rather than getActiveFormula() here too) is what keeps this branch
+        // and the guard it is deferring to from being able to drift apart --
+        // it, not this branch, decides whether Tab was actually consumed, and
+        // its own preventDefault/stopPropagation only fire when it was.
+        selectActiveFormula(e);
       } else if (e.key === "F4" && context.luckysheetCellUpdate.length > 0) {
         // formula.setfreezonFuc(event);
         e.preventDefault();
@@ -329,7 +343,6 @@ const InputBox: React.FC = () => {
     [
       clearSearchItemActiveClass,
       context.luckysheetCellUpdate.length,
-      getActiveFormula,
       selectActiveFormula,
       setContext,
     ]
