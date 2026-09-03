@@ -1,5 +1,5 @@
 import { locale } from "@fortune-sheet/core";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import WorkbookContext from "../../context";
 
 const HEX = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
@@ -59,6 +59,17 @@ const ColorHexInput: React.FC<Props> = ({
   const { info } = locale(context);
   const [draft, setDraft] = useState(value ?? "");
   const [editing, setEditing] = useState(false);
+
+  // Ending is not the same as blurring: removing a focused node fires no blur
+  // event. `useEscapeToClose` is capture-phase, so one Escape typed in here
+  // unmounted `ChangeColor` while this field still held focus, `onBlur` never
+  // ran, and `SheetTab`'s `isShowInputColor` stayed true for the workbook's
+  // lifetime — after which the colour row's `onMouseLeave` guard never closed
+  // that submenu again. Held in a ref so the cleanup does not re-run whenever
+  // the caller passes a fresh closure.
+  const onEditingChangeRef = useRef(onEditingChange);
+  onEditingChangeRef.current = onEditingChange;
+  useEffect(() => () => onEditingChangeRef.current?.(false), []);
 
   // Follow the swatch and the palette while the user is not typing here; while
   // they are, their own text is the truth and must not be overwritten mid-entry.

@@ -1,5 +1,12 @@
 import { Context, getSheetIndex, locale } from "@fortune-sheet/core";
-import React, { useCallback, useContext, useId, useState } from "react";
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import WorkbookContext from "../../context";
 import ColorPicker from "../Toolbar/ColorPicker";
 import ColorHexInput from "../Toolbar/ColorHexInput";
@@ -37,6 +44,15 @@ export const ChangeColor: React.FC<Props> = ({
   );
 
   const customColorLabelId = useId();
+
+  // Whatever inside here was holding the "in use" flag, this menu going away
+  // ends it. The hex field clears its own on unmount, but the native swatch
+  // beside it does not and cannot be given a blur it will never receive — so
+  // the flag is also released at the level that owns the menu, where the
+  // question is simply whether the menu is still there.
+  const triggerParentUpdateRef = useRef(triggerParentUpdate);
+  triggerParentUpdateRef.current = triggerParentUpdate;
+  useEffect(() => () => triggerParentUpdateRef.current(false), []);
 
   /**
    * Write the colour to the sheet, then report it.
