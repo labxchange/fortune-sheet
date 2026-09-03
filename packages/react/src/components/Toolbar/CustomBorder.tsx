@@ -93,8 +93,12 @@ type Props = {
   onPick: (changeColor?: string, changeStyle?: string) => void;
   /** The chosen border colour, for the toolbar's status region. Picking a
    *  colour here only stores it for the next handleBorder call, so nothing
-   *  repaints and there is otherwise no sign the choice registered. */
-  onColorPicked?: (color: string) => void;
+   *  repaints and there is otherwise no sign the choice registered.
+   *
+   *  `undefined` means the colour was reset. Typed rather than cast: the
+   *  `as string` this used to carry let the reset path reach a caller that
+   *  assumed a colour, which announced a raw `${color}` placeholder. */
+  onColorPicked?: (color: string | undefined) => void;
 };
 
 const CustomBorder: React.FC<Props> = ({ onPick, onColorPicked }) => {
@@ -215,12 +219,12 @@ const CustomBorder: React.FC<Props> = ({ onPick, onColorPicked }) => {
               onPick(color, changeStyle);
               colorPreviewRef.current!.style.backgroundColor = changeColor;
               setchangeColor(color as string);
-              onColorPicked?.(color as string);
+              onColorPicked?.(color);
             }}
             onColorPick={(color) => {
               onPick(color, changeStyle);
               setchangeColor(color as string);
-              onColorPicked?.(color as string);
+              onColorPicked?.(color);
             }}
           />
         </div>

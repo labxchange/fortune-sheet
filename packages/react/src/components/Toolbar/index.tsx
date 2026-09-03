@@ -337,10 +337,18 @@ const Toolbar: React.FC<{
           // snapshots the fingerprint synchronously, so it has to read the
           // state this action is about to change, not the state it produced.
           announceAfterCommit(() => {
-            if (!color) return "";
             const colorNames = info.colorNames as
               | Record<string, string>
               | undefined;
+            // Reset color arrives here as `undefined`. This used to return ""
+            // for it, which made *clearing* a colour the one colour action
+            // that said nothing, while the sheet tab beside it has announced
+            // its removal since this branch added `sheetColorRemoved`.
+            if (!color) {
+              return name === "font-color"
+                ? info.toolbarFontColorRemoved
+                : info.toolbarBackgroundColorRemoved;
+            }
             return replaceHtml(
               name === "font-color"
                 ? info.toolbarFontColorSet
@@ -1394,10 +1402,18 @@ const Toolbar: React.FC<{
                     const colorNames = info.colorNames as
                       | Record<string, string>
                       | undefined;
+                    // Reset color reaches here as `undefined`, and `replaceHtml`
+                    // returns the *unsubstituted* `${color}` when the value is
+                    // missing — so this read out the literal
+                    // "Border color: ${color}." The font and background path
+                    // above needs the same guard for the same reason; the two
+                    // are now written the same way.
                     announceNow(
-                      replaceHtml(info.toolbarBorderColorSet, {
-                        color: colorNames?.[color] ?? color,
-                      })
+                      color
+                        ? replaceHtml(info.toolbarBorderColorSet, {
+                            color: colorNames?.[color] ?? color,
+                          })
+                        : info.toolbarBorderColorRemoved
                     );
                   }}
                 />
