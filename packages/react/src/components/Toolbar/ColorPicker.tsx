@@ -89,21 +89,41 @@ const palette = [
 
 type Props = {
   onPick: (color: string) => void;
+  /**
+   * The colour currently applied, so the listbox can say which of its options
+   * is the selected one — the single piece of state the role exists to carry.
+   * Optional because a caller that genuinely does not know is better off
+   * exposing no selection than a wrong one.
+   */
+  selectedColor?: string;
 };
 
-const ColorPicker: React.FC<Props> = ({ onPick }) => {
+/** Matching is case-insensitive: the palette is lowercase, but a colour can
+ *  reach here from `<input type="color">`, a saved sheet or an import. */
+const sameColor = (a: string | undefined, b: string | undefined) =>
+  a != null && b != null && a.toLowerCase() === b.toLowerCase();
+
+const flatPalette = palette.flat();
+
+const ColorPicker: React.FC<Props> = ({ onPick, selectedColor }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { context } = useContext(WorkbookContext);
   const { info } = locale(context);
   // the locale objects infer exact literal keys, so a hex from `palette`
   // can't index them without widening
   const colorNames = info.colorNames as Record<string, string> | undefined;
-  // Roving tabindex: the grid pattern exists so a grid costs one tab stop with
-  // arrows moving inside it. Every swatch being tabbable made Tab step through
-  // all 64, contradicting the grid role announced below. Keyed on focus rather
-  // than on selection (unlike the sheet tabs, a palette has no selected cell),
-  // which also leaves the tab stop where the user last was.
-  const [activeIndex, setActiveIndex] = useState(0);
+  // Roving tabindex: the listbox pattern exists so the palette costs one tab
+  // stop with arrows moving inside it. Every swatch being tabbable made Tab
+  // step through all 64, contradicting the role announced below.
+  //
+  // Seeded from the applied colour so the first Tab lands on it rather than on
+  // black — the option a listbox is expected to open on. Only the seed: after
+  // that it follows focus, which leaves the tab stop where the user last was
+  // instead of yanking it back on every pick.
+  const [activeIndex, setActiveIndex] = useState(() => {
+    const found = flatPalette.findIndex((c) => sameColor(c, selectedColor));
+    return found === -1 ? 0 : found;
+  });
   useRovingFocus({
     containerRef,
     orientation: "grid",
@@ -155,12 +175,13 @@ const ColorPicker: React.FC<Props> = ({ onPick }) => {
                 tabIndex={index === activeIndex ? 0 : -1}
                 onFocus={() => setActiveIndex(index)}
                 role="option"
-                // aria-selected is a required state of role="option", and
-                // ColorPicker is not told which colour is currently applied.
-                // false throughout is the honest answer, and both VoiceOver
-                // and NVDA speak a selected state only when it is true, so it
-                // adds no words to the announcement.
-                aria-selected={false}
+                // Which colour is in force. This was `false` on all 64, on the
+                // reasoning that aria-selected is a "required state" of
+                // role="option" — it is not: it is a *supported* state, and a
+                // constant false told a screen reader that the listbox has no
+                // selection at all, discarding the one thing the role is there
+                // to convey. Both callers do know the answer.
+                aria-selected={sameColor(c, selectedColor)}
                 // a bare hex is read out character by character ("pound, e,
                 // zero, six, six, six, six"), so every swatch is named. All six
                 // locales cover the whole palette; the hex fallback is only for

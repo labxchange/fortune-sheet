@@ -1,11 +1,5 @@
 import { Context, getSheetIndex, locale } from "@fortune-sheet/core";
-import React, {
-  useCallback,
-  useContext,
-  useEffect,
-  useId,
-  useState,
-} from "react";
+import React, { useCallback, useContext, useId, useState } from "react";
 import WorkbookContext from "../../context";
 import ColorPicker from "../Toolbar/ColorPicker";
 import ColorHexInput from "../Toolbar/ColorHexInput";
@@ -44,29 +38,44 @@ export const ChangeColor: React.FC<Props> = ({
 
   const customColorLabelId = useId();
 
+  /**
+   * Write the colour to the sheet, then report it.
+   *
+   * Imperative rather than through an effect on `selectColor`. It was an
+   * effect, and Confirm is the one path that also closes this menu: the state
+   * update and `SheetTab`'s `setIsShowChangeColor(false)` batch into a single
+   * commit, `ChangeColor` is a conditional mount, so the component was gone
+   * before the passive effect for the new value could run. Confirm announced a
+   * colour it had not applied. The swatch, hex and reset paths were unaffected
+   * only because they leave the menu open — which is why a green suite missed
+   * it. Applying where the request is made owes nothing to whether this
+   * component survives the commit.
+   */
+  const applyColor = useCallback(
+    (color: string | undefined) => {
+      setSelectColor(color);
+      setContext((ctx: Context) => {
+        if (ctx.allowEdit === false) return;
+        const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
+        ctx.luckysheetfile[index].color = color;
+      });
+      onColorApplied?.(color);
+    },
+    [setContext, onColorApplied]
+  );
+
   // 确定按钮
   const certainBtn = useCallback(() => {
-    setSelectColor(inputColor);
-    onColorApplied?.(inputColor);
+    applyColor(inputColor);
     onConfirm?.();
-  }, [inputColor, onColorApplied, onConfirm]);
-
-  // 把用户选择的颜色记录在ctx中
-  useEffect(() => {
-    setContext((ctx: Context) => {
-      if (ctx.allowEdit === false) return;
-      const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
-      ctx.luckysheetfile[index].color = selectColor;
-    });
-  }, [selectColor, setContext]);
+  }, [inputColor, applyColor, onConfirm]);
 
   return (
     <div id="fortune-change-color">
       <div
         className="color-reset"
         onClick={() => {
-          setSelectColor(undefined);
-          onColorApplied?.(undefined);
+          applyColor(undefined);
         }}
         onKeyDown={activateOnEnterOrSpace}
         tabIndex={0}
@@ -101,8 +110,7 @@ export const ChangeColor: React.FC<Props> = ({
           onEditingChange={triggerParentUpdate}
           onCommit={(color) => {
             setInputColor(color);
-            setSelectColor(color);
-            onColorApplied?.(color);
+            applyColor(color);
           }}
         />
         <div
@@ -118,10 +126,10 @@ export const ChangeColor: React.FC<Props> = ({
         </div>
       </div>
       <ColorPicker
+        selectedColor={selectColor}
         onPick={(color) => {
           setInputColor(color);
-          setSelectColor(color);
-          onColorApplied?.(color);
+          applyColor(color);
         }}
       />
     </div>
