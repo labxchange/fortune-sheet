@@ -256,8 +256,9 @@ describe("Keyboard shortcuts dialog", () => {
 
   it("closes itself and moves focus when a Go To region shortcut fires from inside it", async () => {
     // Activating "Go to Spreadsheet" (Ctrl+Alt+S) while this dialog was open
-    // used to move focus to the grid but leave the still-open, aria-modal
-    // dialog behind with no way back to it — a keyboard trap (WCAG 2.1.2).
+    // used to move focus to the grid but leave the dialog open behind it,
+    // still painted on top with its Tab trap covering only its own subtree, so
+    // focus walked the page underneath (WCAG 2.4.3 focus order).
     const { container, getByRole, queryByRole } = render(
       <Workbook
         data={[{ name: "Sheet1" }]}
@@ -272,9 +273,15 @@ describe("Keyboard shortcuts dialog", () => {
     const trigger = getByRole("button", { name: "Keyboard shortcuts" });
     trigger.focus();
     fireEvent.click(trigger);
-    const dialog = await waitFor(() => getByRole("dialog"));
+    await waitFor(() => getByRole("dialog"));
 
-    fireEvent.keyDown(dialog, {
+    // Fired on the actually-focused element — the search box, which
+    // ShortcutsDialog passes as initialFocusRef — rather than on the dialog:
+    // that matches the reported repro, and firing on the dialog only works
+    // today because the input adds no onKeyDown of its own. The day one calls
+    // stopPropagation the real shortcut breaks while a dialog-level fire keeps
+    // passing.
+    fireEvent.keyDown(document.activeElement!, {
       code: "KeyS",
       ctrlKey: true,
       altKey: true,

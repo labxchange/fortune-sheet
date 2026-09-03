@@ -2,6 +2,11 @@ import { render, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 import Workbook from "../src/components/Workbook";
 
+// Opened from the toolbar rather than with the Ctrl+Alt+/ shortcut, and that
+// matters: the shortcut leaves <body> as the previously-focused element, and
+// body.focus() is inert, so the restore has nothing to move focus to and these
+// assertions would hold whether or not it ran. The toolbar trigger is a real
+// focusable element, so they only hold when the restore actually fires.
 const openFromToolbar = (getByRole: ReturnType<typeof render>["getByRole"]) => {
   const trigger = getByRole("button", { name: "Keyboard shortcuts" });
   trigger.focus();

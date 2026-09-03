@@ -626,9 +626,9 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
         // not double-fire.
         const withPrimary = e.ctrlKey || e.metaKey;
 
-        // Any shortcut that moves focus out of this dialog has to take the
-        // dialog with it: it stays painted on top and its Tab trap only
-        // covers its own subtree, so focus left behind it walks the page
+        // Any shortcut that moves focus out of the shortcuts dialog has to
+        // take the dialog with it: it stays painted on top and its Tab trap
+        // only covers its own subtree, so focus left behind it walks the page
         // underneath (WCAG 2.4.3 focus order).
         const leaveShortcutsDialog = () => {
           if (!context.showShortcutsDialog) return;
