@@ -14,6 +14,7 @@ import {
   isShowHidenCR,
   escapeHTMLTag,
   isAllowEdit,
+  moveToEnd,
 } from "@fortune-sheet/core";
 import React, {
   useContext,
@@ -43,6 +44,16 @@ const FxEditor: React.FC = () => {
   const prevFirstSelection = usePrevious(firstSelection);
   const prevSheetId = usePrevious(context.currentSheetId);
   const recentText = useRef("");
+  /**
+   * Whether the focus about to arrive is a pointer's rather than the keyboard's.
+   *
+   * A click carries its own caret position — the character the user aimed at —
+   * which the browser applies as the default action of the mousedown, *after*
+   * the focus event has been dispatched. Without this flag, placing the caret
+   * on every focus would discard the click target and make the formula bar
+   * impossible to click into mid-word.
+   */
+  const focusFromPointer = useRef(false);
   const { info } = locale(context);
 
   useEffect(() => {
@@ -84,6 +95,8 @@ const FxEditor: React.FC = () => {
   ]);
 
   const onFocus = useCallback(() => {
+    const fromPointer = focusFromPointer.current;
+    focusFromPointer.current = false;
     if (context.allowEdit === false) {
       return;
     }
@@ -106,6 +119,26 @@ const FxEditor: React.FC = () => {
         refs.globalCache.doNotFocus = true;
         // formula.rangeResizeTo = $("#luckysheet-functionbox-cell");
       });
+
+      /**
+       * Put the caret after the existing value, so an edit continues from the
+       * end instead of in front of what is already there (WCAG 2.4.3).
+       *
+       * Nothing else does it. `moveToEnd` is called from `InputBox` alone, and
+       * only when `globalCache.doNotFocus` is unset — which the recipe above
+       * sets, deliberately, to stop the cell input pulling focus back out of
+       * the formula bar. That left the caret whereever the browser puts it in a
+       * freshly focused contenteditable, which is offset 0.
+       *
+       * Synchronous, unlike `InputBox`'s deferred call: the value in this field
+       * was written by the selection effect above on a previous commit, so it
+       * is already in the DOM and there is nothing to wait for. Deferring would
+       * also open a window where a fast first keystroke lands at the old caret
+       * and is then jumped over.
+       */
+      if (!fromPointer) {
+        moveToEnd(refs.fxInput.current!);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -312,9 +345,19 @@ const FxEditor: React.FC = () => {
             id="luckysheet-functionbox-cell"
             aria-label={info.currentCellInput}
             onFocus={onFocus}
+            onMouseDown={() => {
+              focusFromPointer.current = true;
+            }}
             onKeyDown={onKeyDown}
             onChange={onChange}
-            onBlur={() => setFocused(false)}
+            onBlur={() => {
+              // Discarded rather than left set: a mousedown on an
+              // already-focused field fires no focus event to consume the flag,
+              // and a stale one would make the next Tab into the field behave
+              // like a click. Any later focus has to pass through here first.
+              focusFromPointer.current = false;
+              setFocused(false);
+            }}
             tabIndex={0}
             allowEdit={allowEdit}
           />
