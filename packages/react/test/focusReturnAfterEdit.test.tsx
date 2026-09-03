@@ -81,6 +81,16 @@ describe("Cell identity and focus when an edit ends", () => {
       expect(cellInput.getAttribute("role")).toBe("textbox");
     });
 
+    it("declares itself multi-line, because it is", async () => {
+      // Alt+Enter and Meta+Enter insert a newline in the cell, so a bare
+      // role="textbox" understates it: a screen reader would present the field
+      // as single-line and give no hint that a line break is available.
+      const { cellInput } = setup();
+      await tick();
+
+      expect(cellInput.getAttribute("aria-multiline")).toBe("true");
+    });
+
     it("follows the selection", async () => {
       const { cellInput } = setup();
       await tick();

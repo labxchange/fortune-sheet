@@ -215,6 +215,9 @@ const CustomBorder: React.FC<Props> = ({ onPick, onColorPicked }) => {
           }}
         >
           <CustomColor
+            // This popup is display-toggled rather than unmounted, so its own
+            // state is the live answer for the whole workbook's lifetime.
+            appliedColor={changeColor}
             onCustomPick={(color) => {
               onPick(color, changeStyle);
               colorPreviewRef.current!.style.backgroundColor = changeColor;

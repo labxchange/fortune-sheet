@@ -430,6 +430,40 @@ describe("toolbar actions announce what they did", () => {
     );
   });
 
+  it("does not tell an unmerge to select more cells to merge", async () => {
+    // `handleMerge` answers "every range is one cell" before it looks at which
+    // row was pressed, and the toolbar mapped that answer to the merge phrase
+    // unconditionally — so Unmerge over a single cell, which is the sheet's own
+    // mount state and so the likeliest press of that row, told the user to
+    // select more cells *to merge*: the action they had not chosen.
+    const { container, ref } = renderSheet({
+      toolbarItems: ["merge-cell"],
+    });
+    selectA1(ref);
+
+    pickFromCombo(container, "Unmerge");
+    await flush();
+
+    expect(announcement(container)).not.toContain("to merge");
+    expect(announcement(container)).toContain(
+      "No merged cells in the selection."
+    );
+  });
+
+  it("still tells a merge to select more cells", async () => {
+    // The counter-path: that phrase is right for the row it belongs to, and
+    // the fix must not silence it there.
+    const { container, ref } = renderSheet({
+      toolbarItems: ["merge-cell"],
+    });
+    selectA1(ref);
+
+    pickFromCombo(container, "Merge all");
+    await flush();
+
+    expect(announcement(container)).toContain("Select two or more cells");
+  });
+
   it("announces the size chosen for the font", async () => {
     const { container, ref } = renderSheet({ toolbarItems: ["font-size"] });
     selectA1(ref);
@@ -987,5 +1021,80 @@ describe("removing a colour is an outcome too", () => {
 
     expect(announcement(container)).not.toContain("${");
     expect(announcement(container)).toContain("Border color removed.");
+  });
+});
+
+describe("the toolbar palettes mark the colour that is actually applied", () => {
+  const openFontColour = (getByRole: any) => {
+    fireEvent.mouseDown(getByRole("button", { name: "Font color: Dropdown" }));
+    const popup = document.querySelector<HTMLElement>("#fortune-custom-color");
+    if (!popup) throw new Error("the font colour popup did not open");
+    return popup;
+  };
+
+  const selectedIn = (popup: HTMLElement) =>
+    Array.from(
+      popup.querySelectorAll<HTMLElement>(
+        '[role="option"][aria-selected="true"]'
+      )
+    );
+
+  it("marks nothing when the cell has no colour of its own", () => {
+    // The regression this guards. `CustomColor`'s `inputColor` is a *draft*
+    // seeded to "#000000" and reset every time `Combo` remounts the popup, so
+    // wiring the palette to it marked Black as applied on every single open —
+    // a confident false claim where the old constant `false` at least made
+    // none. The palette is fed the cell's own colour now.
+    const ref = React.createRef<WorkbookInstance>();
+    const { getByRole } = render(
+      <Workbook
+        ref={ref}
+        lang="en"
+        data={[
+          {
+            name: "Sheet1",
+            id: "s1",
+            row: 10,
+            column: 6,
+            celldata: [{ r: 0, c: 0, v: { v: "1", m: "1" } }],
+          },
+        ]}
+      />
+    );
+    act(() => {
+      ref.current?.setSelection([
+        { row: [0, 0], column: [0, 0], row_focus: 0, column_focus: 0 },
+      ]);
+    });
+
+    expect(selectedIn(openFontColour(getByRole))).toHaveLength(0);
+  });
+
+  it("marks the cell's own text colour when it has one", () => {
+    const ref = React.createRef<WorkbookInstance>();
+    const { getByRole } = render(
+      <Workbook
+        ref={ref}
+        lang="en"
+        data={[
+          {
+            name: "Sheet1",
+            id: "s1",
+            row: 10,
+            column: 6,
+            celldata: [{ r: 0, c: 0, v: { v: "1", m: "1", fc: "#674ea7" } }],
+          },
+        ]}
+      />
+    );
+    act(() => {
+      ref.current?.setSelection([
+        { row: [0, 0], column: [0, 0], row_focus: 0, column_focus: 0 },
+      ]);
+    });
+
+    const selected = selectedIn(openFontColour(getByRole));
+    expect(selected).toHaveLength(1);
+    expect(selected[0].style.backgroundColor).toBe("rgb(103, 78, 167)");
   });
 });
