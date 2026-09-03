@@ -1,12 +1,5 @@
 import { Context, getSheetIndex, locale } from "@fortune-sheet/core";
-import React, {
-  useCallback,
-  useContext,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useContext, useId, useState } from "react";
 import WorkbookContext from "../../context";
 import ColorPicker from "../Toolbar/ColorPicker";
 import ColorHexInput from "../Toolbar/ColorHexInput";
@@ -45,44 +38,53 @@ export const ChangeColor: React.FC<Props> = ({
 
   const customColorLabelId = useId();
 
+  /**
+   * Write the colour to the sheet, then report it.
+   *
+   * Imperative rather than through an effect on `selectColor`. It was an
+   * effect, and Confirm is the one path that also closes this menu: the state
+   * update and `SheetTab`'s `setIsShowChangeColor(false)` batch into a single
+   * commit, `ChangeColor` is a conditional mount, so the component was gone
+   * before the passive effect for the new value could run. Confirm announced a
+   * colour it had not applied. The swatch, hex and reset paths were unaffected
+   * only because they leave the menu open — which is why a green suite missed
+   * it. Applying where the request is made owes nothing to whether this
+   * component survives the commit.
+   */
+  const applyColor = useCallback(
+    (color: string | undefined) => {
+      setSelectColor(color);
+      setContext((ctx: Context) => {
+        if (ctx.allowEdit === false) return;
+        const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
+        ctx.luckysheetfile[index].color = color;
+        // Drives `useSheetTabColorAnnouncement`. No "is this a real change?"
+        // guard: the effect this replaced also ran on mount, re-writing the
+        // colour the sheet already had, and needed a previous-value ref to
+        // tell that no-op from a pick. Applying imperatively there is no mount
+        // run to discount — this body runs only when a user applies a colour,
+        // so every bump is a real one. Re-applying the colour a tab already
+        // carries still counts, and the hook's modulo-2 repeat marker is what
+        // keeps a live region from swallowing the identical text.
+        ctx.sheetTabColorChangeCount = (ctx.sheetTabColorChangeCount ?? 0) + 1;
+      });
+      onColorApplied?.(color);
+    },
+    [setContext, onColorApplied]
+  );
+
   // 确定按钮
   const certainBtn = useCallback(() => {
-    setSelectColor(inputColor);
-    onColorApplied?.(inputColor);
+    applyColor(inputColor);
     onConfirm?.();
-  }, [inputColor, onColorApplied, onConfirm]);
-
-  // Baseline for the counter bump below: the sheet's colour when this
-  // instance first mounted, so the mount run (which just re-writes that same
-  // colour) doesn't count as a change. A previous-*value* ref rather than a
-  // "have I run before" boolean, specifically so it survives React
-  // StrictMode's double-invoke of a mount effect — a boolean flip inside the
-  // producer still leaves the *second* invocation of that same mount seeing
-  // itself as a real change; comparing against the last color actually
-  // written does not, because both invocations write the same value.
-  const previousColor = useRef(selectColor);
-
-  // 把用户选择的颜色记录在ctx中
-  useEffect(() => {
-    const isRealChange = previousColor.current !== selectColor;
-    previousColor.current = selectColor;
-    setContext((ctx: Context) => {
-      if (ctx.allowEdit === false) return;
-      const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
-      ctx.luckysheetfile[index].color = selectColor;
-      if (isRealChange) {
-        ctx.sheetTabColorChangeCount = (ctx.sheetTabColorChangeCount ?? 0) + 1;
-      }
-    });
-  }, [selectColor, setContext]);
+  }, [inputColor, applyColor, onConfirm]);
 
   return (
     <div id="fortune-change-color">
       <div
         className="color-reset"
         onClick={() => {
-          setSelectColor(undefined);
-          onColorApplied?.(undefined);
+          applyColor(undefined);
         }}
         onKeyDown={activateOnEnterOrSpace}
         tabIndex={0}
@@ -117,8 +119,7 @@ export const ChangeColor: React.FC<Props> = ({
           onEditingChange={triggerParentUpdate}
           onCommit={(color) => {
             setInputColor(color);
-            setSelectColor(color);
-            onColorApplied?.(color);
+            applyColor(color);
           }}
         />
         <div
@@ -134,10 +135,10 @@ export const ChangeColor: React.FC<Props> = ({
         </div>
       </div>
       <ColorPicker
+        selectedColor={selectColor}
         onPick={(color) => {
           setInputColor(color);
-          setSelectColor(color);
-          onColorApplied?.(color);
+          applyColor(color);
         }}
       />
     </div>

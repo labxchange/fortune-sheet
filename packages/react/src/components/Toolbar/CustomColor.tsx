@@ -59,7 +59,11 @@ export const CustomColor: React.FC<Props> = ({ onCustomPick, onColorPick }) => {
         </div>
       </div>
       <ColorPicker
+        // The swatch and the hex field both write `inputColor`, and so does a
+        // pick, so it is what this popup currently holds.
+        selectedColor={inputColor}
         onPick={(color) => {
+          setInputColor(color);
           onColorPick(color);
         }}
       />
