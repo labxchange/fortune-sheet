@@ -11126,10 +11126,13 @@ export default {
     // palette where possible; a colour chosen from the custom picker has no
     // name and falls back to its hex, exactly as the swatches themselves do.
     toolbarFontColorSet: "Text color: ${color}.",
+    toolbarFontColorRemoved: "Text color removed.",
     toolbarBackgroundColorSet: "Cell color: ${color}.",
+    toolbarBackgroundColorRemoved: "Cell color removed.",
     // Reuses border.borderColor, the phrase this locale already uses for the
     // control, so the announcement matches the label the user saw.
     toolbarBorderColorSet: "Border color: ${color}.",
+    toolbarBorderColorRemoved: "Border color removed.",
     // Applying a border writes to config.borderInfo rather than to the cell,
     // so the anchor-cell fingerprint the other actions share cannot see it and
     // the only feedback was the canvas repainting. Named from the row the user
