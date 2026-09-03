@@ -24,6 +24,13 @@ type Props = {
   value: string | undefined;
   /** A valid colour was entered. Never called for text that is not one. */
   onCommit: (color: string) => void;
+  /**
+   * Entry here started or finished. A popup that closes itself when the
+   * pointer wanders off — `ChangeColor`'s row does — needs this to stay open
+   * while the field is being typed into, the same signal the native swatch
+   * beside it already sends.
+   */
+  onEditingChange?: (editing: boolean) => void;
 };
 
 /**
@@ -43,7 +50,11 @@ type Props = {
  * otherwise leaves the last good one standing, so a half-typed value is never
  * treated as a colour and never announced as an error mid-keystroke.
  */
-const ColorHexInput: React.FC<Props> = ({ value, onCommit }) => {
+const ColorHexInput: React.FC<Props> = ({
+  value,
+  onCommit,
+  onEditingChange,
+}) => {
   const { context } = useContext(WorkbookContext);
   const { info } = locale(context);
   const [draft, setDraft] = useState(value ?? "");
@@ -70,10 +81,25 @@ const ColorHexInput: React.FC<Props> = ({ value, onCommit }) => {
       maxLength={7}
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
-      onFocus={() => setEditing(true)}
+      onFocus={() => {
+        setEditing(true);
+        onEditingChange?.(true);
+      }}
       onBlur={(e) => {
         setEditing(false);
-        commit(e.target.value);
+        onEditingChange?.(false);
+        // Only a value the user actually changed is a request to apply one, so
+        // that passing through the field is inert. `draft` is seeded from
+        // `value`, which makes a pristine field already hold a valid colour;
+        // committing on every blur therefore applied one — and announced it —
+        // to a keyboard user who did nothing but Tab past this control on the
+        // way to Confirm. Enter stays unconditional: that one is an explicit
+        // ask, and reapplying the colour already in force is harmless.
+        if (normalizeHex(e.target.value) !== normalizeHex(value ?? "")) {
+          commit(e.target.value);
+        } else {
+          setDraft(value ?? "");
+        }
       }}
       onKeyDown={(e) => {
         // Enter applies without waiting for blur. Stopped here so it does not

@@ -40,6 +40,14 @@
   outline-offset: 2px;
 }
 
+/* Its partner: the offset ring also has to sit above the buttons after it, and
+   the z-index that puts it there is ignored by a statically positioned element.
+   Scoped to this panel rather than added to the shared .button-basic, whose
+   eight other consumers were not audited for this ticket. */
+#fortune-change-color .button-basic {
+  position: relative;
+}
+
 /* See the matching rule in Toolbar/index.css: the native colour swatch's own
    focus ring is drawn against the colour it is previewing and vanishes on a
    dark one, so it gets an explicit ring offset onto the panel behind it. */
@@ -47,20 +55,6 @@
   outline: var(--border_focus_outer, 3px) solid
     var(--color_border_focus_outer, #0063c3);
   outline-offset: 2px;
-}
-
-#fortune-change-color .fortune-color-hex-input {
-  width: 72px;
-  font-size: 12px;
-  padding: 3px 4px;
-  border: 1px solid rgba(0, 0, 0, 0.35);
-  border-radius: 2px;
-}
-
-#fortune-change-color .fortune-color-hex-input:focus-visible {
-  outline: var(--border_focus_outer, 3px) solid
-    var(--color_border_focus_outer, #0063c3);
-  outline-offset: 1px;
 }
 
 #fortune-change-color .custom-color {
