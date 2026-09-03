@@ -124,4 +124,84 @@ describe("withFocusReturn", () => {
     expect(document.activeElement).not.toBe(document.body);
     expect(document.activeElement).toBe(toolbarButton);
   });
+
+  // `onReturn` is what a caller hooks an announcement onto: the move itself is
+  // silent to a screen reader (WCAG 2.4.3's return is not a navigation, so it
+  // does not touch whatever the caller's own selection-based region reads
+  // from), and this is the one place that knows a return is actually about to
+  // happen rather than having been declined.
+  describe("onReturn", () => {
+    it("fires once, only when focus actually returns", async () => {
+      let sheet = { cells: 1 };
+      const onReturn = jest.fn();
+      const wrapped = withFocusReturn(
+        () => {
+          sheet = { cells: 2 };
+        },
+        () => sheet,
+        () => cellInput,
+        onReturn
+      );
+
+      wrapped();
+      await tick();
+
+      expect(onReturn).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not fire when the command declined", async () => {
+      const sheet = { cells: 1 };
+      const onReturn = jest.fn();
+      const declined = withFocusReturn(
+        () => {},
+        () => sheet,
+        () => cellInput,
+        onReturn
+      );
+
+      declined();
+      await tick();
+
+      expect(onReturn).not.toHaveBeenCalled();
+    });
+
+    it("fires before getTarget, both after the commit", async () => {
+      let sheet = { cells: 1 };
+      const order: string[] = [];
+      const wrapped = withFocusReturn(
+        () => {
+          order.push("command");
+          sheet = { cells: 2 };
+        },
+        () => sheet,
+        () => {
+          order.push("target");
+          return cellInput;
+        },
+        () => order.push("return")
+      );
+
+      wrapped();
+      expect(order).toEqual(["command"]);
+
+      await tick();
+      expect(order).toEqual(["command", "return", "target"]);
+    });
+
+    it("is optional -- omitting it changes nothing", async () => {
+      let sheet = { cells: 1 };
+      const wrapped = withFocusReturn(
+        () => {
+          sheet = { cells: 2 };
+        },
+        () => sheet,
+        () => cellInput
+      );
+
+      wrapped();
+      await tick();
+
+      expect(document.activeElement).toBe(cellInput);
+    });
+  });
 });
