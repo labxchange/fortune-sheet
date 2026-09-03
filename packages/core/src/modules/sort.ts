@@ -115,14 +115,42 @@ export function sortDataRange(
   jfrefreshgrid(ctx, sheetData, [{ row: [str, edr], column: [stc, edc] }]);
 }
 
+/** Why a sort did not happen. */
+export type SortRefusal =
+  | "readOnly"
+  | "noSelection"
+  | "multiRange"
+  | "noData"
+  | "mergedCells";
+
+export type SortOutcome =
+  | { sorted: true }
+  | { sorted: false; reason: SortRefusal };
+
+const refused = (reason: SortRefusal): SortOutcome => ({
+  sorted: false,
+  reason,
+});
+
 /**
- * Sort the current selection. Returns whether the data was actually reordered.
+ * Sort the current selection. Reports whether the data was reordered, and if
+ * not, why.
  *
- * The boolean exists because every one of the bail-outs below is silent — no
- * throw, no alert (the originals are commented out above each `return`). A
- * caller had no way to tell a completed sort from a refused one, so the UI layer
- * announced "Sorted in ascending order." and moved focus to the grid for sorts
- * that never happened; a multi-range selection reproduced it in two clicks.
+ * Every one of the bail-outs below is silent — no throw, no alert (the
+ * originals are commented out above each `return`). A caller had no way to tell
+ * a completed sort from a refused one, so the UI layer announced "Sorted in
+ * ascending order." and moved focus to the grid for sorts that never happened;
+ * a multi-range selection reproduced it in two clicks.
+ *
+ * A *reason* rather than a bare boolean, because a caller that knows only "it
+ * did not sort" can say nothing useful to the user. `sort.noRangeError` and
+ * `sort.mergeError` have been in all six locale files all along — they are the
+ * two commented-out alerts above — so reporting from here is what lets them be
+ * shown again instead of the refusal being silent for sighted users too.
+ *
+ * A shape rather than a nullable reason, deliberately: `if (!outcome.sorted)`
+ * cannot be misread, whereas a truthy-string-means-failure return is exactly
+ * the sort of guard that gets inverted at one of the call sites.
  *
  * These preconditions are properties of this function, not of any one caller,
  * so they are reported from here rather than re-derived at each call site.
@@ -131,12 +159,12 @@ export function sortSelection(
   ctx: Context,
   isAsc: boolean,
   colIndex: number = 0
-): boolean {
+): SortOutcome {
   // if (!checkProtectionAuthorityNormal(ctx.currentSheetIndex, "sort")) {
   //   return;
   // }
-  if (ctx.allowEdit === false) return false;
-  if (ctx.luckysheet_select_save == null) return false;
+  if (ctx.allowEdit === false) return refused("readOnly");
+  if (ctx.luckysheet_select_save == null) return refused("noSelection");
   if (ctx.luckysheet_select_save.length > 1) {
     // if (isEditMode()) {
     //   alert("不能对多重选择区域执行此操作，请选择单个区域，然后再试");
@@ -147,7 +175,7 @@ export function sortSelection(
     //   );
     // }
 
-    return false;
+    return refused("multiRange");
   }
 
   if (isAsc == null) {
@@ -156,7 +184,7 @@ export function sortSelection(
   // const d = editor.deepCopyFlowData(Store.flowdata);
   const flowdata = getFlowdata(ctx);
   const d = flowdata;
-  if (d == null) return false;
+  if (d == null) return refused("noData");
 
   const r1 = ctx.luckysheet_select_save[0].row[0];
   const r2 = ctx.luckysheet_select_save[0].row[1];
@@ -169,7 +197,7 @@ export function sortSelection(
   for (let r = r1; r <= r2; r += 1) {
     if (d[r] != null && d[r][c1] != null) {
       const cell = d[r][c1];
-      if (cell == null) return false; //
+      if (cell == null) return refused("noData"); //
       if (cell.mc != null || isRealNull(cell.v)) {
         continue;
       }
@@ -188,12 +216,13 @@ export function sortSelection(
   }
 
   if (str == null || str > r2) {
-    return false;
+    // Nothing sortable in the key column: every cell empty or merged.
+    return refused("noData");
   }
 
   let hasMc = false; // 排序选区是否有合并单元格
   const data: CellMatrix = [];
-  if (edr == null) return false;
+  if (edr == null) return refused("noData");
   for (let r = str; r <= edr; r += 1) {
     const data_row = [];
     for (let c = c1; c <= c2; c += 1) {
@@ -215,9 +244,9 @@ export function sortSelection(
     //   tooltip.info("选区有合并单元格，无法执行此操作！", "");
     // }
 
-    return false;
+    return refused("mergedCells");
   }
 
   sortDataRange(ctx, d, data, colIndex, isAsc, str, edr, c1, c2);
-  return true;
+  return { sorted: true };
 }

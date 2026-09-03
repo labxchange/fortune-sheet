@@ -291,6 +291,64 @@ describe("Sort modal announces the sort it performed", () => {
       })
     ).toBeUndefined();
   });
+
+  // Gating the announcement on the outcome replaced a false success claim with
+  // silence, which is better but still not feedback: `Confirm` closes the
+  // dialog either way, so the user pressed Sort, the dialog went away and
+  // nothing moved. `sortSelection` now reports *why*, and the two reasons that
+  // have a string in the locale files get an alert.
+  it.each([
+    [
+      "spans multiple ranges",
+      (ctx: any) => {
+        ctx.luckysheet_select_save = [
+          { row: [0, 2], column: [0, 1] },
+          { row: [4, 5], column: [0, 1] },
+        ];
+      },
+      /multiple selection areas/,
+    ],
+    [
+      "contains merged cells",
+      (ctx: any) => {
+        ctx.luckysheetfile = [
+          {
+            id: "sheet-1",
+            name: "Sheet1",
+            data: [
+              [{ v: "Header" }, { v: "B" }],
+              [{ v: "a" }, { v: "b", mc: { r: 1, c: 1, rs: 2, cs: 1 } }],
+              [{ v: "c" }, { v: "", mc: { r: 1, c: 1 } }],
+            ],
+          },
+        ] as any;
+      },
+      /merged cells/,
+    ],
+  ])(
+    "tells the user the sort was refused because it %s",
+    async (_l, tweak, alert) => {
+      confirmSortWith(tweak);
+      // Awaited, because the alert is raised a task after the confirm:
+      // `hideDialog` and `showAlert` share one modal slot, so an alert raised
+      // inline is closed again by the hide. A synchronous `queryByText` here
+      // reads the DOM before the alert exists and would pass for the wrong
+      // reason if the deferral were removed.
+      await waitFor(() => expect(screen.queryByText(alert)).not.toBeNull());
+    }
+  );
+
+  it("does not alert when the sort goes through", async () => {
+    // The other half: an alert on every confirm would be worse than none.
+    confirmSortWith(() => {});
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+    expect(screen.queryByText(/multiple selection areas/)).toBeNull();
+    expect(screen.queryByText(/merged cells/)).toBeNull();
+  });
 });
 
 describe("the Sort modal's announcement reaches the focus it hands back", () => {

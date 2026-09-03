@@ -251,6 +251,56 @@ describe("useEscapeToClose", () => {
       expect(document.activeElement).toBe(getByText("Outside"));
     });
 
+    it("keeps focus where the Tab sent it even if focusin has not fired yet", () => {
+      // Ordering hardening, and worth being precise about what it models.
+      //
+      // The concern raised in review: browsers fire `focusout` and `focusin` as
+      // separate dispatches, React batches a `setState` made from a native
+      // listener onto a microtask, and if the checkpoint *between* the two
+      // dispatches flushed that batch, this effect's cleanup would run while
+      // `focusInsideContainer` was still true — restoring focus to the trigger
+      // and swallowing the Tab.
+      //
+      // Chrome does not do that. Measured directly: `focusout` and `focusin`
+      // dispatch within one task and the first microtask checkpoint comes after
+      // *both*, so the flag is already false by the time React flushes. jsdom
+      // agrees, which is why `moveFocus` above cannot express this case at all.
+      //
+      // So the suppression below forces the ordering rather than reproducing a
+      // real browser's. What it guards is the handler's own invariant: reaching
+      // the close means focus has left, so the flag must say so without waiting
+      // to be told a second time. That makes the outcome the same on a browser
+      // that does interleave them.
+      const { getByText, queryByText } = render(<FocusOutHarness />);
+      // Focused *before* opening, which is what makes this case able to fail.
+      // `fireEvent.click` does not focus, so every other case in this describe
+      // opens the popup with `previousActiveElement` set to `<body>` — and
+      // jsdom's `body.focus()` is a no-op, so the restore they are asserting
+      // about cannot be observed either way. The trigger is a real focusable
+      // element, so a restore here actually moves focus.
+      const trigger = getByText("Trigger");
+      trigger.focus();
+      fireEvent.click(trigger);
+      const first = getByText("First");
+      const outside = getByText("Outside");
+
+      // Focus really enters the popup, so `focusHasBeenInside` arms.
+      first.focus();
+      const swallowFocusIn = (e: Event) => e.stopImmediatePropagation();
+      document.addEventListener("focusin", swallowFocusIn, true);
+      try {
+        outside.focus();
+        fireEvent.focusOut(first, { relatedTarget: outside });
+      } finally {
+        document.removeEventListener("focusin", swallowFocusIn, true);
+      }
+
+      expect(queryByText("First")).toBeNull();
+      expect(document.activeElement).toBe(outside);
+      // Named explicitly: the trigger is where a restore would have sent it.
+      expect(document.activeElement).not.toBe(trigger);
+    });
+
     it("stays open while focus moves within the popup", () => {
       const { getByText, queryByText } = render(<FocusOutHarness />);
       fireEvent.click(getByText("Trigger"));

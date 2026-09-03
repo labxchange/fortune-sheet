@@ -401,6 +401,80 @@ describe("popup dismissal on focus out", () => {
     });
 
     /*
+     * `closeOnFocusOut` is only half of a working popup. The other half is that
+     * `isWithinPopup` can recognise the popup's *trigger* as part of the same
+     * widget, which it does by matching the trigger's `aria-controls` against
+     * the container's `id` — so a popup with no id on the container, or a
+     * trigger with no `aria-controls`, gets dismissed by Shift+Tab onto its own
+     * trigger and then reopened by the Enter that follows.
+     *
+     * Three of the eight were in exactly that state. The cases above cannot see
+     * it: they Tab *forward* to an unrelated element, which closes correctly
+     * either way. These assert the wiring itself, per popup, which is the thing
+     * that was missing rather than the behaviour.
+     */
+    it.each([
+      [
+        "all-sheets list",
+        () => screen.getByRole("button", { name: "All sheets" }),
+        () => document.querySelector<HTMLElement>(".fortune-sheet-list"),
+      ],
+      [
+        "zoom ratio menu",
+        () =>
+          document.querySelector<HTMLElement>(".fortune-zoom-ratio-current")!,
+        () => document.querySelector<HTMLElement>(".fortune-zoom-ratio-menu"),
+      ],
+      [
+        "sheet-tab options menu",
+        () =>
+          document.querySelector<HTMLElement>(
+            ".luckysheet-sheets-item-function"
+          )!,
+        () => document.getElementById("fortune-sheet-tab-options-menu"),
+      ],
+    ])(
+      "ties the %s to the trigger that opens it",
+      (_label, getTrigger, getPopup) => {
+        render(<Workbook lang="en" data={plainSheet} />);
+        const trigger = getTrigger();
+        act(() => {
+          fireEvent.mouseDown(trigger);
+        });
+        const popupEl = getPopup();
+        expect(popupEl).not.toBeNull();
+
+        // Both ends, and the same id: either half alone is silently useless.
+        expect(popupEl!.id).toBeTruthy();
+        expect(trigger.getAttribute("aria-controls")).toBe(popupEl!.id);
+        // And it resolves — an `aria-controls` naming a missing element is its
+        // own defect, and would pass the comparison above just as well.
+        expect(document.getElementById(popupEl!.id)).toBe(popupEl);
+      }
+    );
+
+    it("keeps the all-sheets list open when focus moves to its own trigger", () => {
+      // The behaviour the wiring above buys, on the popup where the loop was
+      // reported: Shift+Tab from the first row onto `#all-sheets` must not
+      // dismiss the list, or the Enter that follows reopens what the user was
+      // trying to close.
+      render(<Workbook lang="en" data={plainSheet} />);
+      const trigger = screen.getByRole("button", { name: "All sheets" });
+      act(() => {
+        fireEvent.mouseDown(trigger);
+      });
+      const list = () =>
+        document.querySelector<HTMLElement>(".fortune-sheet-list");
+      const row = list()!.querySelector<HTMLElement>(
+        '[role="button"], [tabindex="0"]'
+      )!;
+
+      moveFocus(row, trigger);
+
+      expect(list()).not.toBeNull();
+    });
+
+    /*
      * Two of the eight opt-ins are not covered here, deliberately rather than by
      * oversight:
      *

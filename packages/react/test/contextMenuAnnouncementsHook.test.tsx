@@ -38,6 +38,40 @@ const Harness: React.FC<{ request?: Context["contextMenuAnnouncement"] }> = ({
   );
 };
 
+/**
+ * The cell input **outlives** the hook, which is the real topology: `cellInput`
+ * is a workbook-level ref, so `SheetOverlay` unmounting does not take it with
+ * it. A harness that unmounts both together cannot see an attribute left
+ * pointing at a region that is gone.
+ */
+const Region: React.FC<{
+  request?: Context["contextMenuAnnouncement"];
+  cellRef: React.RefObject<HTMLElement | null>;
+}> = ({ request, cellRef }) => {
+  const { regionId, announcement } = useContextMenuAnnouncements(
+    { lang: "en", contextMenuAnnouncement: request } as unknown as Context,
+    cellRef
+  );
+  return (
+    <div id={regionId} role="alert" data-testid="region">
+      {announcement}
+    </div>
+  );
+};
+
+const SplitHarness: React.FC<{
+  request?: Context["contextMenuAnnouncement"];
+  regionMounted?: boolean;
+}> = ({ request, regionMounted = true }) => {
+  const cellRef = React.useRef<HTMLDivElement>(null);
+  return (
+    <>
+      {regionMounted && <Region request={request} cellRef={cellRef} />}
+      <div ref={cellRef} data-testid={CELL} />
+    </>
+  );
+};
+
 const copied = (seq: number) => ({ key: "rightclick.announceCopied", seq });
 
 const region = () => screen.getByTestId("region");
@@ -99,6 +133,36 @@ describe("useContextMenuAnnouncements", () => {
     expect(jest.getTimerCount()).toBe(1);
     unmount();
     expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it("takes the description off the cell input when the region goes away", () => {
+    // Cancelling the timer is not enough on its own, and asserting only the
+    // timer count is what made it look enough. `cellInputRef` is owned by the
+    // workbook, so it survives this hook unmounting inside the 4s window — and
+    // an `aria-describedby` left behind then names an element that no longer
+    // exists. Readers resolve that to nothing, or fall back to the control's
+    // own name; neither is the description this is here to provide.
+    const { rerender } = render(<SplitHarness request={copied(1)} />);
+    const describedBy = cell().getAttribute("aria-describedby");
+    expect(document.getElementById(describedBy!)).not.toBeNull();
+
+    rerender(<SplitHarness request={copied(1)} regionMounted={false} />);
+
+    expect(screen.queryByTestId("region")).toBeNull();
+    expect(cell().getAttribute("aria-describedby")).toBeNull();
+  });
+
+  it("still describes the cell input after a second result", () => {
+    // The guard on the fix above: the cleanup runs on a `seq` change too, so
+    // removing the attribute there must not outlive the next effect body
+    // re-adding it. React's order — cleanup, then the new effect — is what
+    // makes that safe, and this is the case that would catch it inverting.
+    const { rerender } = render(<SplitHarness request={copied(1)} />);
+    rerender(<SplitHarness request={copied(2)} />);
+
+    const describedBy = cell().getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy!)).toBe(region());
   });
 
   it("restarts the window when a second result arrives", () => {

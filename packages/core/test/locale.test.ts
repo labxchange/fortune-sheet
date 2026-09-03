@@ -39,6 +39,15 @@ const announcementStrings = englishStrings(en).filter(([path]) =>
   /(^|\.)announce[A-Z]/.test(path)
 );
 
+/**
+ * The locale files themselves, `en` included.
+ *
+ * Keyed by file name rather than by the locale map's key, because a case that
+ * reads the file is asking about the translation and not about what `locale()`
+ * would serve after merging English underneath it.
+ */
+const LOCALE_FILES: Record<string, unknown> = { en, es, hi, ru, zh, zh_tw };
+
 describe("screen-reader locale coverage", () => {
   // Both walkers above derive their list from `en` rather than a hand-written
   // one, so an empty list would make every case that iterates it vacuously
@@ -50,29 +59,34 @@ describe("screen-reader locale coverage", () => {
     expect(announcementStrings.length).toBeGreaterThan(25);
   });
 
-  LANGS.forEach((lang) => {
-    it(`resolves every result announcement for ${lang}`, () => {
+  it.each(Object.keys(LOCALE_FILES))(
+    "%s translates every result announcement, none of them blank",
+    (lang) => {
       // `announce(key)` is checked against the locale shape by `tsc`, so a
       // *typo* cannot ship. What tsc cannot see is a key that resolves to an
       // empty string: `useContextMenuAnnouncements` treats that the same as an
       // unresolved one and returns early, so the action ships silent — the
       // WCAG 4.1.3 failure the announcements exist to fix, with nothing to
-      // notice at runtime.
+      // notice at runtime. Only 8 of the 31 are asserted end-to-end in the
+      // react suite; the rest need a merged range, a read-only sheet or a
+      // hidden row to reach through the UI.
       //
-      // Only 8 of these are asserted end-to-end anywhere in the react suite:
-      // the rest need a merged range, a read-only sheet or a hidden row to
-      // reach through the UI. This is the guard for the other two thirds, in
-      // all six languages rather than the one the component tests render.
-      const resolved = locale({ lang } as unknown as Context) as any;
+      // Asserted against the raw locale **files**, the way "locale key parity"
+      // below does — not through `locale()`. An earlier version of this case
+      // resolved through `locale()`, and `resolveLang` merges each language
+      // *over* `en`, so every missing key fell back to the English string:
+      // deleting all 31 announcements from `es` left it green. It was one
+      // assertion about `en` repeated six times, and the PR description
+      // claiming it as cross-language coverage was wrong. Reading the files is
+      // what makes the six cases six different questions.
+      const file = LOCALE_FILES[lang] as any;
       announcementStrings.forEach(([path]) => {
-        const value = path
-          .split(".")
-          .reduce((acc, key) => acc?.[key], resolved);
+        const value = path.split(".").reduce((acc, key) => acc?.[key], file);
         expect(typeof value).toBe("string");
         expect(value).not.toBe("");
       });
-    });
-  });
+    }
+  );
 
   // Strings only a screen reader reads are not noticeable by eye when a
   // translation omits one, the locale files are each `@ts-ignore`d in the map so

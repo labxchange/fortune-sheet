@@ -35,6 +35,7 @@ import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
 import { focusAfterCommit } from "../../utils/keyboardActivation";
 import { filterUnchanged } from "../../utils/filterDom";
+import { sortRefusalMessage } from "../../utils/sortRefusal";
 import Divider from "./Divider";
 import "./index.css";
 import Menu from "./Menu";
@@ -137,26 +138,27 @@ const ContextMenu: React.FC = () => {
    *
    * `sortSelection` refuses silently on several preconditions, so both the
    * announcement and — through `commitAndSettle`'s `seq` check — the focus move
-   * are gated on its return value rather than on having reached the line after
-   * it. Selecting two ranges and sorting reproduced the old behaviour in two
+   * are gated on its outcome rather than on having reached the line after it.
+   * Selecting two ranges and sorting reproduced the old behaviour in two
    * clicks: nothing was reordered, "Sorted in ascending order." was announced,
    * and focus moved to the grid on the strength of it.
    *
-   * The multi-range case also gets the `noMulti` alert the Copy row already
-   * gives it. It was previously the worst of both: silent for sighted users,
-   * and actively wrong for screen-reader users.
+   * The refusal is now reported to sighted users too, from the reason
+   * `sortSelection` gives rather than from a duplicated pre-check here. The
+   * pre-check this replaces only knew about multi-range, so a sort refused for
+   * merged cells in the range was silent in both channels — the same gap the
+   * Sort dialog had.
    */
   const sortAndSettle = useCallback(
     (isAsc: boolean) => {
       commitAndSettle((draftCtx) => {
-        if (draftCtx.luckysheet_select_save?.length! > 1) {
-          showAlert(rightclick.noMulti, "ok");
-          draftCtx.contextMenu = {};
+        const outcome = sortSelection(draftCtx, isAsc);
+        draftCtx.contextMenu = {};
+        if (!outcome.sorted) {
+          const message = sortRefusalMessage(draftCtx, outcome.reason);
+          if (message) showAlert(message, "ok");
           return;
         }
-        const sorted = sortSelection(draftCtx, isAsc);
-        draftCtx.contextMenu = {};
-        if (!sorted) return;
         announce(
           draftCtx,
           isAsc
@@ -165,7 +167,7 @@ const ContextMenu: React.FC = () => {
         );
       });
     },
-    [commitAndSettle, rightclick.noMulti, showAlert]
+    [commitAndSettle, showAlert]
   );
 
   /**

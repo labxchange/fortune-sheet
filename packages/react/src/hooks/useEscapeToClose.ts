@@ -191,6 +191,18 @@ export function useEscapeToClose({
       if (!isInside(e.target as Node)) return;
       if (isInside(next)) return;
       if (!focusHasBeenInside) return;
+      // Recorded before closing, so the restore in the cleanup below cannot
+      // depend on whether `focusin` for the new target has been dispatched yet.
+      // It normally has — Chrome fires `focusout` and `focusin` in the same
+      // task and only reaches a microtask checkpoint after both, so React's
+      // batched close (and this effect's cleanup) always run with
+      // `focusInsideContainer` already false. Verified in Chrome rather than
+      // assumed. But the whole point of reaching this line is that focus has
+      // left, so saying so here makes the outcome independent of that ordering
+      // — a browser that did interleave them would otherwise pull focus back to
+      // the trigger and swallow the Tab, reintroducing the 2.4.3 failure that
+      // this 2.4.11 fix is supposed to sit alongside.
+      focusInsideContainer = false;
       onCloseRef.current();
     };
     if (closeOnFocusOut) {

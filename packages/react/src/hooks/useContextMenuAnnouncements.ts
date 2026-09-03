@@ -202,7 +202,21 @@ export function useContextMenuAnnouncements(
       setAnnouncement("");
       cell?.removeAttribute("aria-describedby");
     }, CLEAR_AFTER_MS);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      // The attribute has to come off with the timer, not just when the timer
+      // fires. `cellInputRef` belongs to the workbook, not to this hook, so it
+      // outlives this effect: cancelling the timer and stopping there left the
+      // cell input describing a region that had unmounted — a dangling IDREF,
+      // which readers resolve to nothing or fall through to the element's own
+      // name, on the one control whose description is load-bearing here.
+      //
+      // Safe on the `seq` path too, and the ordering is the reason: React runs
+      // this cleanup before the next effect body, which re-points the attribute
+      // at the same id immediately. Removing then re-adding is also what makes
+      // a repeat announcement a change rather than a no-op.
+      cell?.removeAttribute("aria-describedby");
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seq]);
 

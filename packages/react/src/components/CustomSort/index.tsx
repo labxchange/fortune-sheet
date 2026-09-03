@@ -4,6 +4,7 @@ import {
   indexToColumnChar,
   locale,
   sortSelection,
+  SortRefusal,
 } from "@fortune-sheet/core";
 import React, {
   ChangeEvent,
@@ -16,8 +17,10 @@ import React, {
 import WorkbookContext from "../../context";
 import "./index.css";
 import { useDialog } from "../../hooks/useDialog";
+import { useAlert } from "../../hooks/useAlert";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 import { announce } from "../../hooks/useContextMenuAnnouncements";
+import { sortRefusalMessage } from "../../utils/sortRefusal";
 
 type RadioChangeEvent = React.ChangeEvent<HTMLInputElement>;
 
@@ -66,27 +69,46 @@ const CustomSort: React.FC<Props> = ({ titleId }) => {
   const [isTitleChange, setIstitleChange] = useState(false);
   const { sort } = locale(context);
   const { hideDialog } = useDialog();
+  const { showAlert } = useAlert();
+
+  /**
+   * Why the last confirm refused, for the alert below.
+   *
+   * A ref rather than a local, because the recipe passed to `setContext` runs
+   * during reconcile — anything assigned in it is not readable on the line
+   * after the `setContext` call.
+   */
+  const refusalRef = React.useRef<SortRefusal | null>(null);
 
   const handleSortConfirm = useCallback(() => {
+    refusalRef.current = null;
     setContext((draftCtx: Context) => {
       // The sort itself was silent. Opening this dialog announces the dialog,
       // and closing it returns focus to the grid — but nothing ever said the
       // data had been reordered, which is the one thing that actually changed
       // (WCAG 4.1.3). Reuses the results the menu's own sort rows announce.
       //
-      // Gated on `sortSelection`'s return for the same reason those rows are:
+      // Gated on `sortSelection`'s outcome for the same reason those rows are:
       // it refuses silently on read-only, a null or multi-range selection, an
       // empty column and merged cells in the range. The `sort` row that opens
       // this dialog does not itself gate on multi-range, so an unguarded
       // announce here gave the full success choreography — message, dialog
       // close, focus restore — to a confirm that reordered nothing.
-      const sorted = sortSelection(
+      //
+      // Gating alone replaced a false claim with silence, though, and `Confirm`
+      // closes the dialog either way: the user pressed Sort, the dialog went
+      // away and nothing moved, with no message in either channel. So the
+      // refusal reason is reported through the same alert the menu rows use.
+      const outcome = sortSelection(
         draftCtx,
         ascOrDesc,
         parseInt(selectedValue, 10)
       );
       draftCtx.contextMenu = {};
-      if (!sorted) return;
+      if (!outcome.sorted) {
+        refusalRef.current = outcome.reason;
+        return;
+      }
       announce(
         draftCtx,
         ascOrDesc
@@ -95,7 +117,23 @@ const CustomSort: React.FC<Props> = ({ titleId }) => {
       );
     });
     hideDialog();
-  }, [ascOrDesc, hideDialog, selectedValue, setContext]);
+    // Deferred, and not showable from inside the recipe the way the cell
+    // menu's sort rows do it. `hideDialog` and `showAlert` are the same modal
+    // slot — `useDialog` and `useAlert` both go through `ModalContext` — so an
+    // alert raised before the `hideDialog()` above is immediately closed by it.
+    // The menu rows have no such conflict because nothing is being hidden.
+    //
+    // A macrotask, matching `focusAfterCommit`: the recipe has not run yet when
+    // this line executes, so `refusalRef` is only readable after the commit.
+    // Landing after `Dialog`'s own focus restore is also right — the alert is
+    // the thing to read, so it should take focus last.
+    setTimeout(() => {
+      if (refusalRef.current == null) return;
+      const message = sortRefusalMessage(context, refusalRef.current);
+      refusalRef.current = null;
+      if (message) showAlert(message, "ok");
+    });
+  }, [ascOrDesc, context, hideDialog, selectedValue, setContext, showAlert]);
 
   const col_start = context.luckysheet_select_save![0].column[0];
   const col_end = context.luckysheet_select_save![0].column[1];

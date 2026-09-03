@@ -9,11 +9,21 @@ import React from "react";
  * arriving on it dismisses the menu and the press that follows reopens it.
  *
  * Matched through `aria-controls`/`aria-owns` rather than a `triggerRef`
- * because three of these triggers live in a *different component* from the
- * popup they open — the sheet-tab caret, the filter funnel and the all-sheets
- * button all sit outside the menus they own, with no shared ref to pass. The
- * relationship is already declared there for screen readers; this makes the
- * dismissal logic agree with what the accessibility tree was already told.
+ * because these triggers live in a *different component* from the popup they
+ * open — the sheet-tab caret, the filter funnel, the all-sheets button, the
+ * zoom readout and the toolbar's More button all sit outside the menus they
+ * own, with no shared ref to pass. Declaring the relationship for screen
+ * readers is what makes the dismissal logic able to agree with it.
+ *
+ * Which means the match is only as good as the wiring, and the wiring is not
+ * optional: `popupId` is `containerRef.current?.id`, so a popup whose
+ * container has no id — or a trigger with no `aria-controls` — can never be
+ * recognised, and with `closeOnFocusOut` on it gets exactly the loop described
+ * above. Three of the eight opt-ins were in that state: the sheet list, the
+ * zoom menu and the toolbar's More container. All three now carry a module id
+ * constant on the container plus `aria-controls` on the trigger, matching what
+ * the sheet-tab menu and the filter menu already did. Anything opting in later
+ * needs both, and `popupFocusOutDismissal.test.tsx` asserts it for each.
  */
 function controlsPopup(node: Node, popupId?: string): boolean {
   if (!popupId) return false;
