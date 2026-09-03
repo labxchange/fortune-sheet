@@ -147,6 +147,28 @@ describe("toolbar actions announce what they did", () => {
     });
   };
 
+  /**
+   * Opens the toolbar's only combo and activates one of its rows. Opened from
+   * the arrow rather than the main button, because a combo whose main button
+   * carries its own action (border applies all borders) leaves the arrow as
+   * the only route to the popup.
+   */
+  const pickFromCombo = (container: HTMLElement, label: string) => {
+    act(() => {
+      fireEvent.mouseDown(
+        container.querySelector<HTMLElement>(".fortune-toolbar-combo-arrow")!
+      );
+    });
+    const option = within(
+      container.querySelector<HTMLElement>(".fortune-toolbar-combo-popup")!
+    )
+      .getByText(label)
+      .closest('[role="button"]') as HTMLElement;
+    act(() => {
+      fireEvent.click(option);
+    });
+  };
+
   it("reports the state a toggle produced, both ways", async () => {
     const { container, getByRole, ref } = renderSheet({
       toolbarItems: ["bold"],
@@ -292,6 +314,265 @@ describe("toolbar actions announce what they did", () => {
     expect(announcement(container)).toContain("Text wrap: Wrap.");
   });
 
+  it("reports a merge as a merge and the same press again as a split", async () => {
+    // Every row of this combo is a toggle: mergeCells un-merges whenever the
+    // selection already holds a merged cell. Naming the row that was pressed
+    // said "Cells merged." while the sheet had just split them.
+    const { container, getByRole, ref } = renderSheet({
+      toolbarItems: ["merge-cell"],
+    });
+    act(() => {
+      ref.current?.setSelection([{ row: [0, 1], column: [0, 0] }]);
+    });
+
+    clickToolbarButton(getByRole, "Merge cells");
+    await flush();
+    expect(announcement(container)).toContain("Cells merged.");
+
+    clickToolbarButton(getByRole, "Merge cells");
+    await flush();
+    expect(announcement(container)).toContain("Cells unmerged.");
+  });
+
+  it("reports Merge all over merged cells as the split it performs", async () => {
+    // The same toggle reached from the popup, where the row's own label is the
+    // most misleading thing the announcement could have repeated.
+    const { container, getByRole, ref } = renderSheet({
+      toolbarItems: ["merge-cell"],
+    });
+    act(() => {
+      ref.current?.setSelection([{ row: [0, 1], column: [0, 0] }]);
+    });
+
+    clickToolbarButton(getByRole, "Merge cells");
+    await flush();
+
+    pickFromCombo(container, "Merge all");
+    await flush();
+
+    expect(announcement(container)).toContain("Cells unmerged.");
+  });
+
+  it("says what to do when the selection is a single cell", async () => {
+    // `mergeCells` skips a single-cell range outright, and a sheet mounts with
+    // exactly one cell selected — so this is the most likely press of the
+    // button, and it moved nothing, repainted nothing and (until this) said
+    // nothing. Reported as broken: "the merge button is neither clickable nor
+    // operable by keyboard". Both were fine; the silence was the defect.
+    const { container, getByRole, ref } = renderSheet({
+      toolbarItems: ["merge-cell"],
+    });
+    selectA1(ref);
+
+    clickToolbarButton(getByRole, "Merge cells");
+    await flush();
+
+    expect(announcement(container)).toContain(
+      "Select two or more cells to merge."
+    );
+  });
+
+  it("says why merge does nothing on a read-only row", async () => {
+    // The ending that was actually reported: a range dragged across the Basic
+    // story's `rowReadOnly` rows. `isAllowEdit` fails, `handleMerge` returns
+    // before touching the sheet, and nothing on screen marks those rows — so
+    // the button looked broken rather than declined.
+    const { container, getByRole, ref } = renderSheet({
+      toolbarItems: ["merge-cell"],
+      data: [
+        {
+          name: "Sheet1",
+          id: "s1",
+          celldata,
+          row: 10,
+          column: 6,
+          config: { rowReadOnly: { 0: 1, 1: 1 } },
+        },
+      ],
+    });
+    act(() => {
+      ref.current?.setSelection([{ row: [0, 1], column: [0, 0] }]);
+    });
+
+    clickToolbarButton(getByRole, "Merge cells");
+    await flush();
+
+    expect(announcement(container)).toContain(
+      "Cannot perform this operation in read-only mode"
+    );
+  });
+
+  it("says the selection holds nothing merged when asked to unmerge", async () => {
+    // The same dead end from the other direction: a range wide enough to act
+    // on, with no merged cell in it for merge-cancel to undo.
+    const { container, ref } = renderSheet({
+      toolbarItems: ["merge-cell"],
+    });
+    act(() => {
+      ref.current?.setSelection([{ row: [0, 1], column: [0, 0] }]);
+    });
+
+    pickFromCombo(container, "Unmerge");
+    await flush();
+
+    expect(announcement(container)).toContain(
+      "No merged cells in the selection."
+    );
+  });
+
+  it("announces the size chosen for the font", async () => {
+    const { container, ref } = renderSheet({ toolbarItems: ["font-size"] });
+    selectA1(ref);
+
+    pickFromCombo(container, "14");
+    await flush();
+
+    expect(announcement(container)).toContain("Font size: 14.");
+  });
+
+  it("announces a size the cell already carried, not only a change", async () => {
+    // A size is a value picked from a list, not a toggle. Choosing 14 on a cell
+    // that is already 14 is a request that succeeded, so gating it on the cell
+    // changing would leave the control announcing itself only intermittently —
+    // which reads as a broken control rather than as a deliberate silence.
+    const { container, ref } = renderSheet({ toolbarItems: ["font-size"] });
+    selectA1(ref);
+
+    pickFromCombo(container, "14");
+    await flush();
+    const first = announcement(container);
+
+    pickFromCombo(container, "14");
+    await flush();
+    const second = announcement(container);
+
+    expect(first).toContain("Font size: 14.");
+    expect(second).toContain("Font size: 14.");
+    // Same words, a different text node, or the region would say nothing.
+    expect(second).not.toBe(first);
+  });
+
+  it("says nothing about a size the sheet refused to apply", async () => {
+    // The other half of that contract: not gating on a change must not turn the
+    // announcement into a report of the request. updateFormat returns before
+    // writing anything on a read-only sheet.
+    const { container, ref } = renderSheet({
+      toolbarItems: ["font-size"],
+      allowEdit: false,
+    });
+    selectA1(ref);
+
+    pickFromCombo(container, "14");
+    await flush();
+
+    expect(announcement(container)).toBe("");
+  });
+
+  it("announces the border that was applied", async () => {
+    // handleBorder appends to config.borderInfo and writes nothing to the cell,
+    // so the anchor fingerprint the other actions share reports every border as
+    // a no-op. Pressing the main button applies all borders without opening the
+    // popup, which is the route with the least feedback of any.
+    const { container, getByRole, ref } = renderSheet({
+      toolbarItems: ["border"],
+    });
+    selectA1(ref);
+
+    clickToolbarButton(getByRole, "Border");
+    await flush();
+
+    expect(announcement(container)).toContain("Border: All borders.");
+  });
+
+  it("reports removing borders as a removal, not as a border called None", async () => {
+    const { container, ref } = renderSheet({ toolbarItems: ["border"] });
+    selectA1(ref);
+
+    pickFromCombo(container, "No border");
+    await flush();
+
+    expect(announcement(container)).toContain("Borders removed.");
+  });
+
+  it("says nothing when the sheet refused the border", async () => {
+    const { container, getByRole, ref } = renderSheet({
+      toolbarItems: ["border"],
+      allowEdit: false,
+    });
+    selectA1(ref);
+
+    clickToolbarButton(getByRole, "Border");
+    await flush();
+
+    expect(announcement(container)).toBe("");
+  });
+
+  it("announces a sort from the Sort and filter menu", async () => {
+    // The one action in that menu with no state to watch: sortSelection has
+    // five silent refusals, so it reports whether it sorted instead.
+    const { container, ref } = renderSheet({ toolbarItems: ["filter"] });
+    act(() => {
+      ref.current?.setSelection([{ row: [0, 1], column: [0, 0] }]);
+    });
+
+    pickFromCombo(container, "Ascending");
+    await flush();
+
+    expect(announcement(container)).toContain("Ascending sort applied.");
+  });
+
+  it("distinguishes a descending sort from an ascending one", async () => {
+    const { container, ref } = renderSheet({ toolbarItems: ["filter"] });
+    act(() => {
+      ref.current?.setSelection([{ row: [0, 1], column: [0, 0] }]);
+    });
+
+    pickFromCombo(container, "Descending");
+    await flush();
+
+    expect(announcement(container)).toContain("Descending sort applied.");
+  });
+
+  it("announces a sort that reordered nothing, having already been sorted", async () => {
+    // Sorting the same way twice is a success that changes no data, so nothing
+    // a fingerprint could watch moves. Reporting it as silence would make the
+    // control answer only every other press.
+    const { container, ref } = renderSheet({ toolbarItems: ["filter"] });
+    act(() => {
+      ref.current?.setSelection([{ row: [0, 1], column: [0, 0] }]);
+    });
+
+    pickFromCombo(container, "Ascending");
+    await flush();
+    const first = announcement(container);
+
+    pickFromCombo(container, "Ascending");
+    await flush();
+    const second = announcement(container);
+
+    expect(first).toContain("Ascending sort applied.");
+    expect(second).toContain("Ascending sort applied.");
+    expect(second).not.toBe(first);
+  });
+
+  it("says nothing when the sort was refused", async () => {
+    // A read-only sheet is the first of sortSelection's five refusals, and all
+    // five are silent — which is why announcing on the click rather than on the
+    // outcome would report sorts that never happened.
+    const { container, ref } = renderSheet({
+      toolbarItems: ["filter"],
+      allowEdit: false,
+    });
+    act(() => {
+      ref.current?.setSelection([{ row: [0, 1], column: [0, 0] }]);
+    });
+
+    pickFromCombo(container, "Ascending");
+    await flush();
+
+    expect(announcement(container)).toBe("");
+  });
+
   it("announces the border colour, the third colour popup in the toolbar", async () => {
     // CustomColor has three call sites, not two: font colour, background
     // colour, and this one inside CustomBorder. The keyboard and naming fixes
@@ -407,10 +688,11 @@ describe("toolbar actions announce what they did", () => {
     expect(announcement(container)).toContain("Redone.");
   });
 
-  it("announces politely, so it waits behind whatever the grid is saying", () => {
+  it("announces assertively, so the button's own hint cannot swallow it", () => {
     const { container } = renderSheet();
     const region = container.querySelector("#sr-toolbar")!;
-    expect(region.getAttribute("role")).toBe("status");
+    expect(region.getAttribute("role")).toBe("alert");
+    expect(region.getAttribute("aria-atomic")).toBe("true");
     expect(region.classList.contains("sr-only")).toBe(true);
   });
 });

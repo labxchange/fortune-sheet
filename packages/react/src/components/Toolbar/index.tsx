@@ -39,7 +39,7 @@ import {
   OPEN_SHORTCUTS_KEYS,
   replaceHtml,
 } from "@fortune-sheet/core";
-import type { Context } from "@fortune-sheet/core";
+import type { Context, MergeOutcome } from "@fortune-sheet/core";
 import _ from "lodash";
 import WorkbookContext from "../../context";
 import "./index.css";
@@ -54,6 +54,8 @@ import { useDialog } from "../../hooks/useDialog";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
 import {
+  anchorCell,
+  borderFingerprint,
   clearFormatFingerprint,
   useToolbarAnnouncements,
 } from "../../hooks/useToolbarAnnouncements";
@@ -221,9 +223,10 @@ const Toolbar: React.FC<{
     findAndReplace,
     comment,
     fontarray,
+    generalDialog,
   } = locale(context);
   const toolbarFormat = locale(context).format;
-  const { announcement, announceAfterCommit, announceNow } =
+  const { announcement, announceAfterCommit, announceOutcome, announceNow } =
     useToolbarAnnouncements(contextRef);
 
   /**
@@ -234,11 +237,7 @@ const Toolbar: React.FC<{
    */
   const toolbarActionPhrase = useCallback(
     (name: string, ctx: Context): string => {
-      const selection = ctx.luckysheet_select_save?.[0];
-      const data = getFlowdata(ctx);
-      const r = selection?.row_focus;
-      const c = selection?.column_focus;
-      const target = data && r != null && c != null ? data[r]?.[c] : undefined;
+      const target = anchorCell(ctx);
       switch (name) {
         case "bold":
           return target?.bl === 1 ? info.toolbarBoldOn : info.toolbarBoldOff;
@@ -543,6 +542,25 @@ const Toolbar: React.FC<{
                   <Option
                     key={num}
                     onClick={() => {
+                      // A size picked from a list is a value, not a toggle, so
+                      // it is confirmed by reading the size the anchor ended up
+                      // with rather than by watching for a change: picking the
+                      // size a cell already has is a request that succeeded and
+                      // has to say so, while a sheet that refused the write —
+                      // read-only, or a selection nothing was written to — has
+                      // nothing to confirm and stays silent.
+                      announceOutcome((ctx) => {
+                        const target = anchorCell(ctx);
+                        if (target == null) return "";
+                        const applied = normalizedCellAttr(
+                          target,
+                          "fs",
+                          ctx.defaultFontSize
+                        );
+                        return `${applied}` === `${num}`
+                          ? replaceHtml(info.toolbarFontSizeSet, { size: num })
+                          : "";
+                      });
                       setContext((draftContext) =>
                         handleTextSize(
                           draftContext,
@@ -1182,17 +1200,66 @@ const Toolbar: React.FC<{
           { text: merge.mergeH, value: "merge-horizontal" },
           { text: merge.mergeCancel, value: "merge-cancel" },
         ];
+        /**
+         * Read off the committed anchor rather than from the row that was
+         * pressed, because every one of these rows is a toggle: `mergeCells`
+         * un-merges whenever the selection already holds a merged cell, so
+         * "Merge all" on merged cells splits them. Naming the request said
+         * "Cells merged." while the sheet had just unmerged them — a false
+         * report of the one thing the region exists to convey. `mc` on the
+         * anchor is the state the action actually produced, and it is set on
+         * every cell of a merge and removed from every cell of a split, so the
+         * anchor answers for the selection whichever row was used.
+         */
+        const mergePhrase = (ctx: Context) =>
+          anchorCell(ctx)?.mc != null
+            ? info.toolbarCellsMerged
+            : info.toolbarCellsUnmerged;
+        /**
+         * The refusals have to be spoken, not merely not-lied-about. A sheet
+         * mounts with one cell selected and `mergeCells` skips any range that
+         * is a single cell, so the most likely press of this button did
+         * nothing whatsoever — no repaint, no message — and read as a dead
+         * control to mouse and keyboard alike. `handleMerge` now says which
+         * ending it reached; only the ones the user can act on get words.
+         */
+        const mergeAndAnnounce = (type: string) => {
+          const outcome = { result: "refused" as MergeOutcome };
+          setContext((ctx) => {
+            outcome.result = handleMerge(ctx, type);
+          });
+          announceOutcome((ctx) => {
+            switch (outcome.result) {
+              case "changed":
+                return mergePhrase(ctx);
+              case "singleCell":
+                return info.toolbarMergeNeedsRange;
+              // `isAllowEdit` fails on a read-only row, and this bails before
+              // any of the merge logic — the ending reached by a selection
+              // inside `config.rowReadOnly`, which nothing on screen marks.
+              // The same string the right-click menu shows in a dialog.
+              case "readOnly":
+                return generalDialog.readOnlyError;
+              // This locale's own wording for both, already translated
+              // everywhere: they are the strings behind the two alerts
+              // `handleMerge` has kept commented out.
+              case "overlap":
+                return merge.overlappingError;
+              case "partMerge":
+                return merge.partiallyError;
+              case "nothingMerged":
+                return info.toolbarMergeNothingMerged;
+              default:
+                return "";
+            }
+          });
+        };
         return (
           <Combo
             iconId="merge-all"
             key={name}
             tooltip={tooltip}
-            onClick={() => {
-              announceAfterCommit(() => info.toolbarCellsMerged);
-              setContext((ctx) => {
-                handleMerge(ctx, "merge-all");
-              });
-            }}
+            onClick={() => mergeAndAnnounce("merge-all")}
           >
             {(setOpen) => (
               <Select>
@@ -1200,14 +1267,7 @@ const Toolbar: React.FC<{
                   <Option
                     key={value}
                     onClick={() => {
-                      announceAfterCommit(() =>
-                        value === "merge-cancel"
-                          ? info.toolbarCellsUnmerged
-                          : info.toolbarCellsMerged
-                      );
-                      setContext((ctx) => {
-                        handleMerge(ctx, value);
-                      });
+                      mergeAndAnnounce(value);
                       setOpen(false);
                     }}
                   >
@@ -1272,16 +1332,30 @@ const Toolbar: React.FC<{
           },
           { text: "", value: "divider" },
         ];
+        // Applying a border was the one action in this popup with no feedback
+        // at all: it writes to config.borderInfo rather than to a cell, so the
+        // anchor fingerprint the other actions share cannot see it and the only
+        // confirmation was the canvas repainting. Named from the row that was
+        // activated, so what is spoken is the label that was read.
+        const announceBorder = (value: string, text: string) =>
+          announceAfterCommit(
+            () =>
+              value === "border-none"
+                ? info.toolbarBorderCleared
+                : replaceHtml(info.toolbarBorderSet, { border: text }),
+            borderFingerprint
+          );
         return (
           <Combo
             iconId="border-all"
             key={name}
             tooltip={tooltip}
-            onClick={() =>
+            onClick={() => {
+              announceBorder("border-all", border.borderAll);
               setContext((ctx) => {
                 handleBorder(ctx, "border-all", customColor, customStyle);
-              })
-            }
+              });
+            }}
           >
             {(setOpen) => (
               <Select>
@@ -1290,6 +1364,7 @@ const Toolbar: React.FC<{
                     <Option
                       key={value}
                       onClick={() => {
+                        announceBorder(value, text);
                         setContext((ctx) => {
                           handleBorder(ctx, value, customColor, customStyle);
                         });
@@ -1513,26 +1588,45 @@ const Toolbar: React.FC<{
         );
       }
       if (name === "filter") {
+        /**
+         * Sorting the selection reorders rows behind a popup that is closing,
+         * so the canvas repaint was the only feedback it ever gave. Unlike the
+         * other actions here it cannot be confirmed by watching state: it has
+         * five silent refusals (read-only, no selection, a multi-range
+         * selection, a column with nothing in it, a merged cell) and, when it
+         * does run, sorting an already-sorted range is a success that changes
+         * nothing — so a change-gated announcement would be wrong in both
+         * directions. `sortSelection` reports whether it sorted instead, and
+         * that answer is read a task later, once the commit has landed.
+         *
+         * The phrase is the funnel menu's, deliberately: two controls, one
+         * concept, and a user who meets both should not have to learn that
+         * they are different.
+         */
+        const sortAndAnnounce = (asc: boolean) => {
+          const outcome = { sorted: false };
+          setContext((ctx) => {
+            outcome.sorted = handleSort(ctx, asc);
+          });
+          announceOutcome(() => {
+            if (!outcome.sorted) return "";
+            return asc
+              ? filter.filterSortAscAnnouncement
+              : filter.filterSortDescAnnouncement;
+          });
+        };
         const items = [
           {
             iconId: "sort-asc",
             value: "sort-asc",
             text: sort.asc,
-            onClick: () => {
-              setContext((ctx) => {
-                handleSort(ctx, true);
-              });
-            },
+            onClick: () => sortAndAnnounce(true),
           },
           {
             iconId: "sort-desc",
             value: "sort-desc",
             text: sort.desc,
-            onClick: () => {
-              setContext((ctx) => {
-                handleSort(ctx, false);
-              });
-            },
+            onClick: () => sortAndAnnounce(false),
           },
           // { iconId: "sort", value: "sort", text: sort.custom },
           { iconId: "", value: "divider" },
@@ -1636,6 +1730,7 @@ const Toolbar: React.FC<{
       toolbar,
       info,
       announceAfterCommit,
+      announceOutcome,
       announceNow,
       toolbarActionPhrase,
       cell,
@@ -1652,6 +1747,7 @@ const Toolbar: React.FC<{
       showDialog,
       hideDialog,
       merge,
+      generalDialog,
       border,
       freezen,
       screenshot,
@@ -1727,10 +1823,18 @@ const Toolbar: React.FC<{
         ) : null}
       </div>
       {/* Confirmation for the toolbar actions whose only other feedback is the
-          canvas repainting. Polite rather than assertive: it follows a
-          deliberate press, so it can wait its turn behind whatever the grid is
-          already saying. */}
-      <div id="sr-toolbar" className="sr-only" role="status">
+          canvas repainting.
+
+          Assertive, for the same reason the filter menu's region is: activating
+          a toolbar button leaves VoiceOver in the middle of its "You are
+          currently on a button..." hint, and a polite update is dropped rather
+          than queued while other speech is in progress — so a polite region
+          here is correct in the DOM, green in jest, and never spoken. The hint
+          is boilerplate; the result of the press is not.
+
+          aria-atomic keeps the message whole rather than announcing only the
+          words that differ from the last one. */}
+      <div id="sr-toolbar" className="sr-only" role="alert" aria-atomic="true">
         {announcement}
       </div>
     </header>

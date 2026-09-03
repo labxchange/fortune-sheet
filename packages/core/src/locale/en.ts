@@ -11112,7 +11112,13 @@ export default {
     toolbarRedone: "Redone.",
     toolbarCellsMerged: "Cells merged.",
     toolbarCellsUnmerged: "Cells unmerged.",
+    // A single-cell selection is what a sheet mounts with, and merging one
+    // cell is a no-op — so on its most likely press the button said nothing
+    // and read as broken. Says what to do rather than that it declined.
+    toolbarMergeNeedsRange: "Select two or more cells to merge.",
+    toolbarMergeNothingMerged: "No merged cells in the selection.",
     toolbarTextWrapSet: "Text wrap: ${mode}.",
+    toolbarFontSizeSet: "Font size: ${size}.",
     toolbarFilterOn: "Filter on.",
     toolbarFilterOff: "Filter off.",
     // Applying a colour changes only pixels, so nothing else reaches a live
@@ -11124,6 +11130,12 @@ export default {
     // Reuses border.borderColor, the phrase this locale already uses for the
     // control, so the announcement matches the label the user saw.
     toolbarBorderColorSet: "Border color: ${color}.",
+    // Applying a border writes to config.borderInfo rather than to the cell,
+    // so the anchor-cell fingerprint the other actions share cannot see it and
+    // the only feedback was the canvas repainting. Named from the row the user
+    // activated, so the phrase matches the label they read.
+    toolbarBorderSet: "Border: ${border}.",
+    toolbarBorderCleared: "Borders removed.",
     // Names the typed-colour field that sits beside the native colour swatch.
     // That swatch opens the browser's own picker, which in Chrome is
     // pointer-only, so this field is the keyboard route to an arbitrary colour
@@ -11672,6 +11684,8 @@ export default {
     filterValueByAllAnnouncement: "All filter options selected.",
     filterValueByClearAnnouncement: "All filter options cleared.",
     filterValueByInverseAnnouncement: "Filter selections inverted.",
+    filterSortAscAnnouncement: "Ascending sort applied.",
+    filterSortDescAnnouncement: "Descending sort applied.",
     filterValueBySelectedCountAnnouncement:
       "${selected} of ${total} options now selected.",
     filterValueByTip: "filter By Values",

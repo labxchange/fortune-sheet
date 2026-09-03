@@ -5,6 +5,21 @@ import { Cell, Context, getFlowdata } from "@fortune-sheet/core";
 import { markAsRepeat } from "../utils/liveRegion";
 
 /**
+ * The cell a toolbar action is anchored on: the one holding the selection's
+ * focus. Shared by the fingerprints below and by the phrases that report what
+ * an action produced, so all three ask the same question of the same cell.
+ */
+export function anchorCell(ctx: Context): Cell | undefined | null {
+  const selection = ctx.luckysheet_select_save?.[0];
+  const flowdata = getFlowdata(ctx);
+  const row = selection?.row_focus;
+  const column = selection?.column_focus;
+  return flowdata && row != null && column != null
+    ? flowdata[row]?.[column]
+    : undefined;
+}
+
+/**
  * What a toolbar action is capable of changing, as one comparable value.
  *
  * Deliberately narrow. A toolbar button acts on the selection, so the focused
@@ -15,27 +30,34 @@ import { markAsRepeat } from "../utils/liveRegion";
  * exactly what they can change. The two exceptions are state rather than data —
  * the paint model, and the filter range — so they are carried alongside.
  *
- * **Clear format is not one of them** and must not use this: it rewrites every
- * cell of every selection and rebuilds the border list, none of which the anchor
- * can see. It has its own fingerprint below.
+ * **Clear format and applying a border are not among them** and must not use
+ * this: one rewrites every cell of every selection and rebuilds the border
+ * list, the other writes only to that list — none of which the anchor can see.
+ * Each has its own fingerprint below.
  */
 function actionFingerprint(ctx: Context): {
   cell: Cell | undefined | null;
   paintModelOn: boolean;
   filterRange: unknown;
 } {
-  const selection = ctx.luckysheet_select_save?.[0];
-  const flowdata = getFlowdata(ctx);
-  const row = selection?.row_focus;
-  const column = selection?.column_focus;
   return {
-    cell:
-      flowdata && row != null && column != null
-        ? flowdata[row]?.[column]
-        : undefined,
+    cell: anchorCell(ctx),
     paintModelOn: ctx.luckysheetPaintModelOn === true,
     filterRange: ctx.luckysheet_filter_save,
   };
+}
+
+/**
+ * What *applying a border* is capable of changing.
+ *
+ * `handleBorder` writes nothing to the cell: it appends to `config.borderInfo`,
+ * a sheet-level list the anchor cell cannot see. So the anchor fingerprint
+ * above would report every border as a no-op. Its only refusal is a read-only
+ * sheet, which returns before the append, so the list moving is exactly the
+ * question "did the border land".
+ */
+export function borderFingerprint(ctx: Context): unknown {
+  return ctx.config?.borderInfo;
 }
 
 /** The keys `handleClearFormat` keeps; everything else on a cell is formatting
@@ -144,6 +166,30 @@ export function useToolbarAnnouncements(
   );
 
   /**
+   * For an action that *sets* a value rather than flipping one — a size, a
+   * format, an alignment picked from a list.
+   *
+   * `announceAfterCommit` is wrong for these. It speaks only when something
+   * moved, which is the right question for a toggle (a toggle that changed
+   * nothing was refused) and the wrong one for a picker: choosing 12pt on a
+   * cell that is already 12pt is a request that succeeded, and reporting it as
+   * silence would make the control announce itself only intermittently. So the
+   * phrase is asked instead to read the committed state and confirm the value
+   * it wanted is the value now there — which stays silent for the refusals
+   * that matter (a read-only sheet, a selection nothing was written to)
+   * without treating "already correct" as one of them.
+   */
+  const announceOutcome = useCallback(
+    (getPhrase: (ctx: Context) => string) => {
+      setTimeout(() => {
+        const phrase = getPhrase(contextRef.current);
+        if (phrase) announce(phrase);
+      });
+    },
+    [contextRef, announce]
+  );
+
+  /**
    * For an action whose effect the fingerprint cannot see. Undo and redo are
    * the whole of it: they restore arbitrary state — a row height, a sheet
    * rename — that need not touch the focused cell, and their buttons are
@@ -157,7 +203,7 @@ export function useToolbarAnnouncements(
     [announce]
   );
 
-  return { announcement, announceAfterCommit, announceNow };
+  return { announcement, announceAfterCommit, announceOutcome, announceNow };
 }
 
 export default useToolbarAnnouncements;

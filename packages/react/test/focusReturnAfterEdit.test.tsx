@@ -66,6 +66,15 @@ describe("Cell identity and focus when an edit ends", () => {
       expect(cellInput.getAttribute("aria-label")).toBe("A. 1");
     });
 
+    it("carries a role, so the name is not discarded", async () => {
+      // aria-label is prohibited on a role-less div, so without this the name
+      // above never reaches the accessibility tree (axe: aria-prohibited-attr).
+      const { cellInput } = setup();
+      await tick();
+
+      expect(cellInput.getAttribute("role")).toBe("textbox");
+    });
+
     it("follows the selection", async () => {
       const { cellInput } = setup();
       await tick();
@@ -127,6 +136,25 @@ describe("Cell identity and focus when an edit ends", () => {
       await tick();
 
       expect(document.activeElement).toBe(cellInput);
+    });
+
+    it("restores focus without scrolling the page to it", async () => {
+      // The cell input is parked at left: -10000 whenever it has no selection to
+      // sit on, so a plain focus() lets the browser scroll the nearest
+      // scrollable ancestor to reveal it — dragging an embedder's layout
+      // sideways on what should be a no-op restore.
+      const { cellInput, fxInput } = setup();
+      await startEditing(cellInput);
+
+      fxInput.focus();
+      await tick();
+      const focusSpy = jest.spyOn(cellInput, "focus");
+
+      fireEvent.keyDown(fxInput, { key: "Enter", keyCode: 13 });
+      await tick();
+
+      expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
+      focusSpy.mockRestore();
     });
 
     it("leaves focus alone for a key that does not end the edit", async () => {

@@ -12979,12 +12979,17 @@ export default {
     toolbarRedone: "Возвращено.",
     toolbarCellsMerged: "Ячейки объединены.",
     toolbarCellsUnmerged: "Объединение ячеек отменено.",
+    toolbarMergeNeedsRange: "Выберите две или более ячейки для объединения.",
+    toolbarMergeNothingMerged: "В выделении нет объединённых ячеек.",
     toolbarTextWrapSet: "Перенос текста: ${mode}.",
+    toolbarFontSizeSet: "Размер шрифта: ${size}.",
     toolbarFilterOn: "Фильтр включён.",
     toolbarFilterOff: "Фильтр выключен.",
     toolbarFontColorSet: "Цвет текста: ${color}.",
     toolbarBackgroundColorSet: "Цвет ячейки: ${color}.",
     toolbarBorderColorSet: "Цвет границы: ${color}.",
+    toolbarBorderSet: "Граница: ${border}.",
+    toolbarBorderCleared: "Границы удалены.",
     hexColorInput: "Цвет в HEX",
 
     sheetSrIntro:
@@ -14187,6 +14192,8 @@ export default {
     filterValueByAllAnnouncement: "All filter options selected.",
     filterValueByClearAnnouncement: "All filter options cleared.",
     filterValueByInverseAnnouncement: "Filter selections inverted.",
+    filterSortAscAnnouncement: "Сортировка по возрастанию применена.",
+    filterSortDescAnnouncement: "Сортировка по убыванию применена.",
     filterValueBySelectedCountAnnouncement:
       "${selected} of ${total} options now selected.",
     filterValueByTip: "Фильтр по значениям",

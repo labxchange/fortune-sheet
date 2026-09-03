@@ -492,6 +492,12 @@ const InputBox: React.FC = () => {
           }}
           className="luckysheet-cell-input"
           id="luckysheet-rich-text-editor"
+          // `contenteditable` alone leaves this a plain div as far as ARIA is
+          // concerned, and aria-label is prohibited on a role-less div — the
+          // name above would be dropped by the accessibility tree rather than
+          // announced (axe: aria-prohibited-attr). The role it already behaves
+          // as is the one to declare: a single-line free-text field.
+          role="textbox"
           aria-label={cellInputLabel}
           style={{
             transform: `scale(${context.zoomRatio})`,
