@@ -46,20 +46,26 @@ const startEditing = async (cellInput: HTMLElement) => {
 
 describe("Cell identity and focus when an edit ends", () => {
   describe("the cell input names the cell it sits on", () => {
-    it("announces the reference and the value when not editing", async () => {
+    it("announces the reference of the cell it sits on", async () => {
       const { cellInput } = setup();
       await tick();
 
-      // A1 holds 1. The reference is spaced for speech ("A. 1") by the shared
+      // The reference is spaced for speech ("A. 1") by the shared
       // `formatRefForSr`, the same convention `#sr-selection` reads — but built
       // from the focus cell, not the selected range, since that is what the
       // input sits on.
-      expect(cellInput.getAttribute("aria-label")).toBe("A. 1 1");
+      //
+      // The reference and nothing else. A1 holds 1, and the name used to say so
+      // — but `#sr-selection` says so too, in the same commit, on the ordinary
+      // arrow-key move, and a name change on the focused element is
+      // re-announced. The alert reads the content; this answers "where am I".
+      expect(cellInput.getAttribute("aria-label")).toBe("A. 1");
     });
 
-    it("drops the value while an edit is open", async () => {
-      // The field's own text is the value then; naming it too has the screen
-      // reader say the content twice before the user has finished typing it.
+    it("is unchanged by an edit opening, since it never held the value", async () => {
+      // The field's own text is the value while editing, and the name is the
+      // reference either way. What does drop is the formula marker, which
+      // `formulaAnnouncement.test.tsx` pins.
       const { cellInput } = setup();
       await startEditing(cellInput);
 
@@ -82,7 +88,7 @@ describe("Cell identity and focus when an edit ends", () => {
       fireEvent.keyDown(cellInput, { key: "ArrowDown", keyCode: 40 });
       await tick();
 
-      expect(cellInput.getAttribute("aria-label")).toBe("A. 2 2");
+      expect(cellInput.getAttribute("aria-label")).toBe("A. 2");
     });
   });
 
@@ -106,7 +112,7 @@ describe("Cell identity and focus when an edit ends", () => {
       fireEvent.keyDown(cellInput, { key: "Enter", keyCode: 13 });
       await tick();
 
-      expect(cellInput.getAttribute("aria-label")).toBe("A. 2 2");
+      expect(cellInput.getAttribute("aria-label")).toBe("A. 2");
     });
   });
 

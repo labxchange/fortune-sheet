@@ -48,7 +48,7 @@ describe("the selection a sheet mounts with", () => {
     await flush();
 
     act(() => {
-      fireEvent.click(getByRole("button", { name: "Bold" }));
+      fireEvent.click(getByRole("button", { name: "Bold (Ctrl+B)" }));
     });
     await flush();
 

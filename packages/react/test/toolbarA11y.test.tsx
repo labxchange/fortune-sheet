@@ -35,8 +35,18 @@ const renderSheet = (props: Record<string, unknown> = {}) => {
   return { ...view, ref };
 };
 
-const announcement = (container: HTMLElement) =>
-  container.querySelector("#sr-toolbar")?.textContent ?? "";
+/**
+ * Resolved non-optionally on purpose. As `?.textContent ?? ""` this returned
+ * the empty string for a *missing* region as readily as for a silent one, so
+ * every "says nothing" assertion below passed just as well with the whole
+ * feature deleted. Failing loudly on a missing region is what makes those
+ * assertions mean silence.
+ */
+const announcement = (container: HTMLElement) => {
+  const region = container.querySelector("#sr-toolbar");
+  if (!region) throw new Error("#sr-toolbar is not in the document");
+  return region.textContent ?? "";
+};
 
 describe("Combo exposes one control per distinct action", () => {
   it("gives a combo that only opens a popup a single tab stop", () => {
@@ -788,5 +798,194 @@ describe("the keyboard shortcuts button names its own shortcut", () => {
       .getByText("Open keyboard shortcuts")
       .closest("tr")!;
     expect(row.textContent).toContain("Ctrl + /");
+  });
+});
+
+describe("what an action reports when it reaches past the anchor", () => {
+  const flushTask = async () => {
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+  };
+
+  const render2 = () => {
+    const ref = React.createRef<WorkbookInstance>();
+    const view = render(
+      <Workbook
+        ref={ref}
+        lang="en"
+        data={[
+          {
+            name: "Sheet1",
+            id: "s1",
+            row: 10,
+            column: 6,
+            celldata: [
+              // A1 already bold, A2 plain: pressing Bold over A1:A2 anchored on
+              // A1 changes A2 and leaves the anchor exactly as it was.
+              { r: 0, c: 0, v: { v: "1", m: "1", bl: 1 } },
+              { r: 1, c: 0, v: { v: "2", m: "2" } },
+            ],
+          },
+        ]}
+      />
+    );
+    return { ...view, ref };
+  };
+
+  it("announces a change made to a cell that is not the anchor", async () => {
+    // The fingerprint watched only the focused cell, so this was silent: A2
+    // gained `bl: 1`, a real change to a real cell, and the anchor never moved.
+    // Half of "toolbar action status not announced", on the multi-cell
+    // selection that is the reason to press a toolbar button at all.
+    const { container, getByRole, ref } = render2();
+    act(() => {
+      ref.current?.setSelection([
+        { row: [0, 1], column: [0, 0], row_focus: 0, column_focus: 0 },
+      ]);
+    });
+
+    act(() => {
+      fireEvent.click(getByRole("button", { name: "Bold (Ctrl+B)" }));
+    });
+    await flushTask();
+
+    expect(announcement(container)).toContain("Bold on.");
+  });
+
+  it("still reports the direction a single-cell toggle actually went", async () => {
+    // The anchor case has to keep working: widening the fingerprint must not
+    // cost the selection of one cell, where it was already correct. A1 is
+    // already bold, so pressing Bold clears it.
+    const { container, getByRole, ref } = render2();
+    act(() => {
+      ref.current?.setSelection([
+        { row: [0, 0], column: [0, 0], row_focus: 0, column_focus: 0 },
+      ]);
+    });
+
+    act(() => {
+      fireEvent.click(getByRole("button", { name: "Bold (Ctrl+B)" }));
+    });
+    await flushTask();
+    expect(announcement(container)).toContain("Bold off.");
+  });
+
+  it("stays silent on a sheet that cannot be edited", async () => {
+    // `updateFormat` returns on `isAllowEdit`, so nothing is written and the
+    // fingerprint is unmoved — the guarantee that made the anchor fingerprint
+    // worth having in the first place, kept while widening it.
+    const ref = React.createRef<WorkbookInstance>();
+    const { container, getByRole } = render(
+      <Workbook
+        ref={ref}
+        lang="en"
+        allowEdit={false}
+        data={[
+          {
+            name: "Sheet1",
+            id: "s1",
+            row: 10,
+            column: 6,
+            celldata: [{ r: 0, c: 0, v: { v: "1", m: "1" } }],
+          },
+        ]}
+      />
+    );
+    act(() => {
+      ref.current?.setSelection([
+        { row: [0, 1], column: [0, 0], row_focus: 0, column_focus: 0 },
+      ]);
+    });
+
+    act(() => {
+      fireEvent.click(getByRole("button", { name: "Bold (Ctrl+B)" }));
+    });
+    await flushTask();
+
+    expect(announcement(container)).toBe("");
+  });
+});
+
+describe("removing a colour is an outcome too", () => {
+  const flushTask = async () => {
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+  };
+
+  const renderColoured = () => {
+    const ref = React.createRef<WorkbookInstance>();
+    const view = render(
+      <Workbook
+        ref={ref}
+        lang="en"
+        data={[
+          {
+            name: "Sheet1",
+            id: "s1",
+            row: 10,
+            column: 6,
+            celldata: [{ r: 0, c: 0, v: { v: "1", m: "1", fc: "#ff0000" } }],
+          },
+        ]}
+      />
+    );
+    return { ...view, ref };
+  };
+
+  it("says a text colour was removed rather than saying nothing", async () => {
+    // Reset color guarded with `if (!color) return ""`, which made clearing the
+    // one colour action with nothing to say — while the sheet tab beside it has
+    // announced its own removal since this branch added `sheetColorRemoved`.
+    const { container, getByRole, ref } = renderColoured();
+    act(() => {
+      ref.current?.setSelection([
+        { row: [0, 0], column: [0, 0], row_focus: 0, column_focus: 0 },
+      ]);
+    });
+
+    fireEvent.mouseDown(getByRole("button", { name: "Font color: Dropdown" }));
+    const reset = document.querySelector<HTMLElement>(
+      "#fortune-custom-color .color-reset"
+    )!;
+    act(() => {
+      fireEvent.click(reset);
+    });
+    await flushTask();
+
+    expect(announcement(container)).toContain("Text color removed.");
+  });
+
+  it("never reads the template back when a border colour is reset", async () => {
+    // `CustomBorder` forwarded `undefined` as `color as string`, and
+    // `replaceHtml` returns the *unsubstituted* match for a missing value — so
+    // this announced the literal "Border color: ${color}.", spoken as "dollar
+    // sign, open brace, color".
+    const { container, getByRole } = render(
+      <Workbook
+        lang="en"
+        data={[{ name: "Sheet1", id: "s1", row: 10, column: 6 }]}
+      />
+    );
+
+    fireEvent.mouseDown(getByRole("button", { name: "Border: Dropdown" }));
+    // The colour submenu is display-toggled rather than conditionally mounted,
+    // so its reset row is reachable without driving the hover open.
+    const reset = document.querySelector<HTMLElement>(
+      ".fortune-border-select-menu #fortune-custom-color .color-reset"
+    )!;
+    expect(reset).toBeTruthy();
+    act(() => {
+      fireEvent.click(reset);
+    });
+    await flushTask();
+
+    expect(announcement(container)).not.toContain("${");
+    expect(announcement(container)).toContain("Border color removed.");
   });
 });
