@@ -13,7 +13,7 @@ import { defaultContext, defaultSettings, Context } from "@fortune-sheet/core";
 import WorkbookContext from "../src/context";
 import { ModalProvider } from "../src/context/modal";
 import { useDialog } from "../src/hooks/useDialog";
-import CustomSort, { SORT_DIALOG_TITLE_ID } from "../src/components/CustomSort";
+import CustomSort from "../src/components/CustomSort";
 import Workbook from "../src/components/Workbook";
 import { CONTEXT_MENU_REGION_ID_SUFFIX } from "../src/hooks/useContextMenuAnnouncements";
 
@@ -68,11 +68,23 @@ const Harness: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
   );
 };
 
+/*
+ * The heading id is supplied by the caller now rather than exported as a module
+ * constant, so that two workbooks on one page cannot both render
+ * `id="fortune-sort-title"` and have each other's `aria-labelledby` resolve to
+ * the first one. These tests therefore choose the id themselves, exactly as
+ * `ContextMenu` does with its `useId()`.
+ */
+const TITLE_ID = "test-sort-title";
+
 /** Opens a dialog on mount, the way the context menu's sort row does. */
 const OpenSortDialog: React.FC<{ labelledBy?: string }> = ({ labelledBy }) => {
   const { showDialog } = useDialog();
   useEffect(() => {
-    showDialog(<CustomSort />, labelledBy ? { labelledBy } : undefined);
+    showDialog(
+      <CustomSort titleId={labelledBy ?? TITLE_ID} />,
+      labelledBy ? { labelledBy } : undefined
+    );
   }, [labelledBy, showDialog]);
   return null;
 };
@@ -81,7 +93,7 @@ describe("Sort modal form controls", () => {
   beforeEach(() => {
     render(
       <Harness>
-        <CustomSort />
+        <CustomSort titleId={TITLE_ID} />
       </Harness>
     );
   });
@@ -118,7 +130,7 @@ describe("Sort modal form controls", () => {
   });
 
   it("renders the heading the dialog is named from", () => {
-    expect(document.getElementById(SORT_DIALOG_TITLE_ID)).not.toBeNull();
+    expect(document.getElementById(TITLE_ID)).not.toBeNull();
   });
 });
 
@@ -126,16 +138,16 @@ describe("Sort modal accessible name", () => {
   it("names the dialog from its own heading", async () => {
     render(
       <Harness>
-        <OpenSortDialog labelledBy={SORT_DIALOG_TITLE_ID} />
+        <OpenSortDialog labelledBy={TITLE_ID} />
       </Harness>
     );
 
     const dialog = await waitFor(() => screen.getByRole("dialog"));
-    expect(dialog.getAttribute("aria-labelledby")).toBe(SORT_DIALOG_TITLE_ID);
+    expect(dialog.getAttribute("aria-labelledby")).toBe(TITLE_ID);
 
     // The reference has to resolve: Dialog previously hardcoded this exact id,
     // which meant every dialog that was not CustomSort pointed at nothing.
-    const heading = document.getElementById(SORT_DIALOG_TITLE_ID);
+    const heading = document.getElementById(TITLE_ID);
     expect(heading).not.toBeNull();
     expect(dialog.contains(heading)).toBe(true);
     // And it must actually say something — an empty name passes aria-labelledby
@@ -151,12 +163,10 @@ describe("Sort modal accessible name", () => {
     // markup is free to change as long as the spoken result has the spaces.
     render(
       <Harness>
-        <CustomSort />
+        <CustomSort titleId={TITLE_ID} />
       </Harness>
     );
-    const name = document
-      .getElementById(SORT_DIALOG_TITLE_ID)!
-      .textContent!.trim();
+    const name = document.getElementById(TITLE_ID)!.textContent!.trim();
 
     expect(name).toMatch(/^Sort range from \w+ to \w+$/);
     // The specific regression: no letter or digit ever butts against another
@@ -204,7 +214,7 @@ describe("Sort modal announces the sort it performed", () => {
         }
       >
         <ModalProvider>
-          <CustomSort />
+          <CustomSort titleId={TITLE_ID} />
         </ModalProvider>
       </WorkbookContext.Provider>
     );
@@ -245,7 +255,7 @@ describe("Sort modal announces the sort it performed", () => {
         }
       >
         <ModalProvider>
-          <CustomSort />
+          <CustomSort titleId={TITLE_ID} />
         </ModalProvider>
       </WorkbookContext.Provider>
     );
@@ -346,7 +356,10 @@ describe("the Sort modal's announcement reaches the focus it hands back", () => 
       row.focus();
       fireEvent.keyDown(row, { key: "Enter" });
     });
-    return waitFor(() => screen.getByRole("dialog"));
+    // Global, not scoped to `root`: each workbook's `ModalProvider` wraps
+    // `.fortune-container`, so the dialog is a *sibling* of the root rather than
+    // inside it. Callers that open two dialogs identify them by arrival order.
+    return waitFor(() => screen.getAllByRole("dialog").at(-1)!);
   };
 
   /** The description an assistive technology would resolve when focus lands. */
@@ -472,6 +485,61 @@ describe("the Sort modal's announcement reaches the focus it hands back", () => 
     ).not.toBe(
       second.querySelector(`[id$="-${CONTEXT_MENU_REGION_ID_SUFFIX}"]`)!.id
     );
+  });
+
+  // The same class of defect as the region id above, in this dialog's own four
+  // ids, which were module constants until they were made per-instance. It is
+  // reachable because the modal backdrop is `position: absolute` inside its own
+  // workbook container rather than viewport-fixed, so workbook A's dialog does
+  // not cover workbook B and a press into the sibling is not blocked.
+  it("keeps two open Sort dialogs from wiring into each other", async () => {
+    const { container } = render(
+      <>
+        <Workbook lang="en" data={plainData} />
+        <Workbook lang="en" data={plainData} />
+      </>
+    );
+    const [first, second] =
+      container.querySelectorAll<HTMLElement>(".fortune-container");
+
+    const firstDialog = await openSortModal(first);
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    const secondDialog = await openSortModal(second);
+    expect(screen.getAllByRole("dialog")).toHaveLength(2);
+    expect(secondDialog).not.toBe(firstDialog);
+
+    // Each dialog's name resolves to its *own* heading. With a shared constant
+    // both `aria-labelledby`s read "fortune-sort-title" and both resolved to the
+    // first dialog's, so the second announced the first one's cell range.
+    [firstDialog, secondDialog].forEach((dialog) => {
+      const id = dialog.getAttribute("aria-labelledby");
+      expect(id).toBeTruthy();
+      expect(dialog.contains(document.getElementById(id!))).toBe(true);
+    });
+    expect(firstDialog.getAttribute("aria-labelledby")).not.toBe(
+      secondDialog.getAttribute("aria-labelledby")
+    );
+
+    // And each `<label for>` reaches the control beside it rather than the other
+    // dialog's — the bug where pressing the second dialog's "Ascending" text
+    // toggled the first dialog's radio.
+    const ascIds = [firstDialog, secondDialog].map(
+      (dialog) => within(dialog).getByRole("radio", { name: /Ascending/ }).id
+    );
+    expect(ascIds[0]).not.toBe(ascIds[1]);
+    [firstDialog, secondDialog].forEach((dialog, i) => {
+      const label = document.querySelector(`label[for="${ascIds[i]}"]`);
+      expect(dialog.contains(label)).toBe(true);
+    });
+
+    // No duplicate ids anywhere in the two dialogs, which is the general form of
+    // all of the above and what `duplicate-id-aria` would report.
+    const ids = [firstDialog, secondDialog].flatMap((dialog) =>
+      Array.from(dialog.querySelectorAll<HTMLElement>("[id]")).map(
+        (el) => el.id
+      )
+    );
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
 

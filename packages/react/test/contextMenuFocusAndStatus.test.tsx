@@ -325,6 +325,38 @@ describe("context-menu action status announcements", () => {
       expect(screen.queryByText(/multiple selection areas/)).not.toBeNull();
     });
 
+    // The insert inputs are `type="text"`, so letters reach `parseInt` and come
+    // out NaN. Every comparison against NaN is false, so a `count < 1` guard let
+    // it through: the region said "NaN columns inserted to the left." and
+    // `commitAndSettle` settled focus on the grid for a sheet that had not
+    // changed. The sibling row-height and column-width rows are `type="number"`,
+    // so sanitization empties the field before their own guard sees it.
+    it.each([
+      ["Insert 1 column left", "columns"],
+      ["Insert 1 row above", "rows"],
+    ])("stays silent when %s is given a non-number", async (_label, kind) => {
+      const { container, ref } = renderSheet();
+      act(() => {
+        ref.current?.setSelection([{ row: [0, 0], column: [0, 0] }]);
+      });
+      openContextMenu(container);
+
+      const input = container.querySelector<HTMLInputElement>(
+        `input[aria-label^="Number of ${kind} to insert"]`
+      )!;
+      const row = input.closest(".luckysheet-cols-menuitem") as HTMLElement;
+      act(() => {
+        fireEvent.change(input, { target: { value: "abc" } });
+        row.focus();
+        fireEvent.keyDown(row, { key: "Enter" });
+      });
+      await flush();
+
+      expect(statusRegion(container)!.textContent).toBe("");
+      expect(statusRegion(container)!.textContent).not.toContain("NaN");
+      expect(document.activeElement).not.toBe(cellInput(container));
+    });
+
     it("does not announce a paste a host app vetoed", async () => {
       const beforePaste = jest.fn(() => false);
       const ref = React.createRef<WorkbookInstance>();

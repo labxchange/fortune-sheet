@@ -19,7 +19,13 @@ import {
   jfrefreshgrid,
 } from "@fortune-sheet/core";
 import _ from "lodash";
-import React, { useContext, useRef, useCallback, useLayoutEffect } from "react";
+import React, {
+  useContext,
+  useRef,
+  useCallback,
+  useId,
+  useLayoutEffect,
+} from "react";
 import regeneratorRuntime from "regenerator-runtime";
 import WorkbookContext, { SetContextOptions } from "../../context";
 import { useAlert } from "../../hooks/useAlert";
@@ -32,7 +38,7 @@ import { filterUnchanged } from "../../utils/filterDom";
 import Divider from "./Divider";
 import "./index.css";
 import Menu from "./Menu";
-import CustomSort, { SORT_DIALOG_TITLE_ID } from "../CustomSort";
+import CustomSort from "../CustomSort";
 import { announce } from "../../hooks/useContextMenuAnnouncements";
 
 /** Singular and plural are separate keys so no reader ever hears "1 rows". */
@@ -51,6 +57,8 @@ const ContextMenu: React.FC = () => {
   contextRef.current = context;
   const { showAlert } = useAlert();
   const { rightclick, drag, generalDialog, info } = locale(context);
+  /** Names the Sort dialog's heading; see the `sort` row for why it lives here. */
+  const sortTitleId = useId();
 
   const closeContextMenu = useCallback(() => {
     setContext((draftCtx) => {
@@ -259,7 +267,16 @@ const ContextMenu: React.FC = () => {
                   const countStr = container.querySelector("input")?.value;
                   if (countStr == null) return;
                   const count = parseInt(countStr, 10);
-                  if (count < 1) return;
+                  // Inverted rather than `count < 1`, to reject NaN as well:
+                  // this input is `type="text"`, so letters reach `parseInt`,
+                  // and every comparison against NaN is false — so `NaN < 1`
+                  // let it straight through. It then announced "NaN columns
+                  // inserted" for a sheet that had not changed, and
+                  // `commitAndSettle` moved focus on the strength of that.
+                  // Stopped here rather than at the announce because NaN also
+                  // reaches `insertRowCol`, which writes it into `config.merge`
+                  // and the calc chain.
+                  if (!(count >= 1)) return;
                   const direction = dir === "left" ? "lefttop" : "rightbottom";
                   const insertRowColOp: SetContextOptions["insertRowColOp"] = {
                     type: "column",
@@ -361,7 +378,16 @@ const ContextMenu: React.FC = () => {
                   const countStr = container.querySelector("input")?.value;
                   if (countStr == null) return;
                   const count = parseInt(countStr, 10);
-                  if (count < 1) return;
+                  // Inverted rather than `count < 1`, to reject NaN as well:
+                  // this input is `type="text"`, so letters reach `parseInt`,
+                  // and every comparison against NaN is false — so `NaN < 1`
+                  // let it straight through. It then announced "NaN columns
+                  // inserted" for a sheet that had not changed, and
+                  // `commitAndSettle` moved focus on the strength of that.
+                  // Stopped here rather than at the announce because NaN also
+                  // reaches `insertRowCol`, which writes it into `config.merge`
+                  // and the calc chain.
+                  if (!(count >= 1)) return;
                   const direction = dir === "top" ? "lefttop" : "rightbottom";
                   const insertRowColOp: SetContextOptions["insertRowColOp"] = {
                     type: "row",
@@ -847,8 +873,14 @@ const ContextMenu: React.FC = () => {
               setContext((draftCtx) => {
                 // Named from CustomSort's own heading ("Sort range from A1 to
                 // D20") — more use than a generic "Sort", and no new locale key.
-                showDialog(<CustomSort />, {
-                  labelledBy: SORT_DIALOG_TITLE_ID,
+                //
+                // The id is generated here, not in CustomSort, because
+                // `labelledBy` has to be set when the dialog opens and the
+                // dialog's content has not mounted yet. One `useId()` per
+                // workbook feeds both ends, so two workbooks with a Sort dialog
+                // open cannot point at each other's heading.
+                showDialog(<CustomSort titleId={sortTitleId} />, {
+                  labelledBy: sortTitleId,
                 });
                 draftCtx.contextMenu = {};
               });
@@ -961,6 +993,7 @@ const ContextMenu: React.FC = () => {
       refs.cellInput,
       commitAndSettle,
       sortAndSettle,
+      sortTitleId,
       focusGridBeforeHandoff,
     ]
   );
