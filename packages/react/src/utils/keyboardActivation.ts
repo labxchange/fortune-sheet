@@ -175,24 +175,36 @@ export function mouseDownToggleHandlers<T extends HTMLElement = HTMLElement>(
  *
  * `onReturn`, if given, fires exactly once per actual return — the same branch
  * that resolves `getTarget()`, never the declined one. It exists so a caller
- * can announce the return to a screen reader: the move itself is otherwise
- * silent, because it is not a navigation and so does not touch the selection
- * `#sr-selection` is built from. Kept as a side effect of this helper rather
- * than folded into `getTarget` so `getTarget`'s own contract — resolve a
- * target against the settled DOM — stays just that.
+ * can announce the return to a screen reader for the common case: a
+ * formatting command that touches neither the selection nor the cell's
+ * displayed value, so `#sr-selection` stays silent (it only re-announces on
+ * its own text changing) and would otherwise leave the return unannounced.
+ *
+ * `readAnnounceStamp`, if given, gates that call: `onReturn` only fires when
+ * this reads the same before and after, same as `readStamp` gates the return
+ * itself. Without it, a command that *did* move the selection or the cell
+ * value (a merge, an undo that restores content) would fire `onReturn` too —
+ * `#sr-selection` has already re-announced that on its own by then, so the
+ * user hears the same cell spoken twice. Omit it for a caller with nothing
+ * meaningful to compare; `onReturn` then fires on every actual return, as
+ * before.
  */
 export function withFocusReturn<A extends unknown[]>(
   run: (...args: A) => void,
   readStamp: () => unknown,
   getTarget: () => HTMLElement | null | undefined,
-  onReturn?: () => void
+  onReturn?: () => void,
+  readAnnounceStamp?: () => unknown
 ): (...args: A) => void {
   return (...args: A) => {
     const before = readStamp();
+    const beforeAnnounce = readAnnounceStamp?.();
     run(...args);
     focusAfterCommit(() => {
       if (readStamp() === before) return null;
-      onReturn?.();
+      if (!readAnnounceStamp || readAnnounceStamp() === beforeAnnounce) {
+        onReturn?.();
+      }
       return getTarget();
     });
   };

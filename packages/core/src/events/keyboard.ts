@@ -749,13 +749,16 @@ export function handleGlobalKeyDown(
       'input, textarea, select, button, a[href], [tabindex]:not([tabindex="-1"])'
     );
     const gridRoot = target.closest(`.${GRID_ROOT_CLASS}`);
-    // Two of the things that match that selector *are* the grid rather than
-    // something rendered around it, so both are carved out:
+    // Two of the things that can match that selector *are* the grid rather
+    // than something rendered around it, so both are carved out:
     //   - the cell input, which `ContentEditable` may give a tabIndex of 0;
-    //   - the grid root itself, which carries tabIndex 0 so that Tab enters the
-    //     grid at the root rather than at the first control inside it. Without
-    //     this second clause the root's own tab stop would classify focus as
-    //     outside the grid, and the arrow keys would silently move nothing.
+    //   - the grid root itself. It carries tabIndex -1 today (rendered in
+    //     SheetOverlay/index.tsx), so `control` never actually equals it in
+    //     production -- this clause is defensive, not currently reachable.
+    //     Without it, a future change that makes the root itself the tab stop
+    //     (tabIndex 0, so Tab enters the grid there instead of at the first
+    //     control inside it) would silently stop the arrow keys from moving
+    //     anything for anyone who landed on it.
     const inGrid =
       !!gridRoot &&
       (!control || !!cellInput?.contains(control) || control === gridRoot);

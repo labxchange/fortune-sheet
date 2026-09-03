@@ -35,6 +35,7 @@ import {
   createFilter,
   clearFilter,
   applyLocation,
+  getSrSelectionCoreText,
 } from "@fortune-sheet/core";
 import _ from "lodash";
 import WorkbookContext from "../../context";
@@ -287,11 +288,16 @@ const Toolbar: React.FC<{
    * because by then the commit has happened and `context` here is the value
    * from before it.
    *
-   * The return itself is otherwise silent to a screen reader: it is not a
-   * navigation, so it does not touch the selection `#sr-selection` is built
-   * from, and that region simply repeats itself. `toolbarFocusReturnCount`
-   * bumped here is what `#sr-toolbarFocusReturn` (SheetOverlay) watches to
-   * announce the cell the user landed back on.
+   * The return is usually otherwise silent to a screen reader: it is not a
+   * navigation, so a formatting command does not touch the selection
+   * `#sr-selection` is built from, and that region simply repeats itself.
+   * `toolbarFocusReturnCount` bumped here is what `#sr-toolbarFocusReturn`
+   * (SheetOverlay) watches to announce the cell the user landed back on --
+   * but only when `getSrSelectionCoreText` reads the same before and after.
+   * A command that *did* move the selection or the cell's value (a merge, an
+   * undo that restores content) already made `#sr-selection` re-announce on
+   * its own; bumping the counter for that too would speak the same cell
+   * twice.
    */
   const withFocusReturn = useCallback(
     <A extends unknown[]>(run: (...args: A) => void) =>
@@ -306,7 +312,8 @@ const Toolbar: React.FC<{
             ctx.toolbarFocusReturnCount =
               (ctx.toolbarFocusReturnCount ?? 0) + 1;
           });
-        }
+        },
+        () => getSrSelectionCoreText(contextRef.current)
       ),
     [refs.cellInput, setContext]
   );

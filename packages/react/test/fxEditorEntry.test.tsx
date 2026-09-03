@@ -84,6 +84,50 @@ describe("Formula bar entry does not start an edit", () => {
     expect(isEditing()).toBe(false);
   });
 
+  it("starts an edit when pasted text arrives, even though Ctrl+V never passes isTextProducingKey", () => {
+    const { fx, isEditing } = setup();
+
+    fireEvent.focus(fx);
+    expect(isEditing()).toBe(false);
+
+    // A real paste fires a modified keydown (ctrlKey, so isTextProducingKey
+    // rejects it) and then the browser mutates the DOM directly -- the
+    // content change itself, not the keydown, is what onChange has to open an
+    // edit session on. jsdom doesn't implement `.innerText` as a live
+    // reflection of the DOM (it's a plain expando once assigned), so both are
+    // set here: `innerHTML` is what ContentEditable's change detection reads,
+    // `innerText` is what handleFormulaInput reads once onChange runs.
+    fireEvent.keyDown(fx, {
+      key: "v",
+      code: "KeyV",
+      keyCode: 86,
+      ctrlKey: true,
+    });
+    fx.innerHTML = "pasted value";
+    fx.innerText = "pasted value";
+    fireEvent.input(fx);
+
+    expect(isEditing()).toBe(true);
+  });
+
+  it("starts an edit on a composed IME character, whose keydown key is not a producible character", () => {
+    const { fx, isEditing } = setup();
+
+    fireEvent.focus(fx);
+    expect(isEditing()).toBe(false);
+
+    // During composition the keydown key is the pseudo-key "Process"
+    // (keyCode 229), which isTextProducingKey's single-character check
+    // rejects -- the composed text still has to open an edit session once it
+    // actually lands.
+    fireEvent.keyDown(fx, { key: "Process", keyCode: 229 });
+    fx.innerHTML = "こんにちは";
+    fx.innerText = "こんにちは";
+    fireEvent.input(fx);
+
+    expect(isEditing()).toBe(true);
+  });
+
   it("leaves the pointer flag clean, so a later keyboard entry still defers", () => {
     const { container, fx, isEditing } = setup();
     const cellInput = container.querySelector<HTMLElement>(

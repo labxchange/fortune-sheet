@@ -125,11 +125,13 @@ describe("withFocusReturn", () => {
     expect(document.activeElement).toBe(toolbarButton);
   });
 
-  // `onReturn` is what a caller hooks an announcement onto: the move itself is
-  // silent to a screen reader (WCAG 2.4.3's return is not a navigation, so it
-  // does not touch whatever the caller's own selection-based region reads
-  // from), and this is the one place that knows a return is actually about to
-  // happen rather than having been declined.
+  // `onReturn` is what a caller hooks an announcement onto: for a formatting
+  // command the move is otherwise silent to a screen reader (WCAG 2.4.3's
+  // return is not a navigation, so it does not touch whatever the caller's
+  // own selection-based region reads from), and this is the one place that
+  // knows a return is actually about to happen rather than having been
+  // declined. `readAnnounceStamp`, below, is what keeps it silent for a
+  // command that *did* touch that region instead of duplicating it.
   describe("onReturn", () => {
     it("fires once, only when focus actually returns", async () => {
       let sheet = { cells: 1 };
@@ -202,6 +204,76 @@ describe("withFocusReturn", () => {
       await tick();
 
       expect(document.activeElement).toBe(cellInput);
+    });
+  });
+
+  // A command that moved the selection or the cell value already made the
+  // caller's own selection-based region re-announce on its own -- gating
+  // onReturn on this second stamp is what stops the return from repeating it.
+  describe("readAnnounceStamp", () => {
+    it("fires onReturn when the announce stamp is unchanged", async () => {
+      let sheet = { cells: 1 };
+      const selection = "B5";
+      const onReturn = jest.fn();
+      const wrapped = withFocusReturn(
+        () => {
+          sheet = { cells: 2 };
+        },
+        () => sheet,
+        () => cellInput,
+        onReturn,
+        () => selection
+      );
+
+      wrapped();
+      await tick();
+
+      expect(onReturn).toHaveBeenCalledTimes(1);
+      expect(document.activeElement).toBe(cellInput);
+    });
+
+    it("suppresses onReturn when the announce stamp changed, but still returns focus", async () => {
+      let sheet = { cells: 1 };
+      let selection = "B5";
+      const onReturn = jest.fn();
+      const wrapped = withFocusReturn(
+        () => {
+          sheet = { cells: 2 };
+          // A merge (or any command that moves the selection) changes this --
+          // #sr-selection has already spoken it by the time onReturn would run.
+          selection = "A1:B2";
+        },
+        () => sheet,
+        () => cellInput,
+        onReturn,
+        () => selection
+      );
+
+      wrapped();
+      await tick();
+
+      expect(onReturn).not.toHaveBeenCalled();
+      // The command still ran and focus still returns -- only the duplicate
+      // announcement is what gets skipped.
+      expect(document.activeElement).toBe(cellInput);
+    });
+
+    it("is optional -- omitting it fires onReturn unconditionally, as before", async () => {
+      let sheet = { cells: 1 };
+      const onReturn = jest.fn();
+      const wrapped = withFocusReturn(
+        () => {
+          sheet = { cells: 2 };
+        },
+        () => sheet,
+        () => cellInput,
+        onReturn
+      );
+
+      wrapped();
+      await tick();
+
+      expect(onReturn).toHaveBeenCalledTimes(1);
     });
   });
 });

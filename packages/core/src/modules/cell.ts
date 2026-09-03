@@ -1212,6 +1212,48 @@ export function getRangetxt(
   }:${indexToColumnChar(column1)}${row1 + 1}`;
 }
 
+/**
+ * The core value `#sr-selection` (SheetOverlay, @fortune-sheet/react)
+ * announces for the current selection: the cell/range reference plus the
+ * focused cell's displayed value. Exposed from core so that a caller
+ * elsewhere in the workbook -- Toolbar's withFocusReturn -- can tell whether
+ * a command changed the very thing #sr-selection is built from, without
+ * duplicating the formula and risking the two drifting apart.
+ *
+ * This is a comparison key, not display text: it skips the screen-reader
+ * spacing and the locale-dependent empty-workbook fallback SheetOverlay's own
+ * rendering applies, neither of which affects whether the value changed.
+ * Returns "" when there is no addressable selection.
+ */
+export function getSrSelectionCoreText(ctx: Context) {
+  const lastSelection = _.last(ctx.luckysheet_select_save);
+  if (
+    !(
+      lastSelection &&
+      lastSelection.row_focus != null &&
+      lastSelection.column_focus != null
+    )
+  )
+    return "";
+  const rf = lastSelection.row_focus;
+  const cf = lastSelection.column_focus;
+  const rangeText =
+    ctx.config.merge != null && `${rf}_${cf}` in ctx.config.merge
+      ? getRangetxt(ctx, ctx.currentSheetId, {
+          column: [cf, cf],
+          row: [rf, rf],
+        })
+      : getRangetxt(ctx, ctx.currentSheetId, lastSelection);
+
+  const sheetIndex = getSheetIndex(ctx, ctx.currentSheetId);
+  const cellValue =
+    sheetIndex == null
+      ? ""
+      : ctx.luckysheetfile[sheetIndex]?.data?.[rf]?.[cf]?.m || "";
+
+  return `${rangeText} ${cellValue}`;
+}
+
 // 把string A1:A2转为选区数组
 export function getRangeByTxt(ctx: Context, txt: string) {
   let range: (FormulaDependency | null)[] = [];

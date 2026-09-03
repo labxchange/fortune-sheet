@@ -308,6 +308,17 @@ const FxEditor: React.FC = () => {
   );
 
   const onChange = useCallback(() => {
+    // Paste, IME composition and drag-drop text all reach here without ever
+    // passing isTextProducingKey's keydown check in onKeyDown (paste and drop
+    // carry no text-producing keydown at all; composition's own keydown key is
+    // "Process", not a character). The content change itself is the one signal
+    // every entry method shares, so it is the last point to open an edit
+    // session before this is mirrored into the cell -- without it, the pasted
+    // or composed text sits in the DOM with no luckysheetCellUpdate behind it,
+    // and a later Enter or blur has nothing to commit.
+    if (context.luckysheetCellUpdate.length === 0 && canStartEdit()) {
+      beginCellEdit();
+    }
     const e = lastKeyDownEventRef.current;
     if (!e) return;
     const kcode = e.keyCode;
@@ -339,7 +350,14 @@ const FxEditor: React.FC = () => {
         );
       });
     }
-  }, [refs.cellInput, refs.fxInput, setContext]);
+  }, [
+    context.luckysheetCellUpdate.length,
+    canStartEdit,
+    beginCellEdit,
+    refs.cellInput,
+    refs.fxInput,
+    setContext,
+  ]);
 
   const allowEdit = useMemo(() => {
     if (context.allowEdit === false) {
