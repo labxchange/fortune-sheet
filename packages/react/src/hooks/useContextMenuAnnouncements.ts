@@ -192,11 +192,33 @@ export function useContextMenuAnnouncements(
     // utterance is composed without it. This is the opposite of what this hook
     // used to do, and the reason it was inaudible.
     announceCount.current += 1;
-    setAnnouncement(
-      announceCount.current % 2 === 0 ? `${text}${ZERO_WIDTH_SPACE}` : text
-    );
+    const spoken =
+      announceCount.current % 2 === 0 ? `${text}${ZERO_WIDTH_SPACE}` : text;
+    setAnnouncement(spoken);
     const cell = cellInputRef?.current;
     cell?.setAttribute("aria-describedby", regionId);
+
+    /*
+     * And written straight into the region as well as into state.
+     *
+     * `setAnnouncement` above is the source of truth — React owns this text
+     * node and will render the same string moments later. But it renders on
+     * React's own schedule, whereas the thing that has to see the text is a
+     * `setTimeout(0)` focus move armed by `Dialog`'s cleanup *earlier in the
+     * same commit*. Those are two different queues, so "the state render wins"
+     * is a scheduling assumption rather than a guarantee — and if it loses, the
+     * description resolves to an element that is still empty and the focus
+     * utterance says "text entry area, blank". That is this bug's third
+     * recurrence and each one has been an ordering assumption like it.
+     *
+     * `act()` flushes state and effects together, so no jsdom test can tell the
+     * two apart: this is hardening against an ordering I cannot observe here,
+     * not a fix for a reproduced failure. It is safe either way — React's
+     * following commit writes the identical string, so the DOM converges on the
+     * same value whichever lands first.
+     */
+    const region = document.getElementById(regionId);
+    if (region) region.textContent = spoken;
 
     const timer = setTimeout(() => {
       setAnnouncement("");
