@@ -15,17 +15,19 @@ import { SortRefusal, locale } from "@fortune-sheet/core";
  * commented-out `alert()` calls in `core/src/modules/sort.ts` — so the wording
  * is the original author's rather than something invented here.
  *
- * `noSelection` and `noData` return null on purpose. Both mean there was
- * nothing to sort — an empty key column, or no selection at all — which the
- * user can see, and neither has a string in the locale files that says so.
- * Inventing one would mean six translations for a case a sighted user has
- * already observed; the screen-reader half is covered by the announcement
- * staying silent, which is the correct outcome for "nothing happened".
+ * Every reason returns a message, including `noData` and `noSelection`. An
+ * earlier revision returned null for those two on the grounds that "nothing
+ * was sorted" is something the user can see — which is exactly the wrong
+ * instinct in an accessibility change: a screen-reader user cannot see it, and
+ * the result was a Sort that closed its dialog and said nothing in either
+ * channel. Before the announcement was gated at all, the same press claimed
+ * "Sorted in ascending order." Silence is better than a lie and worse than the
+ * truth. `sort.nothingToSort` is the one string this needed adding.
  */
 export function sortRefusalMessage(
   context: Parameters<typeof locale>[0],
   reason: SortRefusal
-): string | null {
+): string {
   const { sort, generalDialog } = locale(context);
   switch (reason) {
     case "multiRange":
@@ -34,8 +36,10 @@ export function sortRefusalMessage(
       return sort.mergeError;
     case "readOnly":
       return generalDialog.readOnlyError;
+    // `noData` and `noSelection` are the same thing to a user: the range they
+    // pressed Sort on had nothing sortable in its key column.
     default:
-      return null;
+      return sort.nothingToSort;
   }
 }
 

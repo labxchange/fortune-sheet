@@ -295,8 +295,11 @@ describe("Sort modal announces the sort it performed", () => {
   // Gating the announcement on the outcome replaced a false success claim with
   // silence, which is better but still not feedback: `Confirm` closes the
   // dialog either way, so the user pressed Sort, the dialog went away and
-  // nothing moved. `sortSelection` now reports *why*, and the two reasons that
-  // have a string in the locale files get an alert.
+  // nothing moved. `sortSelection` now reports *why*, and **every** reason gets
+  // a message — including "nothing sortable in the range", which an earlier
+  // revision left silent on the grounds that the user can see it. A
+  // screen-reader user cannot, which made that the one refusal still silent in
+  // both channels after the gate went in.
   it.each([
     [
       "spans multiple ranges",
@@ -324,6 +327,15 @@ describe("Sort modal announces the sort it performed", () => {
         ] as any;
       },
       /merged cells/,
+    ],
+    [
+      "has nothing sortable in it",
+      (ctx: any) => {
+        ctx.luckysheetfile = [
+          { id: "sheet-1", name: "Sheet1", data: null },
+        ] as any;
+      },
+      /nothing to sort/,
     ],
   ])(
     "tells the user the sort was refused because it %s",

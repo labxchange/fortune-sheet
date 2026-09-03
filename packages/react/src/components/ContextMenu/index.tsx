@@ -155,8 +155,7 @@ const ContextMenu: React.FC = () => {
         const outcome = sortSelection(draftCtx, isAsc);
         draftCtx.contextMenu = {};
         if (!outcome.sorted) {
-          const message = sortRefusalMessage(draftCtx, outcome.reason);
-          if (message) showAlert(message, "ok");
+          showAlert(sortRefusalMessage(draftCtx, outcome.reason), "ok");
           return;
         }
         announce(

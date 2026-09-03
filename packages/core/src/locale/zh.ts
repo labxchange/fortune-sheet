@@ -11596,6 +11596,7 @@ export default {
 
     noRangeError: "不能对多重选择区域执行此操作，请选择单个区域，然后再试",
     mergeError: "选区有合并单元格，无法执行此操作！",
+    nothingToSort: "选区中没有可排序的内容。",
   },
   filter: {
     filter: "筛选",

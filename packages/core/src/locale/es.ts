@@ -11537,6 +11537,7 @@ export default {
       "No se puede realizar esta operación en múltiples áreas de selección, selecciona un solo rango e intenta nuevamente",
     mergeError:
       "Hay celdas combinadas en la selección, ¡esta operación no se puede realizar!",
+    nothingToSort: "No hay nada que ordenar en el rango seleccionado.",
   },
   filter: {
     filter: "crear filtro",

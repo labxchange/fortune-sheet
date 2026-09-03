@@ -131,7 +131,7 @@ const CustomSort: React.FC<Props> = ({ titleId }) => {
       if (refusalRef.current == null) return;
       const message = sortRefusalMessage(context, refusalRef.current);
       refusalRef.current = null;
-      if (message) showAlert(message, "ok");
+      showAlert(message, "ok");
     });
   }, [ascOrDesc, context, hideDialog, selectedValue, setContext, showAlert]);
 

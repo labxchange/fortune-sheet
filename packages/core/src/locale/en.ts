@@ -11585,6 +11585,7 @@ export default {
       "Cannot perform this operation on multiple selection areas, please select a single range and try again",
     mergeError:
       "There are merged cells in the selection, this operation cannot be performed!",
+    nothingToSort: "There is nothing to sort in the selected range.",
   },
   filter: {
     filter: "create filter",
