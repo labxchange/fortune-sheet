@@ -26,6 +26,36 @@ describe("getSrSelectionCore", () => {
     });
   });
 
+  it("narrows a merged cell's range to the single focus cell, in the same raw (unformatted) shape as the non-merge branch", () => {
+    // The selection spans the whole merged block (a 2x2 merge starting at
+    // A1), but the merge branch narrows the range to just the focus cell --
+    // "A1", not "A1:B2". Prior to being split out of SheetOverlay, this
+    // branch returned early without the caller's screen-reader spacing
+    // applied; now it returns the same raw shape formatRefForSr expects the
+    // non-merge branch to hand it, so a merged cell reads no differently
+    // from an unmerged one once the caller formats it.
+    const ctx = contextFactory({
+      luckysheet_select_save: selectionFactory([0, 1], [0, 1], 0, 0),
+      config: { merge: { "0_0": { r: 0, c: 0, rs: 2, cs: 2 } } },
+      luckysheetfile: [
+        {
+          name: "sheet",
+          id: "id_1",
+          order: 0,
+          data: [
+            [{ v: "hello", m: "hello" }, null],
+            [null, null],
+          ],
+        },
+      ],
+    }) as Context;
+
+    expect(getSrSelectionCore(ctx)).toEqual({
+      rangeText: "A1",
+      cellValue: "hello",
+    });
+  });
+
   it("changes when the selection moves, even to an equally empty cell", () => {
     const base = contextFactory({
       luckysheetfile: [

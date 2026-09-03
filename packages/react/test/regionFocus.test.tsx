@@ -242,6 +242,43 @@ describe("Region focus", () => {
       expect(nameBox.value).toBe("B1");
     });
 
+    // Unlike the plain arrow above, a single-character key is exactly what
+    // the guard has to gate to protect the Ctrl-bound commands (undo, cut) a
+    // few tests up -- there is no way to let a composed character through to
+    // core's type-to-edit fallback (keyboard.ts, the "else" branch after
+    // Escape/Delete/arrows) without also letting it through to those. This
+    // pins the actual, known behaviour rather than the one this file's
+    // "still runs the Mac chord" tests might suggest by analogy: starting a
+    // *new* edit purely by typing an AltGr-composed character on a selected,
+    // non-editing cell does not work, on Windows/Linux same as it never did
+    // before this PR -- the pre-PR guard was unconditional at the same top-
+    // of-handler position, so this is not something any round of this PR
+    // changed. Composing a character *into* an edit that is already open is
+    // unaffected: that goes through the browser's own contentEditable typing
+    // on the focused cell input, which this guard never sits in front of.
+    it("does not start a new edit for an AltGr-composed character on a selected, non-editing cell", () => {
+      const { container } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+      const inputBox = container.querySelector<HTMLElement>(
+        ".luckysheet-input-box"
+      )!;
+      const isEditing = () =>
+        (inputBox.getAttribute("style") || "").includes("z-index: 19");
+      const grid = container.querySelector<HTMLElement>(`.${GRID_ROOT_CLASS}`)!;
+      expect(isEditing()).toBe(false);
+
+      fireEvent(
+        grid,
+        altGraphEvent(grid, {
+          key: "ż",
+          code: "KeyZ",
+          ctrlKey: true,
+          altKey: true,
+        })
+      );
+
+      expect(isEditing()).toBe(false);
+    });
+
     it("Ctrl+Alt+B enters the sheet tab bar", () => {
       const { container } = render(<Workbook data={[{ name: "Sheet1" }]} />);
       press(container, "KeyB");

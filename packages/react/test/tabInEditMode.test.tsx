@@ -57,13 +57,19 @@ describe("Tab while a cell is being edited", () => {
   });
 
   it("is consumed when a suggestion is open, so the cell does not also move", () => {
-    const { cellInput } = setup();
+    const { container, cellInput } = setup();
     const close = openSuggestion();
 
     const event = createTab();
     cellInput.dispatchEvent(event);
 
     expect(event.defaultPrevented).toBe(true);
+    // stopPropagation, not preventDefault, is what keeps the two Tab jobs
+    // exclusive: without it the event reaches handleGlobalKeyDown, whose Tab
+    // branch would commit and move on top of accepting the suggestion.
+    expect(
+      container.querySelector<HTMLInputElement>(".fortune-name-box")!.value
+    ).toBe("A1");
     close();
   });
 

@@ -110,6 +110,46 @@ describe("Formula bar entry does not start an edit", () => {
     expect(isEditing()).toBe(true);
   });
 
+  it("returns before the kcode-gated mirror can run a stale second handleFormulaInput pass", () => {
+    const { container, fx, isEditing } = setup();
+    const cellInput = container.querySelector<HTMLElement>(
+      "#luckysheet-rich-text-editor"
+    )!;
+
+    fireEvent.focus(fx);
+    expect(isEditing()).toBe(false);
+
+    // Manufacture a stale recentText: a real keydown captures the editor's
+    // current text before this key's own effect applies, so this Ctrl+V sets
+    // recentText.current to "=OLD" -- exactly the `preText` a second,
+    // kcode-gated handleFormulaInput pass would use if the fallback below did
+    // not `return` before reaching it.
+    fx.innerHTML = "=OLD";
+    fx.innerText = "=OLD";
+    fireEvent.keyDown(fx, {
+      key: "v",
+      code: "KeyV",
+      keyCode: 86,
+      ctrlKey: true,
+    });
+
+    // The paste changes the content to something with a character
+    // escapeHTMLTag treats differently ("<"), and to something that does not
+    // start with "=" -- the one case the two passes disagree on. This pass
+    // (preText omitted, so value1txt === value) takes the plain-mirror
+    // branch and escapes it. A stale second pass (value1txt = "=OLD", which
+    // *does* start with "=") would instead take handleFormulaInput's
+    // "transitioning out of formula" branch, which writes $copyTo.innerHTML
+    // = value **unescaped** -- overwriting this pass's correctly-escaped
+    // result with raw "A<B" markup.
+    fx.innerHTML = "A<B";
+    fx.innerText = "A<B";
+    fireEvent.input(fx);
+
+    expect(isEditing()).toBe(true);
+    expect(cellInput.innerHTML).toBe("A&lt;B");
+  });
+
   it("starts an edit on a composed IME character, whose keydown key is not a producible character", () => {
     const { fx, isEditing } = setup();
 

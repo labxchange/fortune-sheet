@@ -343,6 +343,17 @@ const FxEditor: React.FC = () => {
           0
         );
       });
+      // Without this, a Ctrl+V whose keydown did land (lastKeyDownEventRef.current
+      // is set) would fall through to the kcode-gated call below and run
+      // handleFormulaInput a second time for the same change, now with
+      // recentText.current -- captured at keydown, i.e. pre-paste -- as
+      // preText. For a pasted formula the two passes take different branches
+      // (this one sees value1txt === value; the second sees the stale
+      // pre-paste text as value1txt), which can leave a stale mirror in the
+      // cell-input overlay. The commit itself reads from the editor directly,
+      // so this was never data loss, but the second pass has nothing correct
+      // left to do once this one has already mirrored the real content.
+      return;
     }
     const e = lastKeyDownEventRef.current;
     if (!e) return;

@@ -1242,6 +1242,15 @@ export function getSrSelectionCore(ctx: Context): {
     return { rangeText: "", cellValue: "" };
   const rf = lastSelection.row_focus;
   const cf = lastSelection.column_focus;
+  // The merged-cell case narrows the ref to the single focus cell (a merge
+  // has one addressable range, but `lastSelection` may still span the whole
+  // merged block); either way this returns a raw ref, the same shape as the
+  // non-merge branch below. Before this was split out, this branch used to
+  // return early *without* the caller's formatRefForSr spacing applied,
+  // which reads as an oversight from before that spacing existed rather than
+  // a deliberate exemption -- a merged single-cell ref has no different
+  // screen-reading need than an unmerged one. Now both branches return the
+  // same raw shape and the caller formats either one identically.
   const rangeText =
     ctx.config.merge != null && `${rf}_${cf}` in ctx.config.merge
       ? getRangetxt(ctx, ctx.currentSheetId, {
