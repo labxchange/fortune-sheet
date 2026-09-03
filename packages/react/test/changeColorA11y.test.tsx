@@ -37,8 +37,13 @@ const openChangeColor = (getByRole: any, getByText: any) => {
   return { sheetOptionsButton, colorRow, submenu };
 };
 
-const status = () =>
-  document.querySelector("#sr-sheetColor")?.textContent ?? "";
+/** Non-optional for the same reason as `announcement` in toolbarA11y: an
+ *  optional read cannot tell a silent region from an absent one. */
+const status = () => {
+  const region = document.querySelector("#sr-sheetColor");
+  if (!region) throw new Error("#sr-sheetColor is not in the document");
+  return region.textContent ?? "";
+};
 
 const menuIsOpen = () =>
   document.querySelector(".luckysheet-cols-menu") !== null;
@@ -67,8 +72,14 @@ describe("Change Color accessibility", () => {
 
   describe("Confirm", () => {
     it("announces the colour, closes the menu, and returns focus to the sheet", async () => {
+      let sheets: any;
       const { container, getByRole, getByText } = render(
-        <Workbook data={[{ name: "Sheet1" }]} />
+        <Workbook
+          data={[{ name: "Sheet1" }]}
+          onChange={(data) => {
+            sheets = data;
+          }}
+        />
       );
       const { submenu } = openChangeColor(getByRole, getByText);
 
@@ -80,11 +91,44 @@ describe("Change Color accessibility", () => {
       // The default custom value is #000000, which the palette does name.
       expect(status()).toContain("Sheet color:");
       expect(menuIsOpen()).toBe(false);
+      // The outcome, not just the report of one. Without this the suite was
+      // green while Confirm announced a colour it had not applied: the write
+      // went through an effect on `selectColor`, and closing the menu unmounts
+      // this component in the same batched commit, so the effect never ran.
+      expect(sheets?.[0]?.color).toBe("#000000");
 
       await tick();
       expect(document.activeElement).toBe(
         container.querySelector(".luckysheet-cell-input")
       );
+    });
+
+    it("applies a typed colour when Confirm is what closes the menu", async () => {
+      // The same path with a value that cannot be confused with a default, so
+      // a stale `#000000` left over from anywhere else would fail this.
+      let sheets: any;
+      const { getByRole, getByText } = render(
+        <Workbook
+          data={[{ name: "Sheet1" }]}
+          onChange={(data) => {
+            sheets = data;
+          }}
+        />
+      );
+      const { submenu } = openChangeColor(getByRole, getByText);
+      const swatch = submenu.querySelector<HTMLInputElement>(
+        'input[type="color"]'
+      )!;
+      fireEvent.change(swatch, { target: { value: "#123456" } });
+
+      const confirm = within(submenu)
+        .getByText("OK")
+        .closest('[role="button"]') as HTMLElement;
+      fireEvent.click(confirm);
+
+      expect(sheets?.[0]?.color).toBe("#123456");
+      expect(status()).toContain("#123456");
+      expect(menuIsOpen()).toBe(false);
     });
 
     it("leaves the announcement readable after the menu has gone", () => {
@@ -382,12 +426,8 @@ describe("Change Color accessibility", () => {
         <Workbook data={[{ name: "Sheet1" }]} />
       );
 
-      // A freshly mounted sheet's selection has a null end ([0, null]), and
-      // updateFormat iterates start..end, so a colour applied before anything
-      // has moved lands on nothing at all — and is then correctly not
-      // announced, since announceAfterCommit reports results rather than
-      // requests. One arrow key gives the selection a real end. That silent
-      // no-op is pre-existing and not what this cluster is about.
+      // Moved off A1 first so the colour lands somewhere deliberate rather
+      // than on whatever the sheet mounted with.
       const cellInput = container.querySelector<HTMLElement>(
         ".luckysheet-cell-input"
       )!;
@@ -405,10 +445,112 @@ describe("Change Color accessibility", () => {
       fireEvent.click(swatch);
       await tick();
 
-      const toolbarStatus =
-        document.querySelector("#sr-toolbar")?.textContent ?? "";
+      const toolbarRegion = document.querySelector("#sr-toolbar");
+      if (!toolbarRegion) throw new Error("#sr-toolbar is not in the document");
+      const toolbarStatus = toolbarRegion.textContent ?? "";
       expect(toolbarStatus).toContain("Text color:");
       expect(toolbarStatus).toContain(name);
+    });
+  });
+  describe("the palette's selected option", () => {
+    it("marks the colour that is currently in force", () => {
+      // aria-selected was a constant false on all 64 options, which is not a
+      // neutral answer but a positive claim that the listbox has no selection.
+      const { getByRole, getByText } = render(
+        <Workbook data={[{ name: "Sheet1", color: "#674ea7" }]} />
+      );
+      const { submenu } = openChangeColor(getByRole, getByText);
+
+      const options = Array.from(
+        submenu.querySelectorAll<HTMLElement>('[role="option"]')
+      );
+      const selected = options.filter(
+        (o) => o.getAttribute("aria-selected") === "true"
+      );
+
+      expect(selected).toHaveLength(1);
+      expect(selected[0].getAttribute("aria-label")).toBe(
+        options
+          .find((o) => o.style.backgroundColor === "rgb(103, 78, 167)")!
+          .getAttribute("aria-label")
+      );
+    });
+
+    it("puts the palette's tab stop on that colour rather than on black", () => {
+      // Seeded from the applied colour, so the first Tab into the listbox lands
+      // on the option a listbox is expected to open on.
+      const { getByRole, getByText } = render(
+        <Workbook data={[{ name: "Sheet1", color: "#674ea7" }]} />
+      );
+      const { submenu } = openChangeColor(getByRole, getByText);
+
+      const tabbable = Array.from(
+        submenu.querySelectorAll<HTMLElement>('[role="option"]')
+      ).filter((o) => o.getAttribute("tabindex") === "0");
+
+      expect(tabbable).toHaveLength(1);
+      expect(tabbable[0].getAttribute("aria-selected")).toBe("true");
+    });
+
+    it("claims no selection when the sheet has no colour", () => {
+      // The counter-path: a palette that always marks something would be as
+      // wrong as one that never does.
+      const { getByRole, getByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      const { submenu } = openChangeColor(getByRole, getByText);
+
+      expect(
+        submenu.querySelectorAll('[role="option"][aria-selected="true"]')
+      ).toHaveLength(0);
+    });
+  });
+
+  describe("the submenu's in-use flag", () => {
+    it("is released when Escape closes the menu from inside the field", () => {
+      // `onEditingChange(false)` only ever came from `onBlur`, and removing a
+      // focused node fires no blur. Escape is capture-phase, so it unmounted
+      // the menu with the field still focused and left `isShowInputColor`
+      // stuck true — after which the colour row's mouseleave guard never
+      // closed the submenu again for the workbook's lifetime.
+      const { getByRole, getByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      const { colorRow, submenu } = openChangeColor(getByRole, getByText);
+
+      const field = submenu.querySelector<HTMLInputElement>(
+        ".fortune-color-hex-input"
+      )!;
+      field.focus();
+      fireEvent.focus(field);
+      fireEvent.keyDown(field, { key: "Escape" });
+
+      // Reopen, and the row must still be able to close itself on mouseleave.
+      fireEvent.keyDown(colorRow, { key: "Enter" });
+      fireEvent.mouseLeave(colorRow);
+
+      expect(
+        document.querySelector("#fortune-change-color")
+      ).not.toBeInTheDocument();
+    });
+
+    it("still holds the menu open while the field is genuinely being typed in", () => {
+      // The counter-path, so the release above cannot become "the menu closes
+      // out from under the field", which is the bug it was added to fix.
+      const { getByRole, getByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      const { colorRow, submenu } = openChangeColor(getByRole, getByText);
+
+      const field = submenu.querySelector<HTMLInputElement>(
+        ".fortune-color-hex-input"
+      )!;
+      fireEvent.focus(field);
+      fireEvent.mouseLeave(colorRow);
+
+      expect(
+        document.querySelector("#fortune-change-color")
+      ).toBeInTheDocument();
     });
   });
 });

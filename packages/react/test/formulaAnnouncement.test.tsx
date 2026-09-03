@@ -1,6 +1,6 @@
 import { render, fireEvent, act } from "@testing-library/react";
 import React from "react";
-import Workbook from "../src/components/Workbook";
+import Workbook, { WorkbookInstance } from "../src/components/Workbook";
 
 // A computed cell announces its result and nothing else, so "3" sounds exactly
 // like a 3 somebody typed. A sighted user has the formula bar and the sheet's own
@@ -11,6 +11,13 @@ import Workbook from "../src/components/Workbook";
 // situations: `#sr-selection` is an alert tied to the selection *changing*, and
 // the cell input's name is what is read when focus arrives without the selection
 // moving — back from the formula bar, or when the user asks what is focused.
+//
+// The *value* reaches only the alert. Both carried it once, which meant the
+// ordinary arrow-key move rendered the same sentence into an assertive region
+// and into the focused element's accessible name in one commit — and NVDA and
+// JAWS re-announce a name change on the focused element, so the commonest
+// interaction in the grid was spoken twice. The alert answers "what is in the
+// cell I moved to"; the name answers "where am I".
 
 const tick = () =>
   act(async () => {
@@ -113,7 +120,7 @@ describe("Formula presence is announced", () => {
 
       await moveDown(cellInput, 2);
 
-      expect(cellInput.getAttribute("aria-label")).toBe("A. 3 3 Has formula.");
+      expect(cellInput.getAttribute("aria-label")).toBe("A. 3 Has formula.");
     });
 
     it("leaves a typed value unmarked", async () => {
@@ -122,7 +129,50 @@ describe("Formula presence is announced", () => {
 
       await moveDown(cellInput, 1);
 
-      expect(cellInput.getAttribute("aria-label")).toBe("A. 2 2");
+      expect(cellInput.getAttribute("aria-label")).toBe("A. 2");
+    });
+
+    it("does not repeat the value the selection alert has just read", async () => {
+      // The two channels must not compose the same sentence: A3 holds "3", and
+      // the alert is the one that says so.
+      const { cellInput, selectionText } = setup();
+      await tick();
+
+      await moveDown(cellInput, 2);
+
+      const name = cellInput.getAttribute("aria-label")!;
+      expect(selectionText()).toContain("3");
+      expect(name).toBe("A. 3 Has formula.");
+      expect(name).not.toBe(selectionText());
+    });
+
+    it("names the cell that would be edited on a multi-range selection", async () => {
+      // The value was read from `luckysheet_select_save[0]` while the reference
+      // came from `_.last(...)`, so a ctrl-clicked pair named one cell and read
+      // out the other's value. With the value gone there is no second selection
+      // left to disagree with.
+      const ref = React.createRef<WorkbookInstance>();
+      const { container } = render(
+        <Workbook ref={ref} data={[{ name: "Sheet1", celldata } as any]} />
+      );
+      const cellInput = container.querySelector<HTMLElement>(
+        ".luckysheet-cell-input"
+      )!;
+      await tick();
+
+      act(() => {
+        ref.current?.setSelection([
+          { row: [0, 0], column: [0, 0] },
+          { row: [2, 2], column: [0, 0] },
+        ]);
+      });
+      await tick();
+
+      // A3 is the last range and so the cell an edit would land in; A1 holds
+      // "1", which must not turn up in the name.
+      const name = cellInput.getAttribute("aria-label")!;
+      expect(name).toContain("A. 3");
+      expect(name).not.toContain("1");
     });
 
     it("drops the marker while an edit is open", async () => {
