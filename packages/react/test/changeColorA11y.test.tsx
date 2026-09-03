@@ -529,9 +529,7 @@ describe("Change Color accessibility", () => {
       fireEvent.keyDown(colorRow, { key: "Enter" });
       fireEvent.mouseLeave(colorRow);
 
-      expect(
-        document.querySelector("#fortune-change-color")
-      ).not.toBeInTheDocument();
+      expect(document.querySelector("#fortune-change-color")).toBeNull();
     });
 
     it("still holds the menu open while the field is genuinely being typed in", () => {
@@ -548,9 +546,7 @@ describe("Change Color accessibility", () => {
       fireEvent.focus(field);
       fireEvent.mouseLeave(colorRow);
 
-      expect(
-        document.querySelector("#fortune-change-color")
-      ).toBeInTheDocument();
+      expect(document.querySelector("#fortune-change-color")).not.toBeNull();
     });
   });
 });
