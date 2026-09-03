@@ -12960,6 +12960,7 @@ export default {
     leftFilteredRegion: "Выход из отфильтрованной области.",
     currentCellInput: "Ввод текущей ячейки",
     newSheet: "Новый лист",
+    sheetTabs: "Вкладки листов",
     sheetOptions: "Параметры листа",
     allSheets: "Все листы",
     scrollLeft: "Прокрутить вкладки влево",

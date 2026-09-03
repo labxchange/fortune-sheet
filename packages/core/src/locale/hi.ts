@@ -11083,6 +11083,7 @@ export default {
     leftFilteredRegion: "फ़िल्टर किए गए क्षेत्र से बाहर निकले।",
     currentCellInput: "वर्तमान सेल इनपुट",
     newSheet: "नई शीट",
+    sheetTabs: "शीट टैब",
     sheetOptions: "शीट विकल्प",
     allSheets: "सभी शीट",
     scrollLeft: "टैब बाईं ओर स्क्रॉल करें",
