@@ -329,6 +329,41 @@ describe("formula point mode", () => {
       expect(cellInput.textContent).toBe("=SUM(AVERAGE(C2");
     });
 
+    // applyPointModeStep ends with scrollToHighlightCell, the part that keeps a
+    // pick the user cannot see from being silently off-screen. The fixture
+    // leaves cellmainHeight/cellmainWidth undefined, so the "scrolled past the
+    // far edge" branch of that function is NaN-guarded out and only the "scrolled
+    // past the near edge" branch can fire -- which makes both numbers below exact
+    // rather than approximate.
+    test("a pick that is scrolled out of view brings the viewport back", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      ctx.scrollTop = 500;
+      ctx.scrollLeft = 500;
+      editFormula("=SUM(");
+
+      pressArrow(ctx, "ArrowUp", cellInput); // C3 -> C2
+
+      expect(cellInput.textContent).toBe("=SUM(C2");
+      // Both axes move: scrollToHighlightCell is handed the row and the column.
+      // Row 1's predecessor edge is visibledatarow[0] = 20, less the 20px margin.
+      expect(ctx.scrollTop).toBe(0);
+      // Column 2's predecessor edge is visibledatacolumn[1] = 148, same margin.
+      expect(ctx.scrollLeft).toBe(128);
+    });
+
+    test("a pick already in view leaves the viewport alone", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      editFormula("=SUM(");
+
+      pressArrow(ctx, "ArrowUp", cellInput); // C3 -> C2
+
+      expect(cellInput.textContent).toBe("=SUM(C2");
+      expect(ctx.scrollTop).toBe(0);
+      expect(ctx.scrollLeft).toBe(0);
+    });
+
     describe("modified arrows are not point mode", () => {
       // The grid filters these out long before its arrow branch; the formula
       // bar switches on `key` alone. The guard lives in canEnterPointMode so
