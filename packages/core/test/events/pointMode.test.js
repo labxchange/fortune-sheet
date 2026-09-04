@@ -355,13 +355,20 @@ describe("formula point mode", () => {
     test("a pick already in view leaves the viewport alone", () => {
       const ctx = getContext();
       ctx.luckysheetCellUpdate = [2, 2];
+      // Deliberately not 0/0. Starting from the origin, an implementation that
+      // scrolled unconditionally would land on 0 as well and the test would
+      // pass anyway. From an offset that already has the target in view --
+      // below visibledatarow[0]=20 and visibledatacolumn[1]=148 -- the same bug
+      // lands on 0/128 instead, which these assertions catch.
+      ctx.scrollTop = 15;
+      ctx.scrollLeft = 100;
       editFormula("=SUM(");
 
       pressArrow(ctx, "ArrowUp", cellInput); // C3 -> C2
 
       expect(cellInput.textContent).toBe("=SUM(C2");
-      expect(ctx.scrollTop).toBe(0);
-      expect(ctx.scrollLeft).toBe(0);
+      expect(ctx.scrollTop).toBe(15);
+      expect(ctx.scrollLeft).toBe(100);
     });
 
     describe("modified arrows are not point mode", () => {
