@@ -1,4 +1,10 @@
-import { render, fireEvent, waitFor, within } from "@testing-library/react";
+import {
+  render,
+  fireEvent,
+  waitFor,
+  within,
+  act,
+} from "@testing-library/react";
 import React from "react";
 import Workbook from "../src/components/Workbook";
 
@@ -163,6 +169,35 @@ describe("Find and Replace dialog focus", () => {
     expect(document.activeElement).toBe(opener);
   });
 
+  it("leaves focus alone when it had already moved out to the grid", async () => {
+    // The other consumer of the narrowed restore. `Dialog`'s case is the
+    // shortcuts dialog leaving for a region shortcut; here the equivalent is
+    // focus sitting in the grid — a normal state for this dialog, which is
+    // deliberately non-modal over a live sheet — when the close arrives.
+    //
+    // Every control that closes this dialog today lives inside it, so in a
+    // browser the closing control itself holds focus and the restore fires as
+    // before; this pins the hook's contract for its second consumer, which the
+    // two `Dialog` test files cover only for the first. Without the gate the
+    // restore is unconditional and drags focus from the cell back to the
+    // toolbar, undoing a move the user made.
+    const { container, getByRole, queryByRole } = renderWorkbook();
+    const opener = openFromToolbar(getByRole);
+    const dialog = await waitFor(() => getByRole("dialog"));
+
+    const cellInput = container.querySelector<HTMLElement>(
+      "#luckysheet-rich-text-editor"
+    )!;
+    cellInput.focus();
+    expect(document.activeElement).toBe(cellInput);
+
+    fireEvent.click(footerClose(dialog));
+
+    await waitFor(() => expect(queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(cellInput);
+    expect(document.activeElement).not.toBe(opener);
+  });
+
   it("does not send focus to the body when the opener is gone", async () => {
     // Focusing a detached node is a no-op — focus stays put — so restoring to
     // a removed opener would leave focus on the dialog's own control, which
@@ -220,6 +255,16 @@ describe("useDialogFocus blast radius: the shortcuts dialog", () => {
     fireEvent.keyDown(dialog, { key: "Escape" });
 
     await waitFor(() => expect(queryByRole("dialog")).toBeNull());
+    // `Dialog` passes `deferRestore`, so its restore lands a macrotask after the
+    // unmount: the announcement whose result rides the focus utterance has to
+    // reach the DOM first. `waitFor` resolves as soon as the dialog is gone,
+    // which is before that timer. The restore itself is unchanged — same
+    // opener, one task later — so this waits for it rather than relaxing it.
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
     expect(document.activeElement).toBe(opener);
   });
 });

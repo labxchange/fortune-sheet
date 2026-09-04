@@ -550,7 +550,13 @@ const SearchReplace: React.FC<{
                       // selection and left the arrow keys dead. Deferred by a
                       // task, which is also what sequences it after the close:
                       // useDialogFocus's unmount cleanup restores focus to
-                      // whatever opened the dialog, and that runs first.
+                      // whatever opened the dialog, and that runs first — on
+                      // this path, at least. That restore is conditional on
+                      // focus still being inside the dialog when it closes,
+                      // and here it is, on the result row this handler
+                      // belongs to. The deferral is what makes the order hold
+                      // either way: whether the restore fires or is skipped,
+                      // the cell input is focused after it.
                       focusAfterCommit(() => refs.cellInput.current);
                     }}
                     onKeyDown={activateOnEnterOrSpace}

@@ -667,6 +667,13 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               workbookContainer.current?.querySelector<HTMLElement>(region);
             if (container) {
               e.preventDefault();
+              // Only queues the close; `target.focus()` below then runs
+              // synchronously, while the dialog is still mounted, so
+              // `useDialogFocus`'s focusin listener sees focus leave and its
+              // cleanup skips the restore. That depends on this order — focus
+              // after the close, not before — or the restore drags focus back
+              // to whatever opened the dialog. The context-menu branch below
+              // gets to the same place by the opposite route.
               leaveShortcutsDialog();
               // The grid is entered at its root, which holds tabIndex -1 for
               // the purpose: landing on one of the controls inside it (the
@@ -778,6 +785,14 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               clientX: pageX - window.scrollX,
               clientY: pageY - window.scrollY,
             });
+            // Nothing focuses anything synchronously here, so unlike the
+            // region branch above, focus is still inside the dialog when it
+            // unmounts and its restore *does* fire, to whatever opened it.
+            // Focus then lands in the menu regardless, because `ContextMenu`
+            // autofocuses itself through `useEscapeToClose` on mount and React
+            // flushes passive unmounts before passive mounts — so the menu's
+            // claim is the last one. Same destination as the region branch,
+            // reached the other way round.
             leaveShortcutsDialog();
             setContextWithProduce((draftCtx) => {
               handleContextMenu(
