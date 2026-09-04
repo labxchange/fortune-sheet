@@ -189,6 +189,46 @@ export function mouseDownToggleHandlers<T extends HTMLElement = HTMLElement>(
  * meaningful to compare; `onReturn` then fires on every actual return, as
  * before.
  */
+const stampIds = new WeakMap<object, number>();
+let nextStampId = 1;
+
+/**
+ * Turn one `readStamp` sample into something joinable: primitives pass
+ * through unchanged, and an object/array gets a stable id from a WeakMap
+ * rather than being stringified (which would make two structurally-equal
+ * but distinct writes compare equal, and a large `luckysheetfile` slow to
+ * serialise on every command). Immer hands out a fresh top-level reference
+ * for anything a producer actually wrote, so a changed id here means
+ * exactly "this field changed" -- the same property `readStamp`'s own
+ * single-field callers already rely on, just made composable.
+ */
+function stampId(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  let id = stampIds.get(value);
+  if (id === undefined) {
+    id = nextStampId;
+    nextStampId += 1;
+    stampIds.set(value, id);
+  }
+  return id;
+}
+
+/**
+ * Combine several `readStamp`-shaped samples into one `===`-comparable
+ * stamp, for a command whose write doesn't reach the single field a caller
+ * is already tracking. Format Painter, for instance, arms itself by writing
+ * `luckysheet_copy_save` and `luckysheetPaintModelOn` -- both top-level
+ * siblings of `luckysheetfile` in the workbook context, so `luckysheetfile`
+ * identity alone never sees it change. `combineStamps(a, b, c)` used as
+ * `readStamp` catches a change to any one of them without weakening the
+ * single-field check for every other command sharing the same wrapper: a
+ * command that touches none of the combined fields still reads identical
+ * before and after, exactly as a single-field stamp would.
+ */
+export function combineStamps(...parts: unknown[]): string {
+  return parts.map(stampId).join("|");
+}
+
 export function withFocusReturn<A extends unknown[]>(
   run: (...args: A) => void,
   readStamp: () => unknown,

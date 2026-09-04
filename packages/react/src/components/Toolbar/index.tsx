@@ -53,6 +53,7 @@ import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
 import {
   activateOnEnterOrSpace,
+  combineStamps,
   focusAfterCommit,
   withFocusReturn as sharedWithFocusReturn,
   onActivate,
@@ -279,10 +280,19 @@ const Toolbar: React.FC<{
    *
    * A command that declined to act must not relocate anyone -- generalising the
    * rule `filterUnchanged` states for the filter items. `luckysheetfile` is the
-   * signal: immer rebuilds the references along the path to whatever a command
-   * wrote, up to and including that array, and preserves them for a subtree
-   * nothing touched. So a command that changed no cell, format, merge or freeze
-   * leaves it identical, and focus stays where the user put it.
+   * main signal: immer rebuilds the references along the path to whatever a
+   * command wrote, up to and including that array, and preserves them for a
+   * subtree nothing touched. So a command that changed no cell, format, merge
+   * or freeze leaves it identical, and focus stays where the user put it.
+   * `luckysheetPaintModelOn`/`luckysheet_copy_save` are combined in alongside
+   * it for the one command that arms itself without ever touching
+   * `luckysheetfile`: Format Painter writes only those two (plus
+   * `luckysheetPaintSingle`, which isn't tracked here -- it is set `true` on
+   * every arm and never reset, so it can't distinguish anything the other two
+   * don't already). `combineStamps` keeps this additive rather than a
+   * weakening: a command that touches none of the tracked fields still reads
+   * identical before and after, same as checking `luckysheetfile` alone
+   * would.
    *
    * Deferred through `focusAfterCommit`, so it lands after the commit and after
    * any popup's own focus restoration -- and reads `contextRef`, not `context`,
@@ -308,7 +318,12 @@ const Toolbar: React.FC<{
         run,
         // Through the ref, not `context`: this is read after the commit, when
         // the value captured at render time is already stale.
-        () => contextRef.current.luckysheetfile,
+        () =>
+          combineStamps(
+            contextRef.current.luckysheetfile,
+            contextRef.current.luckysheetPaintModelOn,
+            contextRef.current.luckysheet_copy_save
+          ),
         () => refs.cellInput.current,
         () => {
           setContext((ctx) => {

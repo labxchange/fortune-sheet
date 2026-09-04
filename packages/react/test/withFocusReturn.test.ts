@@ -1,4 +1,7 @@
-import { withFocusReturn } from "../src/utils/keyboardActivation";
+import {
+  combineStamps,
+  withFocusReturn,
+} from "../src/utils/keyboardActivation";
 
 // The rule every built-in toolbar command routes its focus through: a command
 // that changed the sheet sends focus back to the cells it acted on (WCAG
@@ -275,5 +278,99 @@ describe("withFocusReturn", () => {
 
       expect(onReturn).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+// Format Painter arms itself by writing luckysheet_copy_save and
+// luckysheetPaintModelOn -- both top-level siblings of luckysheetfile in the
+// workbook context -- so a readStamp tracking luckysheetfile alone always
+// reads "declined" for it, and focus can never return (a real WCAG 2.4.3
+// gap: Format Painter's whole point is that you go select a target range
+// next). combineStamps is what lets Toolbar's readStamp cover all three
+// fields without weakening the single-field check the other ~15 commands
+// sharing the same wrapper rely on.
+describe("combineStamps", () => {
+  it("changes when any one tracked field changes", () => {
+    const luckysheetfile: unknown[] = [];
+    let luckysheetPaintModelOn = false;
+    let copySave: { dataSheetId: string } | undefined;
+
+    const before = combineStamps(
+      luckysheetfile,
+      luckysheetPaintModelOn,
+      copySave
+    );
+
+    // What handleFormatPainter does: arms paint mode without ever touching
+    // luckysheetfile.
+    luckysheetPaintModelOn = true;
+    copySave = { dataSheetId: "sheet1" };
+    const after = combineStamps(
+      luckysheetfile,
+      luckysheetPaintModelOn,
+      copySave
+    );
+
+    expect(after).not.toBe(before);
+  });
+
+  it("stays the same when none of the tracked fields change", () => {
+    // A command unrelated to Format Painter -- e.g. one that only reads the
+    // context -- must not spuriously read as "changed" for every other
+    // caller sharing this combined stamp.
+    const luckysheetfile = ["same-ref"];
+    const luckysheetPaintModelOn = false;
+    const copySave: { dataSheetId: string } | undefined = undefined;
+
+    const before = combineStamps(
+      luckysheetfile,
+      luckysheetPaintModelOn,
+      copySave
+    );
+    const after = combineStamps(
+      luckysheetfile,
+      luckysheetPaintModelOn,
+      copySave
+    );
+
+    expect(after).toBe(before);
+  });
+
+  it("distinguishes two structurally-equal but distinct object writes", () => {
+    // A stringified stamp would treat these as identical; a stable
+    // per-reference id must not.
+    const first = combineStamps({ dataSheetId: "sheet1" });
+    const second = combineStamps({ dataSheetId: "sheet1" });
+
+    expect(second).not.toBe(first);
+  });
+
+  it("gives withFocusReturn a positive branch through Format-Painter-shaped writes", async () => {
+    // luckysheetfile never changes in this test -- that's the point: Format
+    // Painter's real handler doesn't touch it either.
+    const luckysheetfile: unknown[] = [];
+    let luckysheetPaintModelOn = false;
+    let copySave: { dataSheetId: string } | undefined;
+    const cellInput = document.createElement("div");
+    cellInput.tabIndex = -1;
+    const toolbarButton = document.createElement("button");
+    document.body.append(cellInput, toolbarButton);
+    toolbarButton.focus();
+
+    const formatPainter = withFocusReturn(
+      () => {
+        luckysheetPaintModelOn = true;
+        copySave = { dataSheetId: "sheet1" };
+      },
+      () => combineStamps(luckysheetfile, luckysheetPaintModelOn, copySave),
+      () => cellInput
+    );
+
+    formatPainter();
+    await tick();
+
+    expect(document.activeElement).toBe(cellInput);
+
+    document.body.innerHTML = "";
   });
 });
