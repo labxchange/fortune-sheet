@@ -426,7 +426,6 @@ const InputBox: React.FC = () => {
       isAllowEdit(context, [
         { row: [row_index, row_index], column: [col_index, col_index] },
       ]),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [context, isHidenRC, firstSelection, row_index, col_index]
   );
 
