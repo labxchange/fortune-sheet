@@ -480,6 +480,12 @@ const SheetOverlay: React.FC = () => {
       // without clearing, raising the same warning a second time was swallowed
       // in silence — the user repeats the action and gets no explanation at
       // all. Clearing costs one extra pass in which the guard above is false.
+      //
+      // It costs nothing in undo, which is the thing to check before writing
+      // to the context from an effect: `filterPatch` (`core/utils/patch.ts`)
+      // keeps only patches whose path starts at `luckysheetfile`, so this
+      // produces no history entry and cannot eat a Ctrl+Z or drop the redo
+      // stack.
       setContext((draftCtx) => {
         draftCtx.warnDialog = undefined;
       });

@@ -458,6 +458,96 @@ describe("auto formula", () => {
       });
     });
 
+    // A 2D selection is two independent passes over the same cells: rows
+    // first, then columns. The trim above is per line, so on rows of unequal
+    // length reaching the last column it placed each row's total at that row's
+    // own last filled column — inside the selection — and the column pass then
+    // read those totals as data. A row-header click and Ctrl+A both produce
+    // exactly this selection.
+    describe("a 2D selection whose rows have unequal extents", () => {
+      const n = (v) => ({ v: `${v}`, ct: { t: "n" }, m: `${v}` });
+      const getRaggedContext = () =>
+        contextFactory({
+          luckysheet_select_save: selectionFactory([0, 1], [0, 3], 0, 0),
+          luckysheetfile: [
+            {
+              id: "id_1",
+              data: [
+                [n(1), n(2), n(3), null],
+                [n(4), n(5), null, null],
+                [null, null, null, null],
+              ],
+            },
+          ],
+        });
+
+      test("writes no total inside the selected range", () => {
+        const cellInput = document.createElement("div");
+        const ctx = getRaggedContext();
+        autoSelectionFormula(ctx, cellInput, null, "SUM");
+        const flowdata = getFlowdata(ctx);
+
+        // the selection is rows 0-1, columns 0-3; every cell of it that held
+        // nothing must still hold nothing
+        expect(flowdata[0][3]).toBeNull();
+        expect(flowdata[1][2]).toBeNull();
+        expect(flowdata[1][3]).toBeNull();
+      });
+
+      test("totals each column from the data alone", () => {
+        const cellInput = document.createElement("div");
+        const ctx = getRaggedContext();
+        autoSelectionFormula(ctx, cellInput, null, "SUM");
+        const flowdata = getFlowdata(ctx);
+
+        expect(flowdata[2][0].v).toBe(5);
+        expect(flowdata[2][1].v).toBe(7);
+        // 3, not 12: the row totals are not in this column to be counted twice
+        expect(flowdata[2][2].v).toBe(3);
+        expect(flowdata[2][2].f).toBe("=SUM(C1:C2)");
+        // and a column that held nothing gets no "total" of its own
+        expect(flowdata[2][3]).toBeNull();
+      });
+
+      // The row pass genuinely had no room, but the column pass delivered, so
+      // the usual withdrawal applies and the user is not told about a half
+      // they did not ask for separately.
+      test("stays quiet, because the column pass delivered", () => {
+        const cellInput = document.createElement("div");
+        const ctx = getRaggedContext();
+        autoSelectionFormula(ctx, cellInput, null, "SUM");
+        expect(ctx.warnDialog).toBeUndefined();
+      });
+
+      // The counter-path: the same 2D shape one column short of the edge has
+      // room for both passes, and the row totals land outside the selection
+      // where the column pass cannot see them.
+      test("still totals both directions when there is room to the right", () => {
+        const cellInput = document.createElement("div");
+        const ctx = contextFactory({
+          luckysheet_select_save: selectionFactory([0, 1], [0, 2], 0, 0),
+          luckysheetfile: [
+            {
+              id: "id_1",
+              data: [
+                [n(1), n(2), n(3), null],
+                [n(4), n(5), null, null],
+                [null, null, null, null],
+              ],
+            },
+          ],
+        });
+        autoSelectionFormula(ctx, cellInput, null, "SUM");
+        const flowdata = getFlowdata(ctx);
+
+        expect(flowdata[0][3].v).toBe(6);
+        expect(flowdata[1][3].v).toBe(9);
+        expect(flowdata[2][0].v).toBe(5);
+        expect(flowdata[2][1].v).toBe(7);
+        expect(flowdata[2][2].v).toBe(3);
+      });
+    });
+
     // A column of labels fits neither branch of singleFormulaInput, so it used
     // to fall straight out — no total, no message, nothing to tell the button
     // apart from a broken one.

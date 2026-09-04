@@ -1,4 +1,4 @@
-import { Context, getSheetIndex, isFormula, locale } from "@fortune-sheet/core";
+import { Context, getSheetIndex, locale } from "@fortune-sheet/core";
 import { useMemo } from "react";
 import _ from "lodash";
 
@@ -15,10 +15,17 @@ type LocaleInfo = ReturnType<typeof locale>["info"];
  * (WCAG 1.3.1, 4.1.2).
  *
  * Read from the cell's `f`, not its `v` or `m`: `f` is the formula source, and
- * `v`/`m` are the result it produced. That is the same test the core takes on
- * stored cells (`modules/cell.ts:866`, `:952`). A cell filled by another cell's
- * spill has no `f` of its own and is deliberately not marked — it holds a value,
- * not a formula.
+ * `v`/`m` are the result it produced. A cell filled by another cell's spill has
+ * no `f` of its own and is deliberately not marked — it holds a value, not a
+ * formula.
+ *
+ * Any `f` counts, rather than one `isFormula` accepts. `isFormula` additionally
+ * requires a leading `=`, and the two places that decide whether the *editor*
+ * opens on a formula do not — `InputBox.tsx` and `FxEditor/index.tsx` both test
+ * `cell.f` bare. A stored `f` without the `=`, which `celldata` and the public
+ * API can both produce, was therefore edited as a formula and not announced as
+ * one: precisely the gap this hook exists to close. Matching those two keeps
+ * what is said about a cell and what happens when you open it in agreement.
  *
  * Returns the leading-space form the neighbouring `filterCellAnnouncement` and
  * `clampAnnouncement` segments use, so it concatenates the same way, and the
@@ -36,7 +43,7 @@ export function useFocusedCellFormulaAnnouncement(
     const sheetIndex = getSheetIndex(context, context.currentSheetId);
     if (sheetIndex == null) return "";
     const cell = context.luckysheetfile[sheetIndex]?.data?.[rf]?.[cf];
-    return isFormula(cell?.f) ? ` ${info.cellHasFormula}` : "";
+    return cell?.f ? ` ${info.cellHasFormula}` : "";
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     context.luckysheetfile,

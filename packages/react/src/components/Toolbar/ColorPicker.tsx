@@ -124,10 +124,15 @@ const ColorPicker: React.FC<Props> = ({ onPick, selectedColor }) => {
     const found = flatPalette.findIndex((c) => sameColor(c, selectedColor));
     return found === -1 ? 0 : found;
   });
+  // Linear, to match the role. While this was a grid the arrows wrapped within
+  // the visual row — ArrowRight from swatch 8 went back to swatch 1 — which is
+  // coherent only while row and column are in the accessibility tree to
+  // explain it. They are not, by the deliberate choice below: AT reads "White,
+  // 8 of 64", and the next key must therefore reach 9. Role and interaction
+  // model have to agree (WCAG 4.1.2), and it is the role that is right here.
   useRovingFocus({
     containerRef,
-    orientation: "grid",
-    columns: palette[0].length,
+    orientation: "linear",
     // the swatches carry role="option" now, so the default [role="button"]
     // selector would match nothing
     itemSelector: '[role="option"]',
@@ -145,7 +150,8 @@ const ColorPicker: React.FC<Props> = ({ onPick, selectedColor }) => {
     // name is the whole payload. listbox/option says "pick one of these",
     // keeps the set position AT would otherwise lose ("3 of 64"), and leaves
     // nothing in the tree that can be named by concatenation. The visual rows
-    // stay, as presentational layout, and the arrow keys still move in 2D.
+    // stay, but as presentational layout only — which is why the arrow keys
+    // walk the flat order rather than the rows (see `useRovingFocus` above).
     <div
       className="fortune-toolbar-color-picker"
       ref={containerRef}
