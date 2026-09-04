@@ -734,6 +734,13 @@ export function handleArrowKey(ctx: Context, e: KeyboardEvent) {
  * The next visible index one step from `from`, or null if the step runs out of
  * the sheet. Hidden rows and columns are skipped rather than landed on, the way
  * the grid's own arrow-key movement skips them.
+ *
+ * The finite test is not redundant with the range test: `NaN < 0` and
+ * `NaN >= limit` are both false, so a non-finite `from` would otherwise be
+ * returned as a valid index and travel on as a target — a reference written
+ * from `getRangetxt` at row `NaN` and an overlay positioned there. Both bounds
+ * being false for the one value they exist to exclude is the trap, so the
+ * predicate says what it means instead of relying on the comparisons.
  */
 function stepToVisibleIndex(
   from: number,
@@ -745,7 +752,7 @@ function stepToVisibleIndex(
   while (index >= 0 && index < limit && !_.isNil(hidden[index])) {
     index += delta;
   }
-  if (index < 0 || index >= limit) return null;
+  if (!Number.isFinite(index) || index < 0 || index >= limit) return null;
   return index;
 }
 
@@ -828,9 +835,19 @@ export function resolvePointModeStep(
   const inPointMode = !!ctx.formulaCache.rangestart;
 
   // Where the step starts from: the reference already written, or — for the
-  // first arrow — the cell being edited. Stepping off it rather than landing on
-  // it is deliberate; seeding at the edited cell would write a circular
-  // self-reference.
+  // first arrow — the cell being edited.
+  //
+  // On that first arrow, stepping off the edited cell rather than landing on it
+  // is deliberate: seeding at it would open every formula with a reference to
+  // itself. That is the only step this claim covers. Once point mode is
+  // running the step starts from `picked`, so arrowing away and back does land
+  // on the edited cell — Down then Up while editing C3 gives `=SUM(C3` — and
+  // nothing here prevents it. That is intentional too, and matches Excel,
+  // which lets the mouse and the arrows both point at the editing cell; the
+  // circularity surfaces as a calculation error on commit, which is where a
+  // spreadsheet user expects to meet it, rather than as an arrow key that
+  // silently refuses to move. Pinned by "arrowing back onto the edited cell is
+  // allowed" in pointMode.test.js so the two claims stay told apart.
   let startRow;
   let endRow;
   let startCol;
@@ -857,7 +874,15 @@ export function resolvePointModeStep(
       return null;
     }
   } else {
+    // The seed for the first arrow, and the one place a non-finite index can
+    // enter. `luckysheetCellUpdate` is `any[]` and is written as
+    // `[row_focus, column_focus]` by both of its writers — this file's F2
+    // branch and FxEditor's onFocus — with `row_focus` optional on the
+    // Selection type and neither writer checking for nil. `canEnterPointMode`
+    // above only asserts the array is non-empty, so `[undefined, undefined]`
+    // reaches here type-legally and arithmetic on it yields NaN.
     const [editRow, editCol] = ctx.luckysheetCellUpdate;
+    if (!Number.isFinite(editRow) || !Number.isFinite(editCol)) return null;
     const merged = mergeBorder(ctx, flowdata, editRow, editCol);
     [, , startRow, endRow] = merged ? merged.row : [0, 0, editRow, editRow];
     [, , startCol, endCol] = merged ? merged.column : [0, 0, editCol, editCol];
@@ -935,6 +960,24 @@ export function resolvePointModeStep(
  *
  * A null `target` is a deliberate no-op. The key was point mode's, but the
  * reference had nowhere left to go.
+ *
+ * This writes to the DOM (`cellInput.innerHTML`, the caret) from inside an
+ * immer producer, on both the grid and the formula-bar path, because the entry
+ * point it shares with the mouse driver has always done so — `rangeSetValue`
+ * rewrites the editor's markup in place. Two consequences worth stating rather
+ * than discovering:
+ *
+ * - It must be idempotent, because StrictMode invokes the producer twice. It
+ *   is, and not by accident: `rangeSetValue` asks `israngeseleciton` itself
+ *   whether the caret sits after a reference, and after the first pass the
+ *   caret is inside the reference just written, so the second pass takes the
+ *   replace branch and rewrites the same reference rather than appending a
+ *   second one. Pinned by "applying the same step twice is idempotent" in
+ *   pointMode.test.js, so a future change to that branch fails a test instead
+ *   of doubling every keyboard-picked reference under StrictMode.
+ * - The step it is handed must be resolved before the producer runs, never
+ *   inside it, so that the same decision drives the cancel and the write. See
+ *   the note in FxEditor's onKeyDown.
  */
 export function applyPointModeStep(
   ctx: Context,

@@ -132,20 +132,40 @@ const FxEditor: React.FC = () => {
       }
 
       // Resolved here rather than inside the producer below, and resolved
-      // exactly once. setContext takes a functional updater, which React only
-      // evaluates eagerly while the fiber has no pending update; when it
-      // defers, the caret test behind this would read window.getSelection()
-      // after the browser had already moved the caret, and preventDefault would
-      // land too late to stop it. Reading it now also primes rangeSetValueTo
-      // from the caret as it stood at keydown -- formulaCache is a class
-      // instance, so immer leaves it undrafted and the producer sees the same
-      // object.
+      // exactly once, for two reasons -- neither of which is "reading the caret
+      // inside a producer is unsafe". An earlier version of this comment said
+      // that, and it does not survive being applied to the grid: Workbook's
+      // onKeyDown calls handleGlobalKeyDown *inside* setContextWithProduce's
+      // recipe, so the grid runs canEnterPointMode -> israngeseleciton ->
+      // window.getSelection() from within a functional updater already. If that
+      // were unsafe in itself, the mouse-era grid driver would have been broken
+      // since long before point mode, and it is not.
       //
-      // The step, not just the gate: cancelling the key on "a reference may go
-      // here" alone swallowed arrows the driver went on to decline. At the edge
-      // of the sheet -- Left in column A, Up in row 1 -- the key was cancelled
-      // and nothing replaced it, so the caret sat still. Now the same
-      // resolution decides the cancel and drives the apply.
+      // The first reason is preventDefault, which genuinely cannot be deferred:
+      // it has to be issued while the event is still being dispatched, so the
+      // decision that governs it has to be made here too. That is a fact about
+      // the DOM rather than about React, so it holds whatever React does with
+      // the updater. (handleGlobalKeyDown issues its own preventDefault from
+      // inside the recipe and so does lean on React evaluating the updater
+      // during the dispatch -- eagerly, which it does while the fiber has no
+      // pending update. That is pre-existing, applies to every preventDefault
+      // in that function rather than to point mode, and is not this PR's to
+      // fix; the point here is that the formula bar does not add a second
+      // instance of it.)
+      //
+      // The second is the one the tests pin: resolve once, so the cancel and
+      // the apply cannot disagree. Cancelling the key on "a reference may go
+      // here" alone swallowed arrows the driver went on to decline -- at the
+      // edge of the sheet, Left in column A or Up in row 1, the key was
+      // cancelled and nothing replaced it, so the caret sat still. Asking twice
+      // is what allowed the two answers to differ; there is now one answer,
+      // read here and handed to the producer as a value.
+      //
+      // Resolving now also primes rangeSetValueTo from the caret as it stood at
+      // keydown, which the producer needs and which is safe to carry across:
+      // formulaCache is a class instance with no [immerable], so immer passes
+      // it through undrafted and the producer reads back the same object this
+      // call primed.
       const pointModeStep =
         (key === "ArrowUp" ||
           key === "ArrowDown" ||
