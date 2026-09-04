@@ -56,6 +56,7 @@ import { useSelectionModeAnnouncement } from "../../hooks/useSelectionModeAnnoun
 import { useSelectAllAnnouncement } from "../../hooks/useSelectAllAnnouncement";
 import { useNameBoxClampAnnouncement } from "../../hooks/useNameBoxClampAnnouncement";
 import { useContextMenuAnnouncements } from "../../hooks/useContextMenuAnnouncements";
+import { useFocusedCellFormulaAnnouncement } from "../../hooks/useFocusedCellFormulaAnnouncement";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
@@ -453,7 +454,16 @@ const SheetOverlay: React.FC = () => {
 
       // Only reset selection if there's no existing selection
       if (!currentSheet.luckysheet_select_save?.length) {
-        api.setSelection(draftCtx, [{ row: [0], column: [0] }], {});
+        // Both ends of the range, not just the start. `row: [0]` leaves
+        // `row[1]` undefined, `normalizeSelection` fills only the focus cell,
+        // and every `for (r = row[0]; r <= row[1]; r += 1)` in core then runs
+        // zero times because `0 <= undefined` is false — so on a freshly
+        // mounted sheet, and after switching to a sheet that has no saved
+        // selection, the toolbar did nothing at all: bold, colours, number
+        // formats, text wrap and merge each read as a dead control until the
+        // user clicked a cell. It is also what made `getRangetxt` produce
+        // "A1:NaN", which NameBox and #sr-selection each work around.
+        api.setSelection(draftCtx, [{ row: [0, 0], column: [0, 0] }], {});
       }
     });
   }, [context.currentSheetId, setContext]);
@@ -461,9 +471,23 @@ const SheetOverlay: React.FC = () => {
   // 提醒弹窗
   useEffect(() => {
     if (context.warnDialog) {
+      const message = context.warnDialog;
       setTimeout(() => {
-        showDialog(context.warnDialog, "ok");
+        showDialog(message, "ok");
       }, 240);
+      // Consume it. This effect only runs when the string *changes*, so
+      // without clearing, raising the same warning a second time was swallowed
+      // in silence — the user repeats the action and gets no explanation at
+      // all. Clearing costs one extra pass in which the guard above is false.
+      //
+      // It costs nothing in undo, which is the thing to check before writing
+      // to the context from an effect: `filterPatch` (`core/utils/patch.ts`)
+      // keeps only patches whose path starts at `luckysheetfile`, so this
+      // produces no history entry and cannot eat a Ctrl+Z or drop the redo
+      // stack.
+      setContext((draftCtx) => {
+        draftCtx.warnDialog = undefined;
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context.warnDialog]);
@@ -563,6 +587,70 @@ const SheetOverlay: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context.currentSheetId, context.luckysheet_select_save]);
 
+  /**
+   * Whether anything has moved the selection on this sheet yet.
+   *
+   * The "use the arrow keys" intro below is for a grid nobody has moved in, and
+   * it used to be reached by asking whether `rangeText` contained `NaN`. That
+   * worked only by accident: the mount selection was written `row: [0]`, whose
+   * unresolved end `getRangetxt` rendered as "A1:NaN", and the intro rode on
+   * that. So it was a mount-time message keyed on a malformed range — which
+   * meant it lasted exactly as long as the malformation did, until the first
+   * layout pass resolved the extent, and in jsdom (no layout pass) forever.
+   *
+   * With the mount selection written as a real cell, the malformation is gone
+   * and the intro went with it. Asking the question directly is what it should
+   * always have been: it is shown until the selection moves, and not again.
+   * The `NaN` guard stays below as a guard — a selection can still reach here
+   * unresolved through `setSelection` or imported data — but it no longer
+   * doubles as the trigger for a message about something else.
+   *
+   * Latched for the workbook rather than cleared per sheet. Clearing it made
+   * a return to a sheet already moved in re-read the intro in place of that
+   * cell's value — on every switch, on a region a screen reader cannot skip,
+   * for a move as ordinary as comparing two sheets. Upstream never did that:
+   * its only trigger was the malformed range, so a switch always spoke the
+   * value. Keeping the hint to the one grid nobody has moved in yet costs a
+   * later sheet its hint, which is what upstream gave that case too.
+   */
+  const arrivedAtRef = useRef<string | null>(null);
+  const arrivedOnSheetRef = useRef(context.currentSheetId);
+  const hasMovedRef = useRef(false);
+  // Derived while rendering, not latched in an effect afterwards.
+  //
+  // It was `useState` + a passive effect on `[rangeText]`, and a passive effect
+  // runs *after* the commit that carried the new `rangeText` — so the first
+  // ArrowDown from A1 wrote the region twice: once as "A2. Use the arrow keys
+  // to..." (new reference, flag still false) and then, an effect later, as
+  // "A2. <value>". Two assertive announcements for one keypress, the first of
+  // them the intro this flag exists to retire. A `useLayoutEffect` would land
+  // the second write before paint but still after the first had been put in the
+  // DOM, and a live region is read from DOM mutations rather than from paint.
+  // The only version with one write is the one where the render that has the
+  // new reference already knows the selection moved.
+  //
+  // Seeded on a sheet switch rather than cleared, so that switching between two
+  // sheets whose selections read the same still has a reference to compare
+  // against, and so a switch is never mistaken for a move (the flag itself is
+  // latched for the workbook, as above).
+  //
+  // Writing to refs during render is what makes it single-write, and it is
+  // idempotent: a repeated render with the same inputs finds the reference
+  // already recorded and latches nothing new, so a double invocation under
+  // StrictMode reaches the same answer.
+  if (arrivedOnSheetRef.current !== context.currentSheetId) {
+    arrivedOnSheetRef.current = context.currentSheetId;
+    arrivedAtRef.current = rangeText || null;
+  } else if (rangeText) {
+    if (arrivedAtRef.current === null) {
+      // The mount selection arriving, one commit after the empty first render.
+      arrivedAtRef.current = rangeText;
+    } else if (rangeText !== arrivedAtRef.current) {
+      hasMovedRef.current = true;
+    }
+  }
+  const selectionHasMoved = hasMovedRef.current;
+
   const selectionModeAnnouncement = useSelectionModeAnnouncement(context);
   const selectAllAnnouncement = useSelectAllAnnouncement(context);
   const clampAnnouncement = useNameBoxClampAnnouncement(context, info);
@@ -574,6 +662,7 @@ const SheetOverlay: React.FC = () => {
     regionId: contextMenuRegionId,
     announcement: contextMenuAnnouncement,
   } = useContextMenuAnnouncements(context, refs.cellInput);
+  const formulaAnnouncement = useFocusedCellFormulaAnnouncement(context, info);
   const cellAreaId = useId();
   const { cellAnnouncement: filterCellAnnouncement, regionAnnouncement } =
     useFilterAnnouncements(context, info);
@@ -602,6 +691,10 @@ const SheetOverlay: React.FC = () => {
   return (
     <main
       className={GRID_ROOT_CLASS}
+      // Without a name, landmark navigation announces only "main", which does
+      // not say the region is the sheet and does not distinguish it from an
+      // embedding page's own main landmark (WCAG 1.3.1, 2.4.1).
+      aria-label={info.spreadsheetLandmark}
       ref={containerRef}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
@@ -1046,9 +1139,15 @@ const SheetOverlay: React.FC = () => {
           </div>
         </div>
       </div>
+      {/* Ordered as reference, value, then the value's own properties, then the
+          event that moved us here: a formula marker qualifies the value it
+          follows, so it sits next to it, while a clamp describes the jump and
+          stays last. */}
       <div id="sr-selection" className="sr-only" role="alert">
-        {!rangeText.includes("NaN")
-          ? `${rangeText} ${computedCellValue}${filterCellAnnouncement}${clampAnnouncement}`
+        {rangeText && !rangeText.includes("NaN")
+          ? `${rangeText} ${
+              selectionHasMoved ? computedCellValue : info.sheetSrIntro
+            }${formulaAnnouncement}${filterCellAnnouncement}${clampAnnouncement}`
           : `A1. ${info.sheetSrIntro}`}
       </div>
       {/*

@@ -406,6 +406,27 @@ const FilterMenu: React.FC = () => {
     [data.flattenValues]
   );
 
+  /**
+   * Writes one phrase into the menu's live region. A region that already says
+   * exactly this would not change, and an unchanged region is not spoken — so
+   * such a write is marked as a repeat. Checked against what the region
+   * currently holds rather than by counting presses, so the common case keeps
+   * the message as authored.
+   */
+  const announceInMenu = useCallback(
+    (message: string) => {
+      setAnnouncement((prev) => {
+        const repeatsWhatTheRegionSays =
+          prev.col === col && prev.text === message;
+        return {
+          text: repeatsWhatTheRegionSays ? markAsRepeat(message) : message,
+          col,
+        };
+      });
+    },
+    [col]
+  );
+
   const bulkActionMessage = useCallback(
     (action: BulkActionName, selected: number, total: number) => {
       if (action === "selectAll") return filter.filterValueByAllAnnouncement;
@@ -446,23 +467,11 @@ const FilterMenu: React.FC = () => {
       const unchecked = nextDatesUncheck.length + nextValuesUncheck.length;
       const selected = Math.min(Math.max(total - unchecked, 0), total);
 
-      setAnnouncement((prev) => {
-        const message = bulkActionMessage(action, selected, total);
-        // A region that already says exactly this would not change, and an
-        // unchanged region is not spoken — so mark the write as a repeat.
-        // Checked against what the region currently holds rather than counting
-        // presses, so the common case keeps the message as authored.
-        const repeatsWhatTheRegionSays =
-          prev.col === col && prev.text === message;
-        return {
-          text: repeatsWhatTheRegionSays ? markAsRepeat(message) : message,
-          col,
-        };
-      });
+      announceInMenu(bulkActionMessage(action, selected, total));
     },
     [
+      announceInMenu,
       bulkActionMessage,
-      col,
       data.dateRowMap,
       data.valueRowMap,
       data.visibleRows,

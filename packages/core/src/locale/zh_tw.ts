@@ -5,6 +5,8 @@ export default {
     dataNullError: "無法對不存在的數據執行此操作",
     noSeletionError: "還未進行選區操作",
     cannotSelectMultiple: "無法選擇多選區",
+    noRoomForResultError: "無法對到達工作表邊緣的選區執行此操作",
+    noNumericDataError: "無法對不包含數字的選區執行此操作",
   },
   functionlist: [
     {
@@ -11023,9 +11025,51 @@ export default {
     tipColumnWidthLimit: "列寬必須在0 ~ 2038之間",
     pageInfoFull: "共${total}條,${totalPage}頁,已顯示全部數據",
 
+    // Toolbar action feedback. A toolbar button changes the sheet without
+    // moving the selection, so nothing else reaches a live region: the result
+    // is conveyed purely by the canvas repainting, which a screen-reader user
+    // never sees. Each phrase describes the state the action produced, not the
+    // action requested — the handlers have many silent no-op paths (a
+    // non-numeric cell, a read-only sheet, no selection) and announcing intent
+    // would report changes that never happened.
+    toolbarBoldOn: "已開啟粗體。",
+    toolbarBoldOff: "已關閉粗體。",
+    toolbarItalicOn: "已開啟斜體。",
+    toolbarItalicOff: "已關閉斜體。",
+    toolbarUnderlineOn: "已開啟底線。",
+    toolbarUnderlineOff: "已關閉底線。",
+    toolbarStrikethroughOn: "已開啟刪除線。",
+    toolbarStrikethroughOff: "已關閉刪除線。",
+    toolbarFormatPainterOn: "已開啟複製格式。",
+    toolbarFormatPainterOff: "已關閉複製格式。",
+    toolbarFormatCleared: "已清除格式。",
+    toolbarDecimalIncreased: "已增加小數位數。",
+    toolbarDecimalDecreased: "已減少小數位數。",
+    toolbarUndone: "已復原。",
+    toolbarRedone: "已重做。",
+    toolbarCellsMerged: "已合併儲存格。",
+    toolbarCellsUnmerged: "已取消合併儲存格。",
+    toolbarMergeNeedsRange: "請選擇兩個或更多儲存格以合併。",
+    toolbarMergeNothingMerged: "選取範圍中沒有合併的儲存格。",
+    toolbarTextWrapSet: "文字換行：${mode}。",
+    toolbarFontSizeSet: "字型大小：${size}。",
+    toolbarFilterOn: "已開啟篩選。",
+    toolbarFilterOff: "已關閉篩選。",
+    toolbarFontColorSet: "文字顏色：${color}。",
+    toolbarFontColorRemoved: "已移除文字顏色。",
+    toolbarBackgroundColorSet: "儲存格顏色：${color}。",
+    toolbarBackgroundColorRemoved: "已移除儲存格顏色。",
+    toolbarBorderColorSet: "邊框顏色：${color}。",
+    toolbarBorderColorRemoved: "已移除邊框顏色。",
+    toolbarBorderSet: "邊框：${border}。",
+    toolbarBorderCleared: "已清除邊框。",
+    hexColorInput: "十六進位顏色",
+    hexColorInvalid: "不是有效顏色。請輸入十六進位值，例如 #1a73e8。",
+
     sheetSrIntro: "使用方向鍵在儲存格之間移動。",
     cellHasFilterDropdown: "有篩選下拉選單。",
     cellFilterActive: "篩選器已啟用。",
+    cellHasFormula: "有公式。",
     enteredFilteredRegion: "已進入篩選區域：${start} 至 ${end}。",
     leftFilteredRegion: "已離開篩選區域。",
     currentCellInput: "目前儲存格輸入",
@@ -11044,6 +11088,7 @@ export default {
     allCellsSelected: "已選擇所有儲存格。",
     horizontalScrollbar: "試算表",
     verticalScrollbar: "試算表",
+    spreadsheetLandmark: "試算表",
     nameBoxReferenceClamped: "參照超出工作表範圍。已移至最接近的儲存格。",
     scrollbarRowPosition: "第 ${index} 行",
     scrollbarColumnPosition: "第 ${index} 列",
@@ -11584,6 +11629,8 @@ export default {
     filterValueByAllAnnouncement: "All filter options selected.",
     filterValueByClearAnnouncement: "All filter options cleared.",
     filterValueByInverseAnnouncement: "Filter selections inverted.",
+    filterSortAscAnnouncement: "已按升序排列。",
+    filterSortDescAnnouncement: "已按降序排列。",
     filterValueBySelectedCountAnnouncement:
       "${selected} of ${total} options now selected.",
     filterValueByTip: "按照值進行篩選",
@@ -11874,6 +11921,8 @@ export default {
     resetColor: "重置顏色",
     cancelText: "取消",
     chooseText: "確定顏色",
+    sheetColorApplied: "工作表顏色：${color}。",
+    sheetColorRemoved: "已移除工作表顏色。",
     focus: "聚焦",
 
     sheetNameInputLabel: "工作表名稱",

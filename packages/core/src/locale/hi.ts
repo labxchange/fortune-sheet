@@ -6,6 +6,10 @@ export default {
     dataNullError: "डेटा जो मौजूद नहीं है उस पर यह कार्य नहीं किया जा सकता",
     noSeletionError: "चयन कार्य अभी तक नहीं किया गया है",
     cannotSelectMultiple: "एकाधिक चयन नहीं किया जा सकता",
+    noRoomForResultError:
+      "शीट के किनारे तक पहुँचने वाले चयन पर यह कार्य नहीं किया जा सकता",
+    noNumericDataError:
+      "ऐसे चयन पर यह कार्य नहीं किया जा सकता जिसमें कोई संख्या न हो",
   },
   functionlist: [
     {
@@ -11075,9 +11079,51 @@ export default {
     tipColumnWidthLimit: "कॉलम की चौड़ाई 0 ~ 2038 के बीच होनी चाहिए",
     pageInfoFull: "कुल ${total}，${totalPage} पृष्ठ，सभी डेटा प्रदर्शित",
 
+    // Toolbar action feedback. A toolbar button changes the sheet without
+    // moving the selection, so nothing else reaches a live region: the result
+    // is conveyed purely by the canvas repainting, which a screen-reader user
+    // never sees. Each phrase describes the state the action produced, not the
+    // action requested — the handlers have many silent no-op paths (a
+    // non-numeric cell, a read-only sheet, no selection) and announcing intent
+    // would report changes that never happened.
+    toolbarBoldOn: "बोल्ड चालू।",
+    toolbarBoldOff: "बोल्ड बंद।",
+    toolbarItalicOn: "इटैलिक चालू।",
+    toolbarItalicOff: "इटैलिक बंद।",
+    toolbarUnderlineOn: "रेखांकन चालू।",
+    toolbarUnderlineOff: "रेखांकन बंद।",
+    toolbarStrikethroughOn: "स्ट्राइकथ्रू चालू।",
+    toolbarStrikethroughOff: "स्ट्राइकथ्रू बंद।",
+    toolbarFormatPainterOn: "फ़ॉर्मैट पेंटर चालू।",
+    toolbarFormatPainterOff: "फ़ॉर्मैट पेंटर बंद।",
+    toolbarFormatCleared: "फ़ॉर्मैटिंग हटाई गई।",
+    toolbarDecimalIncreased: "दशमलव स्थान बढ़ाए गए।",
+    toolbarDecimalDecreased: "दशमलव स्थान घटाए गए।",
+    toolbarUndone: "पूर्ववत किया गया।",
+    toolbarRedone: "फिर से किया गया।",
+    toolbarCellsMerged: "कक्ष मर्ज किए गए।",
+    toolbarCellsUnmerged: "कक्ष अलग किए गए।",
+    toolbarMergeNeedsRange: "मर्ज करने के लिए दो या अधिक कक्ष चुनें।",
+    toolbarMergeNothingMerged: "चयन में कोई मर्ज किया गया कक्ष नहीं है।",
+    toolbarTextWrapSet: "टेक्स्ट रैप: ${mode}।",
+    toolbarFontSizeSet: "फ़ॉन्ट साइज़: ${size}।",
+    toolbarFilterOn: "फ़िल्टर चालू।",
+    toolbarFilterOff: "फ़िल्टर बंद।",
+    toolbarFontColorSet: "पाठ का रंग: ${color}।",
+    toolbarFontColorRemoved: "पाठ का रंग हटाया गया।",
+    toolbarBackgroundColorSet: "कोशिका का रंग: ${color}।",
+    toolbarBackgroundColorRemoved: "कोशिका का रंग हटाया गया।",
+    toolbarBorderColorSet: "सीमा का रंग: ${color}।",
+    toolbarBorderColorRemoved: "सीमा का रंग हटाया गया।",
+    toolbarBorderSet: "सीमा: ${border}।",
+    toolbarBorderCleared: "सीमाएँ हटाई गईं।",
+    hexColorInput: "हेक्स रंग",
+    hexColorInvalid: "यह रंग नहीं है। #1a73e8 जैसा हेक्स मान लिखें।",
+
     sheetSrIntro: "कक्षों के बीच जाने के लिए तीर कुंजियों का उपयोग करें।",
     cellHasFilterDropdown: "फ़िल्टर ड्रॉपडाउन है।",
     cellFilterActive: "फ़िल्टर सक्रिय है।",
+    cellHasFormula: "सूत्र है।",
     enteredFilteredRegion:
       "फ़िल्टर किए गए क्षेत्र में प्रवेश किया: ${start} से ${end} तक।",
     leftFilteredRegion: "फ़िल्टर किए गए क्षेत्र से बाहर निकले।",
@@ -11097,6 +11143,7 @@ export default {
     allCellsSelected: "सभी कक्ष चयनित।",
     horizontalScrollbar: "स्प्रेडशीट",
     verticalScrollbar: "स्प्रेडशीट",
+    spreadsheetLandmark: "स्प्रेडशीट",
     nameBoxReferenceClamped:
       "संदर्भ शीट के बाहर है। निकटतम कक्ष पर ले जाया गया।",
     scrollbarRowPosition: "पंक्ति ${index}",
@@ -11595,6 +11642,8 @@ export default {
     filterValueByAllAnnouncement: "All filter options selected.",
     filterValueByClearAnnouncement: "All filter options cleared.",
     filterValueByInverseAnnouncement: "Filter selections inverted.",
+    filterSortAscAnnouncement: "आरोही क्रम में छाँटा गया।",
+    filterSortDescAnnouncement: "अवरोही क्रम में छाँटा गया।",
     filterValueBySelectedCountAnnouncement:
       "${selected} of ${total} options now selected.",
     filterValueByTip: "मान के आधार पर फ़िल्टर करें",
@@ -11891,6 +11940,8 @@ export default {
     resetColor: "रंग रीसेट करें",
     cancelText: "रद्द करें",
     chooseText: "रंग की पुष्टि करें",
+    sheetColorApplied: "शीट का रंग: ${color}।",
+    sheetColorRemoved: "शीट का रंग हटाया गया।",
     focus: "फोकस करें",
 
     sheetNameInputLabel: "शीट का नाम",

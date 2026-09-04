@@ -8,6 +8,10 @@ export default {
       "Невозможно выполнить эту операцию с данными, которые не существуют",
     noSeletionError: "Операция по отбору еще не выполнена",
     cannotSelectMultiple: "Невозможно выбрать несколько вариантов",
+    noRoomForResultError:
+      "Невозможно выполнить эту операцию над выделением, доходящим до края листа",
+    noNumericDataError:
+      "Невозможно выполнить эту операцию над выделением, не содержащим чисел",
   },
   functionlist: [
     {
@@ -12951,10 +12955,53 @@ export default {
     tipRowHeightLimit: "Высота строки должна быть от 0 до 545",
     tipColumnWidthLimit: "Ширина столбца должна быть от 0 до 2038",
     pageInfoFull: "Всего ${total}, ${totalPage} страниц, все данные отображены",
+    // Toolbar action feedback. A toolbar button changes the sheet without
+    // moving the selection, so nothing else reaches a live region: the result
+    // is conveyed purely by the canvas repainting, which a screen-reader user
+    // never sees. Each phrase describes the state the action produced, not the
+    // action requested — the handlers have many silent no-op paths (a
+    // non-numeric cell, a read-only sheet, no selection) and announcing intent
+    // would report changes that never happened.
+    toolbarBoldOn: "Полужирный включён.",
+    toolbarBoldOff: "Полужирный выключен.",
+    toolbarItalicOn: "Курсив включён.",
+    toolbarItalicOff: "Курсив выключен.",
+    toolbarUnderlineOn: "Подчёркивание включено.",
+    toolbarUnderlineOff: "Подчёркивание выключено.",
+    toolbarStrikethroughOn: "Зачёркивание включено.",
+    toolbarStrikethroughOff: "Зачёркивание выключено.",
+    toolbarFormatPainterOn: "Формат по образцу включён.",
+    toolbarFormatPainterOff: "Формат по образцу выключен.",
+    toolbarFormatCleared: "Форматирование очищено.",
+    toolbarDecimalIncreased: "Число десятичных знаков увеличено.",
+    toolbarDecimalDecreased: "Число десятичных знаков уменьшено.",
+    toolbarUndone: "Отменено.",
+    toolbarRedone: "Возвращено.",
+    toolbarCellsMerged: "Ячейки объединены.",
+    toolbarCellsUnmerged: "Объединение ячеек отменено.",
+    toolbarMergeNeedsRange: "Выберите две или более ячейки для объединения.",
+    toolbarMergeNothingMerged: "В выделении нет объединённых ячеек.",
+    toolbarTextWrapSet: "Перенос текста: ${mode}.",
+    toolbarFontSizeSet: "Размер шрифта: ${size}.",
+    toolbarFilterOn: "Фильтр включён.",
+    toolbarFilterOff: "Фильтр выключен.",
+    toolbarFontColorSet: "Цвет текста: ${color}.",
+    toolbarFontColorRemoved: "Цвет текста удалён.",
+    toolbarBackgroundColorSet: "Цвет ячейки: ${color}.",
+    toolbarBackgroundColorRemoved: "Цвет ячейки удалён.",
+    toolbarBorderColorSet: "Цвет границы: ${color}.",
+    toolbarBorderColorRemoved: "Цвет границы удалён.",
+    toolbarBorderSet: "Граница: ${border}.",
+    toolbarBorderCleared: "Границы удалены.",
+    hexColorInput: "Цвет в HEX",
+    hexColorInvalid:
+      "Это не цвет. Введите шестнадцатеричное значение, например #1a73e8.",
+
     sheetSrIntro:
       "Используйте клавиши со стрелками для перемещения между ячейками.",
     cellHasFilterDropdown: "Есть раскрывающийся список фильтра.",
     cellFilterActive: "Фильтр активен.",
+    cellHasFormula: "Есть формула.",
     enteredFilteredRegion:
       "Вход в отфильтрованную область: с ${start} по ${end}.",
     leftFilteredRegion: "Выход из отфильтрованной области.",
@@ -12974,6 +13021,7 @@ export default {
     allCellsSelected: "Выделены все ячейки.",
     horizontalScrollbar: "Электронная таблица",
     verticalScrollbar: "Электронная таблица",
+    spreadsheetLandmark: "Электронная таблица",
     nameBoxReferenceClamped:
       "Ссылка за пределами листа. Выполнен переход к ближайшей ячейке.",
     scrollbarRowPosition: "Строка ${index}",
@@ -14150,6 +14198,8 @@ export default {
     filterValueByAllAnnouncement: "All filter options selected.",
     filterValueByClearAnnouncement: "All filter options cleared.",
     filterValueByInverseAnnouncement: "Filter selections inverted.",
+    filterSortAscAnnouncement: "Сортировка по возрастанию применена.",
+    filterSortDescAnnouncement: "Сортировка по убыванию применена.",
     filterValueBySelectedCountAnnouncement:
       "${selected} of ${total} options now selected.",
     filterValueByTip: "Фильтр по значениям",
@@ -14447,6 +14497,8 @@ export default {
     resetColor: "Сбросить цвет",
     cancelText: "Отмена",
     chooseText: "Подтвердить цвет",
+    sheetColorApplied: "Цвет листа: ${color}.",
+    sheetColorRemoved: "Цвет листа удалён.",
     focus: "Фокус",
 
     sheetNameInputLabel: "Имя листа",

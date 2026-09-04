@@ -7,6 +7,19 @@ import {
 
 type Props = {
   tooltip: string;
+  /**
+   * The accessible name, when it has to differ from the tooltip. Defaults to
+   * `tooltip`, which is the right answer everywhere the visible label and the
+   * name are the same string.
+   *
+   * The shortcuts button is the exception: it carries its key binding on its
+   * face in a `<kbd>`, so putting the same keys in the tooltip printed them
+   * twice on hover — while the name still has to include them, because that is
+   * the whole of what the ticket asked for. Splitting the two keeps the name a
+   * superset of the visible label, which is what Label in Name (WCAG 2.5.3)
+   * requires.
+   */
+  ariaLabel?: string;
   iconId: string;
   onClick?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
   /**
@@ -42,6 +55,7 @@ type Props = {
 
 const Button: React.FC<Props> = ({
   tooltip,
+  ariaLabel,
   onClick,
   onMouseDown,
   iconId,
@@ -69,7 +83,14 @@ const Button: React.FC<Props> = ({
       tabIndex={0}
       data-tips={tooltip}
       role="button"
-      aria-label={tooltip}
+      aria-label={ariaLabel ?? tooltip}
+      // `selected` is the toggle state of bold, italic, underline and
+      // strikethrough, and until now it reached the user as a background colour
+      // and nothing else — a screen reader was told these were plain buttons
+      // and could not report whether the attribute was on. Left undefined for
+      // the buttons that are not toggles, so they stay plain buttons rather
+      // than claiming a state they do not have.
+      aria-pressed={selected}
       aria-disabled={disabled || undefined}
       // Only on the buttons that actually disclose something, so the ordinary
       // toolbar buttons are not announced as having a popup they do not have.
@@ -82,7 +103,15 @@ const Button: React.FC<Props> = ({
       style={selected ? { backgroundColor: "#E7E5EB" } : {}}
     >
       <SVGIcon name={iconId} style={disabled ? { opacity: 0.3 } : {}} />
-      {tooltip && <div className="fortune-tooltip">{tooltip}</div>}
+      {tooltip && (
+        // Hidden from AT: this is the visual-only hover tooltip, and its text
+        // is the same string already carried as the control's aria-label. Left
+        // exposed it lands in the accessibility tree as a second, static copy
+        // of the name beside the button that owns it.
+        <div className="fortune-tooltip" aria-hidden="true">
+          {tooltip}
+        </div>
+      )}
       {children}
     </div>
   );

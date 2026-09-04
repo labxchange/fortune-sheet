@@ -5,6 +5,16 @@ export default {
     dataNullError: "Cannot perform this operation on data that does not exist",
     noSeletionError: "The selection operation has not been performed yet",
     cannotSelectMultiple: "Cannot select multiple selections",
+    // Raised when an auto formula has nowhere to put its result, because
+    // the selection runs to the last row or column. Phrased as the reason
+    // rather than the remedy, matching the other keys in this block.
+    noRoomForResultError:
+      "Cannot perform this operation on a selection that reaches the edge of the sheet",
+    // Raised when an auto formula is applied to a range that has content but
+    // nothing numeric in it — a column of labels, say. Doing nothing at all
+    // is indistinguishable from the button being broken.
+    noNumericDataError:
+      "Cannot perform this operation on a selection that contains no numbers",
   },
   functionlist: [
     {
@@ -11078,9 +11088,73 @@ export default {
     tipColumnWidthLimit: "The column width must be between 0 ~ 2038",
     pageInfoFull: "Total ${total}，${totalPage} page，All data displayed",
 
+    // Toolbar action feedback. A toolbar button changes the sheet without
+    // moving the selection, so nothing else reaches a live region: the result
+    // is conveyed purely by the canvas repainting, which a screen-reader user
+    // never sees. Each phrase describes the state the action produced, not the
+    // action requested — the handlers have many silent no-op paths (a
+    // non-numeric cell, a read-only sheet, no selection) and announcing intent
+    // would report changes that never happened.
+    toolbarBoldOn: "Bold on.",
+    toolbarBoldOff: "Bold off.",
+    toolbarItalicOn: "Italic on.",
+    toolbarItalicOff: "Italic off.",
+    toolbarUnderlineOn: "Underline on.",
+    toolbarUnderlineOff: "Underline off.",
+    toolbarStrikethroughOn: "Strikethrough on.",
+    toolbarStrikethroughOff: "Strikethrough off.",
+    toolbarFormatPainterOn: "Format painter on.",
+    toolbarFormatPainterOff: "Format painter off.",
+    toolbarFormatCleared: "Formatting cleared.",
+    toolbarDecimalIncreased: "Decimal places increased.",
+    toolbarDecimalDecreased: "Decimal places decreased.",
+    toolbarUndone: "Undone.",
+    toolbarRedone: "Redone.",
+    toolbarCellsMerged: "Cells merged.",
+    toolbarCellsUnmerged: "Cells unmerged.",
+    // A single-cell selection is what a sheet mounts with, and merging one
+    // cell is a no-op — so on its most likely press the button said nothing
+    // and read as broken. Says what to do rather than that it declined.
+    toolbarMergeNeedsRange: "Select two or more cells to merge.",
+    toolbarMergeNothingMerged: "No merged cells in the selection.",
+    toolbarTextWrapSet: "Text wrap: ${mode}.",
+    toolbarFontSizeSet: "Font size: ${size}.",
+    toolbarFilterOn: "Filter on.",
+    toolbarFilterOff: "Filter off.",
+    // Applying a colour changes only pixels, so nothing else reaches a live
+    // region — the same gap the other toolbar keys above cover. Named from the
+    // palette where possible; a colour chosen from the custom picker has no
+    // name and falls back to its hex, exactly as the swatches themselves do.
+    toolbarFontColorSet: "Text color: ${color}.",
+    toolbarFontColorRemoved: "Text color removed.",
+    toolbarBackgroundColorSet: "Cell color: ${color}.",
+    toolbarBackgroundColorRemoved: "Cell color removed.",
+    // Reuses border.borderColor, the phrase this locale already uses for the
+    // control, so the announcement matches the label the user saw.
+    toolbarBorderColorSet: "Border color: ${color}.",
+    toolbarBorderColorRemoved: "Border color removed.",
+    // Applying a border writes to config.borderInfo rather than to the cell,
+    // so the anchor-cell fingerprint the other actions share cannot see it and
+    // the only feedback was the canvas repainting. Named from the row the user
+    // activated, so the phrase matches the label they read.
+    toolbarBorderSet: "Border: ${border}.",
+    toolbarBorderCleared: "Borders removed.",
+    // Names the typed-colour field that sits beside the native colour swatch.
+    // That swatch opens the browser's own picker, which in Chrome is
+    // pointer-only, so this field is the keyboard route to an arbitrary colour
+    // (WCAG 2.1.1) rather than a convenience.
+    hexColorInput: "Hex color",
+    hexColorInvalid: "Not a color. Type a hex value such as #1a73e8.",
+
     sheetSrIntro: "Use the arrow keys to move between cells.",
     cellHasFilterDropdown: "Has filter dropdown.",
     cellFilterActive: "Filter active.",
+    // Says a cell's value was produced by a formula rather than typed. The sheet
+    // is a canvas, so the grid announcement is the only place a cell can carry
+    // that — without it a computed value is indistinguishable from a literal one
+    // (WCAG 1.3.1, 4.1.2). Phrased as a property of the cell, like
+    // `cellHasFilterDropdown` above, because that is what it is.
+    cellHasFormula: "Has formula.",
     enteredFilteredRegion: "Entered filtered region: ${start} through ${end}.",
     leftFilteredRegion: "Left filtered region.",
     currentCellInput: "Current cell input",
@@ -11110,6 +11184,12 @@ export default {
     // can differ by grammatical gender or number if it needs to.
     horizontalScrollbar: "Spreadsheet",
     verticalScrollbar: "Spreadsheet",
+    // Names the grid's `main` landmark so landmark navigation says what the
+    // region contains instead of a bare "main". Deliberately just the noun, for
+    // the same reason as the two scrollbar keys above: assistive technology
+    // appends the role itself, so "Spreadsheet region" would be read as
+    // "Spreadsheet region, main region".
+    spreadsheetLandmark: "Spreadsheet",
     nameBoxReferenceClamped:
       "Reference is outside the sheet. Moved to the nearest cell.",
     scrollbarRowPosition: "Row ${index}",
@@ -11609,6 +11689,8 @@ export default {
     filterValueByAllAnnouncement: "All filter options selected.",
     filterValueByClearAnnouncement: "All filter options cleared.",
     filterValueByInverseAnnouncement: "Filter selections inverted.",
+    filterSortAscAnnouncement: "Ascending sort applied.",
+    filterSortDescAnnouncement: "Descending sort applied.",
     filterValueBySelectedCountAnnouncement:
       "${selected} of ${total} options now selected.",
     filterValueByTip: "filter By Values",
@@ -11932,6 +12014,10 @@ export default {
     resetColor: "Reset color",
     cancelText: "Cancel",
     chooseText: "Confirm color",
+    // The sheet tab recolours and says nothing. Announced from a region that
+    // outlives the menu, since applying the colour also closes it.
+    sheetColorApplied: "Sheet color: ${color}.",
+    sheetColorRemoved: "Sheet color removed.",
     focus: "Focus",
 
     // Names the tab's editable name while it is being renamed. Deliberately not

@@ -34,10 +34,18 @@ describe("Worksheet", () => {
     const cellInput = container.querySelector<HTMLElement>(
       ".luckysheet-cell-input"
     )!;
-    // Before any key is pressed the grid announces its A1 intro; afterwards it
-    // announces the focused cell, spelled out for a screen reader ("B. 1").
+    // Before any key is pressed the grid announces where it is plus how to move
+    // ("A. 1" and the arrow-key intro); afterwards it announces the focused
+    // cell ("B. 1"). The period and space are `formatRefForSr`, which spaces a
+    // reference so a screen reader reads "A. 1" rather than running "A1"
+    // together. It is not a locale artifact: `tests/setup.js` does seed
+    // `locale: "zh"`, but only into a `window.localStorage` mock that nothing
+    // under `packages/*/src` ever reads, and `locale()` resolves off
+    // `ctx.lang`, which defaults to `null` and therefore to `en`. The suite
+    // runs in English. The reference is asserted rather than the intro anyway,
+    // because it is the language-neutral half and survives that changing.
     expect(container.querySelector("#sr-selection")?.textContent).toContain(
-      "A1."
+      "A. 1"
     );
 
     cellInput.focus();

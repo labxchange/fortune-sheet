@@ -15,6 +15,7 @@ jest.mock("@fortune-sheet/core", () => ({
   ...jest.requireActual("@fortune-sheet/core"),
   getFilterColumnValues: jest.fn(),
   getFilterColumnColors: jest.fn(),
+  orderbydatafiler: jest.fn(),
 }));
 
 const { filter } = locale({ lang: "en" } as any);
@@ -95,6 +96,13 @@ type Options = {
   dates?: string[];
   datesUncheck?: string[];
   col?: number;
+  /** Which rows the menu renders. Defaults to the value list the bulk-action
+   *  cases below drive; the sort cases ask for the sort rows instead. */
+  filterContextMenu?: string[];
+  /** A recipe runner, for the cases that need the producer actually to run.
+   *  The default swallows it, as most of these tests only assert on what the
+   *  menu itself renders. */
+  setContext?: (recipe: (ctx: any) => void) => void;
 };
 
 function renderFilterMenu({
@@ -103,6 +111,8 @@ function renderFilterMenu({
   dates = [],
   datesUncheck = [],
   col = 0,
+  filterContextMenu = ["filter-by-value"],
+  setContext = () => {},
 }: Options = {}) {
   const values = makeValues(valueCount);
   const valueRowMap: any = {};
@@ -142,7 +152,7 @@ function renderFilterMenu({
   });
 
   const settings: any = {
-    filterContextMenu: ["filter-by-value"],
+    filterContextMenu,
   };
   const refs: any = {
     workbookContainer: { current: null },
@@ -152,12 +162,12 @@ function renderFilterMenu({
     cellInput: { current: null },
   };
 
-  const tree = (filterContextMenu: any) => (
+  const tree = (menu: any) => (
     <WorkbookContext.Provider
       value={
         {
-          context: { lang: "en", filterContextMenu },
-          setContext: () => {},
+          context: { lang: "en", filterContextMenu: menu },
+          setContext,
           settings,
           refs,
           handleUndo: () => {},

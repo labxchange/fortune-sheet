@@ -35,7 +35,11 @@ import {
   createFilter,
   clearFilter,
   applyLocation,
+  shortcutKeysForPlatform,
+  OPEN_SHORTCUTS_KEYS,
+  replaceHtml,
 } from "@fortune-sheet/core";
+import type { Context, MergeOutcome, SortOutcome } from "@fortune-sheet/core";
 import _ from "lodash";
 import WorkbookContext from "../../context";
 import "./index.css";
@@ -47,8 +51,15 @@ import Select, { Option } from "./Select";
 import SVGIcon from "../SVGIcon";
 import { useAdjacentSubmenuPosition } from "../../hooks/useAdjacentSubmenuPosition";
 import { useDialog } from "../../hooks/useDialog";
+import { sortRefusalMessage } from "../../utils/sortRefusal";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
+import {
+  anchorCell,
+  borderFingerprint,
+  clearFormatFingerprint,
+  useToolbarAnnouncements,
+} from "../../hooks/useToolbarAnnouncements";
 import {
   activateOnEnterOrSpace,
   focusAfterCommit,
@@ -178,11 +189,19 @@ const Toolbar: React.FC<{
   // exclusion ArrowRight from the last option walked focus onto the next
   // toolbar button and left the dropdown open behind it. The other half of that
   // fix is the non-item guard in `useRovingFocus`.
+  //
+  // It does *not* exclude `aria-disabled` controls, unlike the hook's default.
+  // Undo and redo are disabled whenever their stack is empty, they keep their
+  // own tab stop (this pattern is additive, see above), and skipping them here
+  // made Tab and the arrow keys disagree about which controls the toolbar
+  // contains — the arrows jumping a button Tab stops on. Keeping a disabled
+  // control focusable and reachable is what the ARIA toolbar pattern
+  // recommends, precisely so its disabled state can be discovered rather than
+  // the control vanishing from the sequence.
   useRovingFocus({
     containerRef,
     orientation: "horizontal",
-    itemSelector:
-      '[role="button"]:not([aria-disabled="true"]):not(.fortune-toolbar-combo-popup *)',
+    itemSelector: '[role="button"]:not(.fortune-toolbar-combo-popup *)',
   });
   const [toolbarWrapIndex, setToolbarWrapIndex] = useState(-1); // -1 means pending for item location calculation
   const [itemLocations, setItemLocations] = useState<number[]>([]);
@@ -196,6 +215,7 @@ const Toolbar: React.FC<{
   const cell =
     flowdata && row != null && col != null ? flowdata?.[row]?.[col] : undefined;
   const {
+    info,
     toolbar,
     merge,
     border,
@@ -212,8 +232,52 @@ const Toolbar: React.FC<{
     findAndReplace,
     comment,
     fontarray,
+    generalDialog,
   } = locale(context);
   const toolbarFormat = locale(context).format;
+  const { announcement, announceAfterCommit, announceOutcome, announceNow } =
+    useToolbarAnnouncements(contextRef);
+
+  /**
+   * How a toolbar action describes itself once it has landed. Evaluated
+   * against the committed context, so a toggle reports the value it produced
+   * rather than the one it was asked to produce; an action with nothing to say
+   * returns "" and is not announced.
+   */
+  const toolbarActionPhrase = useCallback(
+    (name: string, ctx: Context): string => {
+      const target = anchorCell(ctx);
+      switch (name) {
+        case "bold":
+          return target?.bl === 1 ? info.toolbarBoldOn : info.toolbarBoldOff;
+        case "italic":
+          return target?.it === 1
+            ? info.toolbarItalicOn
+            : info.toolbarItalicOff;
+        case "underline":
+          return target?.un === 1
+            ? info.toolbarUnderlineOn
+            : info.toolbarUnderlineOff;
+        case "strike-through":
+          return target?.cl === 1
+            ? info.toolbarStrikethroughOn
+            : info.toolbarStrikethroughOff;
+        case "clear-format":
+          return info.toolbarFormatCleared;
+        case "format-painter":
+          return ctx.luckysheetPaintModelOn
+            ? info.toolbarFormatPainterOn
+            : info.toolbarFormatPainterOff;
+        case "number-increase":
+          return info.toolbarDecimalIncreased;
+        case "number-decrease":
+          return info.toolbarDecimalDecreased;
+        default:
+          return "";
+      }
+    },
+    [info]
+  );
   const sheetWidth = context.luckysheetTableContentHW[0];
   const { currency } = settings;
   const defaultFormat = defaultFmt(currency);
@@ -273,6 +337,34 @@ const Toolbar: React.FC<{
       }
       if (["font-color", "background"].includes(name)) {
         const pick = (color: string | undefined) => {
+          // Applying a colour only repaints, so without this the action is
+          // silent — the same gap the other toolbar announcements close. Named
+          // from the palette where there is a name; a colour from the custom
+          // picker falls back to its hex, as the swatches themselves do.
+          //
+          // Queued before the commit, like every other call site: the hook
+          // snapshots the fingerprint synchronously, so it has to read the
+          // state this action is about to change, not the state it produced.
+          announceAfterCommit(() => {
+            const colorNames = info.colorNames as
+              | Record<string, string>
+              | undefined;
+            // Reset color arrives here as `undefined`. This used to return ""
+            // for it, which made *clearing* a colour the one colour action
+            // that said nothing, while the sheet tab beside it has announced
+            // its removal since this branch added `sheetColorRemoved`.
+            if (!color) {
+              return name === "font-color"
+                ? info.toolbarFontColorRemoved
+                : info.toolbarBackgroundColorRemoved;
+            }
+            return replaceHtml(
+              name === "font-color"
+                ? info.toolbarFontColorSet
+                : info.toolbarBackgroundColorSet,
+              { color: colorNames?.[color] ?? color }
+            );
+          });
           setContext((draftCtx) =>
             (name === "font-color" ? handleTextColor : handleTextBackground)(
               draftCtx,
@@ -327,6 +419,11 @@ const Toolbar: React.FC<{
             >
               {(setOpen) => (
                 <CustomColor
+                  // Read off the cell rather than from the popup's own draft:
+                  // this is "which colour is applied", and picking one writes
+                  // it to the selection immediately, so the mark follows a
+                  // pick without the popup having to track it.
+                  appliedColor={name === "font-color" ? cell?.fc : cell?.bg}
                   onCustomPick={(color) => {
                     pick(color);
                     setOpen(false);
@@ -467,6 +564,25 @@ const Toolbar: React.FC<{
                   <Option
                     key={num}
                     onClick={() => {
+                      // A size picked from a list is a value, not a toggle, so
+                      // it is confirmed by reading the size the anchor ended up
+                      // with rather than by watching for a change: picking the
+                      // size a cell already has is a request that succeeded and
+                      // has to say so, while a sheet that refused the write —
+                      // read-only, or a selection nothing was written to — has
+                      // nothing to confirm and stays silent.
+                      announceOutcome((ctx) => {
+                        const target = anchorCell(ctx);
+                        if (target == null) return "";
+                        const applied = normalizedCellAttr(
+                          target,
+                          "fs",
+                          ctx.defaultFontSize
+                        );
+                        return `${applied}` === `${num}`
+                          ? replaceHtml(info.toolbarFontSizeSet, { size: num })
+                          : "";
+                      });
                       setContext((draftContext) =>
                         handleTextSize(
                           draftContext,
@@ -598,14 +714,37 @@ const Toolbar: React.FC<{
         return (
           <Button
             iconId={name}
+            // The one shortcut the dialog cannot teach, since reaching the
+            // dialog is what it is for. The glyphs stay out of the locale
+            // files on purpose (see ShortcutKeys) so a translation can never
+            // drift from the binding the code listens for.
+            //
+            // Keys in the name, not in the tooltip: they are already on the
+            // button's face in the `<kbd>` below, and carrying them in the
+            // tooltip as well printed them twice to anyone hovering. The name
+            // still needs them — announcing the shortcut is the ticket — and
+            // stays a superset of the visible label either way.
             tooltip={tooltip}
+            ariaLabel={`${tooltip} (${shortcutKeysForPlatform(
+              OPEN_SHORTCUTS_KEYS
+            )})`}
             key={name}
             onClick={() =>
               setContext((draftCtx) => {
                 draftCtx.showShortcutsDialog = true;
               })
             }
-          />
+          >
+            {/* On the button face, not only in the hover tooltip: a tooltip
+                needs a pointer and a deliberate hover to appear at all, so a
+                shortcut that only lives there is not discoverable by the
+                people most likely to want it. Hidden from AT because the
+                accessible name above already ends in the same keys, and the
+                same <kbd> the dialog uses so the two read as one thing. */}
+            <kbd className="fortune-toolbar-shortcut-hint" aria-hidden="true">
+              {shortcutKeysForPlatform(OPEN_SHORTCUTS_KEYS)}
+            </kbd>
+          </Button>
         );
       }
       if (name === "undo") {
@@ -615,7 +754,10 @@ const Toolbar: React.FC<{
             tooltip={tooltip}
             key={name}
             disabled={refs.globalCache.undoList.length === 0}
-            onClick={() => handleUndo()}
+            onClick={() => {
+              handleUndo();
+              announceNow(info.toolbarUndone);
+            }}
           />
         );
       }
@@ -626,7 +768,10 @@ const Toolbar: React.FC<{
             tooltip={tooltip}
             key={name}
             disabled={refs.globalCache.redoList.length === 0}
-            onClick={() => handleRedo()}
+            onClick={() => {
+              handleRedo();
+              announceNow(info.toolbarRedone);
+            }}
           />
         );
       }
@@ -1084,16 +1229,86 @@ const Toolbar: React.FC<{
           { text: merge.mergeH, value: "merge-horizontal" },
           { text: merge.mergeCancel, value: "merge-cancel" },
         ];
+        /**
+         * Read off the committed anchor rather than from the row that was
+         * pressed, because every one of these rows is a toggle: `mergeCells`
+         * un-merges whenever the selection already holds a merged cell, so
+         * "Merge all" on merged cells splits them. Naming the request said
+         * "Cells merged." while the sheet had just unmerged them — a false
+         * report of the one thing the region exists to convey. `mc` on the
+         * anchor is the state the action actually produced, and it is set on
+         * every cell of a merge and removed from every cell of a split, so the
+         * anchor answers for the selection whichever row was used.
+         */
+        const mergePhrase = (ctx: Context) =>
+          anchorCell(ctx)?.mc != null
+            ? info.toolbarCellsMerged
+            : info.toolbarCellsUnmerged;
+        /**
+         * The refusals have to be spoken, not merely not-lied-about. A sheet
+         * mounts with one cell selected and `mergeCells` skips any range that
+         * is a single cell, so the most likely press of this button did
+         * nothing whatsoever — no repaint, no message — and read as a dead
+         * control to mouse and keyboard alike. `handleMerge` now says which
+         * ending it reached; only the ones the user can act on get words.
+         */
+        const mergeAndAnnounce = (type: string) => {
+          /*
+           * Recording the recipe's own answer, which is not the side effect the
+           * rule against side effects in a producer is about. `setContext` takes
+           * an immer recipe and React may run it more than once, so a recipe
+           * must not do anything the outside world can observe twice — show a
+           * dialog, move focus, post a request. This assigns the value the
+           * recipe just computed to a box owned by this one call, so a replay
+           * recomputes and reassigns the same answer and nothing downstream can
+           * tell how many times it ran. `ContextMenu`'s sort takes the same
+           * shape for the same reason.
+           */
+          const outcome = { result: "refused" as MergeOutcome };
+          setContext((ctx) => {
+            outcome.result = handleMerge(ctx, type);
+          });
+          announceOutcome((ctx) => {
+            switch (outcome.result) {
+              case "changed":
+                return mergePhrase(ctx);
+              // `handleMerge` answers "every range is one cell" before it
+              // looks at which row was pressed, and the two rows want opposite
+              // words for it: Merge wants "select more cells", while Unmerge on
+              // one cell has nothing to split and is not a request for a bigger
+              // selection. Telling an unmerge to select more cells *to merge*
+              // names the wrong action entirely — and one cell is the sheet's
+              // own mount state, so it is the likeliest press of either.
+              case "singleCell":
+                return type === "merge-cancel"
+                  ? info.toolbarMergeNothingMerged
+                  : info.toolbarMergeNeedsRange;
+              // `isAllowEdit` fails on a read-only row, and this bails before
+              // any of the merge logic — the ending reached by a selection
+              // inside `config.rowReadOnly`, which nothing on screen marks.
+              // The same string the right-click menu shows in a dialog.
+              case "readOnly":
+                return generalDialog.readOnlyError;
+              // This locale's own wording for both, already translated
+              // everywhere: they are the strings behind the two alerts
+              // `handleMerge` has kept commented out.
+              case "overlap":
+                return merge.overlappingError;
+              case "partMerge":
+                return merge.partiallyError;
+              case "nothingMerged":
+                return info.toolbarMergeNothingMerged;
+              default:
+                return "";
+            }
+          });
+        };
         return (
           <Combo
             iconId="merge-all"
             key={name}
             tooltip={tooltip}
-            onClick={() =>
-              setContext((ctx) => {
-                handleMerge(ctx, "merge-all");
-              })
-            }
+            onClick={() => mergeAndAnnounce("merge-all")}
           >
             {(setOpen) => (
               <Select>
@@ -1101,9 +1316,7 @@ const Toolbar: React.FC<{
                   <Option
                     key={value}
                     onClick={() => {
-                      setContext((ctx) => {
-                        handleMerge(ctx, value);
-                      });
+                      mergeAndAnnounce(value);
                       setOpen(false);
                     }}
                   >
@@ -1168,16 +1381,30 @@ const Toolbar: React.FC<{
           },
           { text: "", value: "divider" },
         ];
+        // Applying a border was the one action in this popup with no feedback
+        // at all: it writes to config.borderInfo rather than to a cell, so the
+        // anchor fingerprint the other actions share cannot see it and the only
+        // confirmation was the canvas repainting. Named from the row that was
+        // activated, so what is spoken is the label that was read.
+        const announceBorder = (value: string, text: string) =>
+          announceAfterCommit(
+            () =>
+              value === "border-none"
+                ? info.toolbarBorderCleared
+                : replaceHtml(info.toolbarBorderSet, { border: text }),
+            borderFingerprint
+          );
         return (
           <Combo
             iconId="border-all"
             key={name}
             tooltip={tooltip}
-            onClick={() =>
+            onClick={() => {
+              announceBorder("border-all", border.borderAll);
               setContext((ctx) => {
                 handleBorder(ctx, "border-all", customColor, customStyle);
-              })
-            }
+              });
+            }}
           >
             {(setOpen) => (
               <Select>
@@ -1186,6 +1413,7 @@ const Toolbar: React.FC<{
                     <Option
                       key={value}
                       onClick={() => {
+                        announceBorder(value, text);
                         setContext((ctx) => {
                           handleBorder(ctx, value, customColor, customStyle);
                         });
@@ -1205,6 +1433,29 @@ const Toolbar: React.FC<{
                   onPick={(color, style) => {
                     setcustomColor(color as string);
                     setcustomStyle(style as string);
+                  }}
+                  // The third CustomColor popup in the toolbar, and the only
+                  // one whose pick changes no cell: it stores the colour for
+                  // the next handleBorder. Nothing repaints, so announceNow
+                  // rather than announceAfterCommit — there is no committed
+                  // effect to detect, and picking a colour always takes.
+                  onColorPicked={(color) => {
+                    const colorNames = info.colorNames as
+                      | Record<string, string>
+                      | undefined;
+                    // Reset color reaches here as `undefined`, and `replaceHtml`
+                    // returns the *unsubstituted* `${color}` when the value is
+                    // missing — so this read out the literal
+                    // "Border color: ${color}." The font and background path
+                    // above needs the same guard for the same reason; the two
+                    // are now written the same way.
+                    announceNow(
+                      color
+                        ? replaceHtml(info.toolbarBorderColorSet, {
+                            color: colorNames?.[color] ?? color,
+                          })
+                        : info.toolbarBorderColorRemoved
+                    );
                   }}
                 />
               </Select>
@@ -1296,6 +1547,12 @@ const Toolbar: React.FC<{
                   <Option
                     key={value}
                     onClick={() => {
+                      // The chosen mode's own label, rather than reading `tb`
+                      // back off the cell: the label is already localised and
+                      // is exactly what the user picked.
+                      announceAfterCommit(() =>
+                        replaceHtml(info.toolbarTextWrapSet, { mode: text })
+                      );
                       setContext((ctx) => {
                         const d = getFlowdata(ctx);
                         if (d == null) return;
@@ -1388,26 +1645,60 @@ const Toolbar: React.FC<{
         );
       }
       if (name === "filter") {
+        /**
+         * Sorting the selection reorders rows behind a popup that is closing,
+         * so the canvas repaint was the only feedback it ever gave. Unlike the
+         * other actions here it cannot be confirmed by watching state: it has
+         * five silent refusals (read-only, no selection, a multi-range
+         * selection, a column with nothing in it, a merged cell) and, when it
+         * does run, sorting an already-sorted range is a success that changes
+         * nothing — so a change-gated announcement would be wrong in both
+         * directions. `sortSelection` reports whether it sorted instead, and
+         * that answer is read a task later, once the commit has landed.
+         *
+         * The phrase is the funnel menu's, deliberately: two controls, one
+         * concept, and a user who meets both should not have to learn that
+         * they are different.
+         *
+         * **And a refusal is spoken, from the reason `sortSelection` gives.**
+         * This announced success and stayed silent otherwise, on the reasoning
+         * that the toolbar has no surface for a reason — but the surface is the
+         * region this work added, and without it the funnel menu was the one of
+         * three sort call sites that declines without a word: the right-click
+         * menu alerts (`ContextMenu/index.tsx`) and the Sort dialog alerts
+         * (`CustomSort/index.tsx`), both from this same `sortRefusalMessage`.
+         * Announced rather than alerted because that is this control's
+         * established channel, and because a dialog raised from a toolbar press
+         * would take focus off the toolbar as well.
+         */
+        const sortAndAnnounce = (asc: boolean) => {
+          const outcome = {
+            result: { sorted: false, reason: "noSelection" } as SortOutcome,
+          };
+          setContext((ctx) => {
+            outcome.result = handleSort(ctx, asc);
+          });
+          announceOutcome((ctx) => {
+            if (outcome.result.sorted) {
+              return asc
+                ? filter.filterSortAscAnnouncement
+                : filter.filterSortDescAnnouncement;
+            }
+            return sortRefusalMessage(ctx, outcome.result.reason);
+          });
+        };
         const items = [
           {
             iconId: "sort-asc",
             value: "sort-asc",
             text: sort.asc,
-            onClick: () => {
-              setContext((ctx) => {
-                handleSort(ctx, true);
-              });
-            },
+            onClick: () => sortAndAnnounce(true),
           },
           {
             iconId: "sort-desc",
             value: "sort-desc",
             text: sort.desc,
-            onClick: () => {
-              setContext((ctx) => {
-                handleSort(ctx, false);
-              });
-            },
+            onClick: () => sortAndAnnounce(false),
           },
           // { iconId: "sort", value: "sort", text: sort.custom },
           { iconId: "", value: "divider" },
@@ -1417,6 +1708,7 @@ const Toolbar: React.FC<{
             text: filter.filter,
             onClick: () => {
               const filterBefore = contextRef.current.luckysheet_filter_save;
+              announceAfterCommit(() => info.toolbarFilterOn);
               setContext((draftCtx) => {
                 createFilter(draftCtx);
               });
@@ -1440,6 +1732,7 @@ const Toolbar: React.FC<{
             text: filter.clearFilter,
             onClick: () => {
               const filterBefore = contextRef.current.luckysheet_filter_save;
+              announceAfterCommit(() => info.toolbarFilterOff);
               setContext((draftCtx) => {
                 clearFilter(draftCtx);
               });
@@ -1484,20 +1777,34 @@ const Toolbar: React.FC<{
           tooltip={tooltip}
           key={name}
           selected={toolbarItemSelectedFunc(name)?.(cell)}
-          onClick={() =>
+          onClick={() => {
+            // Queued before the commit so the hook can snapshot the state this
+            // action is about to change; it reports the result afterwards, and
+            // says nothing for the items with no phrase of their own.
+            // Clear format reaches every cell of the selection rather than the
+            // anchor, so it brings its own snapshot.
+            announceAfterCommit(
+              (ctx) => toolbarActionPhrase(name, ctx),
+              name === "clear-format" ? clearFormatFingerprint : undefined
+            );
             setContext((draftCtx) => {
               toolbarItemClickHandler(name)?.(
                 draftCtx,
                 refs.cellInput.current!,
                 refs.globalCache
               );
-            })
-          }
+            });
+          }}
         />
       );
     },
     [
       toolbar,
+      info,
+      announceAfterCommit,
+      announceOutcome,
+      announceNow,
+      toolbarActionPhrase,
       cell,
       setContext,
       refs.cellInput,
@@ -1512,6 +1819,7 @@ const Toolbar: React.FC<{
       showDialog,
       hideDialog,
       merge,
+      generalDialog,
       border,
       freezen,
       screenshot,
@@ -1585,6 +1893,22 @@ const Toolbar: React.FC<{
             }}
           />
         ) : null}
+      </div>
+      {/* Confirmation for the toolbar actions whose only other feedback is the
+          canvas repainting.
+
+          Assertive, for the same reason the filter menu's region is: activating
+          a toolbar button leaves VoiceOver in the middle of its "You are
+          currently on a button..." hint, and a polite update is dropped rather
+          than queued while other speech is in progress — so a polite region
+          here is correct in the DOM, green in jest, and never spoken. The hint
+          is boilerplate; the result of the press is not.
+
+          No explicit `aria-atomic`: `role="alert"` already implies
+          `aria-atomic="true"`, so spelling it out added nothing and made this
+          the odd one out among the sibling regions. */}
+      <div id="sr-toolbar" className="sr-only" role="alert">
+        {announcement}
       </div>
     </header>
   );

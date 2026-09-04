@@ -32,6 +32,7 @@ import FormulaSearch from "../SheetOverlay/FormulaSearch";
 import FormulaHint from "../SheetOverlay/FormulaHint";
 import NameBox from "./NameBox";
 import usePrevious from "../../hooks/usePrevious";
+import { returnFocusToCell } from "../../utils/keyboardActivation";
 
 const FxEditor: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
@@ -128,6 +129,21 @@ const FxEditor: React.FC = () => {
       if (key === "ArrowLeft" || key === "ArrowRight") {
         e.stopPropagation();
       }
+      // Enter commits and Escape cancels; either way the edit is over and focus
+      // must leave the formula bar, or a keyboard user is left in an input that
+      // no longer edits anything (WCAG 2.4.3). This is what the two commented-out
+      // jQuery lines in the branches below used to do — and they aimed at the
+      // cell input for the same reason this does.
+      //
+      // Scheduled here rather than inside the producer: `setContext` takes an
+      // immer recipe, which must stay free of side effects, and the guard it
+      // opens with is the one repeated on the next line.
+      if (
+        context.luckysheetCellUpdate.length > 0 &&
+        (key === "Enter" || key === "Escape")
+      ) {
+        returnFocusToCell(refs.cellInput.current);
+      }
       setContext((draftCtx) => {
         if (context.luckysheetCellUpdate.length > 0) {
           switch (key) {
@@ -158,7 +174,6 @@ const FxEditor: React.FC = () => {
                 },
               ];
               moveHighlightCell(draftCtx, "down", 1, "rangeOfSelect");
-              // $("#luckysheet-rich-text-editor").focus();
               // }
               e.preventDefault();
               e.stopPropagation();
@@ -167,8 +182,6 @@ const FxEditor: React.FC = () => {
             case "Escape": {
               cancelNormalSelected(draftCtx);
               moveHighlightCell(draftCtx, "down", 0, "rangeOfSelect");
-              // $("#luckysheet-functionbox-cell").blur();
-              // $("#luckysheet-rich-text-editor").focus();
               e.preventDefault();
               e.stopPropagation();
               break;
@@ -236,6 +249,7 @@ const FxEditor: React.FC = () => {
     [
       context.allowEdit,
       context.luckysheetCellUpdate.length,
+      refs.cellInput,
       refs.fxInput,
       setContext,
     ]

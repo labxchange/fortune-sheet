@@ -8,6 +8,10 @@ export default {
       "The selection operation has not been performed yetLa operación de selección aún no se ha realizado",
     cannotSelectMultiple:
       "No se puede seleccionar la zona de selección múltiple",
+    noRoomForResultError:
+      "No se puede realizar esta operación en una selección que llega al borde de la hoja",
+    noNumericDataError:
+      "No se puede realizar esta operación en una selección que no contiene números",
   },
   functionlist: [
     {
@@ -11047,9 +11051,52 @@ export default {
     pageInfoFull:
       "Total ${total}，página ${totalPage}，Se muestran todos los datos",
 
+    // Toolbar action feedback. A toolbar button changes the sheet without
+    // moving the selection, so nothing else reaches a live region: the result
+    // is conveyed purely by the canvas repainting, which a screen-reader user
+    // never sees. Each phrase describes the state the action produced, not the
+    // action requested — the handlers have many silent no-op paths (a
+    // non-numeric cell, a read-only sheet, no selection) and announcing intent
+    // would report changes that never happened.
+    toolbarBoldOn: "Negrita activada.",
+    toolbarBoldOff: "Negrita desactivada.",
+    toolbarItalicOn: "Cursiva activada.",
+    toolbarItalicOff: "Cursiva desactivada.",
+    toolbarUnderlineOn: "Subrayado activado.",
+    toolbarUnderlineOff: "Subrayado desactivado.",
+    toolbarStrikethroughOn: "Tachado activado.",
+    toolbarStrikethroughOff: "Tachado desactivado.",
+    toolbarFormatPainterOn: "Copiar formato activado.",
+    toolbarFormatPainterOff: "Copiar formato desactivado.",
+    toolbarFormatCleared: "Formato borrado.",
+    toolbarDecimalIncreased: "Decimales aumentados.",
+    toolbarDecimalDecreased: "Decimales reducidos.",
+    toolbarUndone: "Deshecho.",
+    toolbarRedone: "Rehecho.",
+    toolbarCellsMerged: "Celdas combinadas.",
+    toolbarCellsUnmerged: "Celdas separadas.",
+    toolbarMergeNeedsRange: "Seleccione dos o más celdas para combinar.",
+    toolbarMergeNothingMerged: "No hay celdas combinadas en la selección.",
+    toolbarTextWrapSet: "Ajuste de texto: ${mode}.",
+    toolbarFontSizeSet: "Tamaño Fuente: ${size}.",
+    toolbarFilterOn: "Filtro activado.",
+    toolbarFilterOff: "Filtro desactivado.",
+    toolbarFontColorSet: "Color Texto: ${color}.",
+    toolbarFontColorRemoved: "Color Texto eliminado.",
+    toolbarBackgroundColorSet: "Color Celda: ${color}.",
+    toolbarBackgroundColorRemoved: "Color Celda eliminado.",
+    toolbarBorderColorSet: "Color del borde: ${color}.",
+    toolbarBorderColorRemoved: "Color del borde eliminado.",
+    toolbarBorderSet: "Borde: ${border}.",
+    toolbarBorderCleared: "Bordes borrados.",
+    hexColorInput: "Color hexadecimal",
+    hexColorInvalid:
+      "No es un color. Escriba un valor hexadecimal como #1a73e8.",
+
     sheetSrIntro: "Use las teclas de flecha para moverse entre celdas.",
     cellHasFilterDropdown: "Tiene menú de filtro.",
     cellFilterActive: "Filtro activo.",
+    cellHasFormula: "Tiene fórmula.",
     enteredFilteredRegion:
       "Se entró en la región filtrada: ${start} hasta ${end}.",
     leftFilteredRegion: "Se salió de la región filtrada.",
@@ -11069,6 +11116,7 @@ export default {
     allCellsSelected: "Todas las celdas seleccionadas.",
     horizontalScrollbar: "Hoja de cálculo",
     verticalScrollbar: "Hoja de cálculo",
+    spreadsheetLandmark: "Hoja de cálculo",
     nameBoxReferenceClamped:
       "La referencia está fuera de la hoja. Se movió a la celda más cercana.",
     scrollbarRowPosition: "Fila ${index}",
@@ -11561,6 +11609,8 @@ export default {
     filterValueByAllAnnouncement: "All filter options selected.",
     filterValueByClearAnnouncement: "All filter options cleared.",
     filterValueByInverseAnnouncement: "Filter selections inverted.",
+    filterSortAscAnnouncement: "Orden A-Z aplicado.",
+    filterSortDescAnnouncement: "Orden Z-A aplicado.",
     filterValueBySelectedCountAnnouncement:
       "${selected} of ${total} options now selected.",
     filterValueByTip: "filtrar por valores",
@@ -11855,6 +11905,8 @@ export default {
     resetColor: "Reiniciar color",
     cancelText: "Cancelar",
     chooseText: "Confirmar color",
+    sheetColorApplied: "Color de hoja: ${color}.",
+    sheetColorRemoved: "Color de hoja eliminado.",
     focus: "Enfocar",
 
     sheetNameInputLabel: "Nombre de la hoja",

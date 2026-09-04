@@ -1,7 +1,7 @@
 import _ from "lodash";
 import { mergeCells } from "./merge";
 import { Context, getFlowdata } from "../context";
-// import { locale } from "../locale";
+import { locale } from "../locale";
 import { Cell, CellMatrix, GlobalCache } from "../types";
 import { getSheetIndex, isAllowEdit } from "../utils";
 import {
@@ -15,6 +15,7 @@ import { genarate, is_date, update } from "./format";
 import {
   execfunction,
   execFunctionGroup,
+  getcellrange,
   israngeseleciton,
   rangeSetValue,
   setCaretPosition,
@@ -31,7 +32,7 @@ import {
   selectionCopyShow,
   selectIsOverlap,
 } from "./selection";
-import { sortSelection } from "./sort";
+import { SortOutcome, sortSelection } from "./sort";
 import {
   hasPartMC,
   isdatatypemulti,
@@ -350,6 +351,72 @@ function checkNoNullValueAll(cell) {
 
   return false;
 }
+/**
+ * The functions the auto-formula buttons write, so a result of one of them can
+ * be told apart from data the user put there.
+ */
+const AUTO_FORMULA_CALL =
+  /^=\s*(SUM|AVERAGE|COUNT|MAX|MIN)\s*\(([^()]+)\)\s*$/i;
+
+/**
+ * Is this cell one of *our own* results, totalling a stretch of the very line
+ * it sits on?
+ *
+ * The trim below places the result inside the selection, because a whole-column
+ * selection leaves nowhere else to put it — and `luckysheet_select_save` is not
+ * narrowed afterwards, so the same range is still live for the next press. That
+ * makes the previous total indistinguishable from data: `backFormulaInput`
+ * writes `{ v, f }` with no `ct`, `checkNoNullValue` accepts it, `lastFilled`
+ * advances onto it, and the next press totals a range that contains the last
+ * total. Sum twice gave 70 then 140; worse, Sum then Average divided the
+ * previous sum back into the mean and answered 46.67 where 35 is right — a
+ * wrong statistic, silently, from two ordinary presses.
+ *
+ * So the scan asks whether a filled cell is a total of its own line before
+ * counting it as the line's data. The test is deliberately narrow: one of the
+ * five functions these buttons write, over a single range, on the same line,
+ * ending strictly before the cell holding it. A user's own `=A1*2` is data (it
+ * is not one of these calls), a `=SUM(B1:B3)` sitting in column A is data (it
+ * totals a different line), and a hand-written `=SUM(A1:A2)` under A1:A2 is not
+ * — which is right, because totalling it would double-count exactly as our own
+ * result would.
+ *
+ * Only `lastFilled` is affected. `isNum`/`isNull` still see the cell, so which
+ * branch runs is unchanged: a range whose only number is a previous total keeps
+ * behaving as a range with a number in it.
+ */
+function isSelfTotal(
+  ctx: Context,
+  cell: Cell | null | undefined,
+  index: number,
+  fix: number,
+  st_m: number,
+  type: string
+): boolean {
+  const f = cell?.f;
+  if (typeof f !== "string") return false;
+  const call = f.match(AUTO_FORMULA_CALL);
+  if (call == null) return false;
+  const range = getcellrange(ctx, call[2].trim());
+  if (range == null) return false;
+  // A reference into another sheet cannot be a total of this line, whatever it
+  // spans. `getcellrange` resolves a bare range against the current sheet, so
+  // the two agree in the ordinary case and this only rejects an explicit
+  // `Sheet2!A1:A3`.
+  if (range.sheetId != null && range.sheetId !== ctx.currentSheetId) {
+    return false;
+  }
+  const [rowSt, rowEd] = range.row;
+  const [colSt, colEd] = range.column;
+  if (type === "c") {
+    // Down a column: the same single column, over rows inside this range and
+    // finishing before the cell that holds the formula.
+    return colSt === fix && colEd === fix && rowSt >= st_m && rowEd < index;
+  }
+  // Along a row, mirrored.
+  return rowSt === fix && rowEd === fix && colSt >= st_m && colEd < index;
+}
+
 function getNoNullValue(d: CellMatrix, st_x: number, ed: number, type: string) {
   // let hasValueSum = 0;
   let hasValueStart = null;
@@ -511,10 +578,20 @@ function singleFormulaInput(
   type: string,
   cache: GlobalCache,
   noNum?: boolean,
-  noNull?: boolean
+  noNull?: boolean,
+  /**
+   * Allow a range that overruns its own data to be trimmed back to it before
+   * the result is placed. Default true; the 2D caller turns it off — see the
+   * comment at the trim itself for why it corrupts that path.
+   */
+  trimToData?: boolean
 ) {
   if (type == null) {
     type = "r";
+  }
+
+  if (trimToData == null) {
+    trimToData = true;
   }
 
   if (noNum == null) {
@@ -527,6 +604,12 @@ function singleFormulaInput(
 
   let isNull = true;
   let isNum = false;
+  // The last cell in the range holding anything the *user* put there, so a
+  // range that runs past the end of its own data can be trimmed back to it
+  // below. Results this feature wrote on an earlier press do not count — see
+  // `isSelfTotal`, and the trim's own comment for why they end up in range at
+  // all.
+  let lastFilled = st_m - 1;
 
   for (let c = st_m; c <= ed_m; c += 1) {
     let cell = null;
@@ -540,8 +623,10 @@ function singleFormulaInput(
     if (checkNoNullValue(cell)) {
       isNull = false;
       isNum = true;
+      if (!isSelfTotal(ctx, cell, c, fix, st_m, type)) lastFilled = c;
     } else if (checkNoNullValueAll(cell)) {
       isNull = false;
+      if (!isSelfTotal(ctx, cell, c, fix, st_m, type)) lastFilled = c;
     }
   }
 
@@ -642,35 +727,99 @@ function singleFormulaInput(
     return false;
   }
   if (isNum && noNum) {
+    // The result goes in the cell just past the end of the range, so there has
+    // to be one. Selecting a whole column runs the range to the last row and
+    // leaves nowhere to put it: d[ed_m + 1] is then undefined and indexing it
+    // threw, taking the sheet down with it (Asana 1217814380695668). The walk
+    // below already stops at this same bound; only this first step did not.
+    //
+    // Along a row the read is merely undefined rather than a throw, but the
+    // write that follows would extend that one row past every other and place
+    // a formula in a column that does not exist, so both are guarded.
+    //
+    // The extent of the line the result goes on: rows for a column pass, and
+    // this row's own width for a row pass. Row 0's width was close enough on a
+    // rectangular matrix and wrong on a ragged one, where the guard is meant to
+    // stop a write landing past the row it is writing to.
+    const limit = type === "c" ? d.length : d[fix].length;
+
+    // Selecting a whole column is an ordinary thing to do, and it is exactly
+    // what runs the range off the end. There is no shortage of room in that
+    // case, only a shortage where this looked: the range is mostly the empty
+    // cells below the data. So trim it back to its own last filled cell and
+    // put the result immediately after that, which is where a spreadsheet is
+    // expected to put it. Only a range filled right to the final row has
+    // genuinely nowhere to go.
+    //
+    // The result lands *inside* the surviving selection, and nothing narrows
+    // that selection afterwards, so the next press scans the total it just
+    // wrote. `isSelfTotal` is what stops it counting: the scan above refuses to
+    // let one of our own results stand as the line's last data, so a second
+    // press totals the same data again — a duplicate at worst, never a range
+    // that has swallowed its own total.
+    //
+    // Off for the 2D caller, which is the one case where the trim is not just
+    // unhelpful but wrong. That caller runs a row pass and then a column pass
+    // over the same cells, and `lastFilled` is per line — so with ragged rows
+    // reaching the last column (a row-header click, or Ctrl+A) each row's
+    // total lands at its own last filled column, *inside* the selection, and
+    // the column pass that follows reads those totals as if they were data.
+    // Every total needs to sit outside the range for the second pass to be
+    // meaningful, which one shared trim per direction could give but a
+    // per-line one cannot.
+    let end = ed_m;
+    if (
+      trimToData &&
+      end + 1 >= limit &&
+      lastFilled >= st_m &&
+      lastFilled < ed_m
+    ) {
+      end = lastFilled;
+    }
+
+    if (end + 1 >= limit) {
+      // Say why nothing happened. autoSelectionFormula withdraws this again if
+      // the other direction did find room, so a partial success stays quiet.
+      ctx.warnDialog = locale(ctx).generalDialog.noRoomForResultError;
+      return false;
+    }
+
     let cell = null;
 
     if (type === "c") {
-      cell = d[ed_m + 1][fix];
+      cell = d[end + 1][fix];
     } else {
-      cell = d[fix][ed_m + 1];
+      cell = d[fix][end + 1];
     }
 
     /* 备注：在搜寻的时候排除自己以解决单元格函数引用自己的问题 */
     if (cell != null && cell.v != null && cell.v.toString().length > 0) {
-      let c = ed_m + 1;
+      let c = end + 1;
 
       if (type === "c") {
-        cell = d[ed_m + 1][fix];
+        cell = d[end + 1][fix];
       } else {
-        cell = d[fix][ed_m + 1];
+        cell = d[fix][end + 1];
       }
 
       while (cell != null && cell.v != null && cell.v.toString().length > 0) {
         c += 1;
+        // Same bound as `limit` above, and the same reason for asking the line
+        // rather than row 0.
         let len = null;
 
         if (type === "c") {
           len = d.length;
         } else {
-          len = d[0].length;
+          len = d[fix].length;
         }
 
         if (c >= len) {
+          // Same refusal as the guard above, reached the other way: the cell
+          // past the range was occupied, so the walk climbed looking for a free
+          // one and ran out of sheet instead. It used to bail in silence, which
+          // is the very thing the guard above was added to stop.
+          ctx.warnDialog = locale(ctx).generalDialog.noRoomForResultError;
           return false;
         }
 
@@ -682,17 +831,17 @@ function singleFormulaInput(
       }
 
       if (type === "c") {
-        backFormulaInput(d, c, fix, [st_m, ed_m], [fix, fix], formula, ctx);
+        backFormulaInput(d, c, fix, [st_m, end], [fix, fix], formula, ctx);
       } else {
-        backFormulaInput(d, fix, c, [fix, fix], [st_m, ed_m], formula, ctx);
+        backFormulaInput(d, fix, c, [fix, fix], [st_m, end], formula, ctx);
       }
     } else {
       if (type === "c") {
         backFormulaInput(
           d,
-          ed_m + 1,
+          end + 1,
           fix,
-          [st_m, ed_m],
+          [st_m, end],
           [fix, fix],
           formula,
           ctx
@@ -701,9 +850,9 @@ function singleFormulaInput(
         backFormulaInput(
           d,
           fix,
-          ed_m + 1,
+          end + 1,
           [fix, fix],
-          [st_m, ed_m],
+          [st_m, end],
           formula,
           ctx
         );
@@ -711,6 +860,16 @@ function singleFormulaInput(
     }
     return false;
   }
+
+  // The range holds something, but none of it is a number — a column of labels,
+  // say. Neither branch above applies, and falling out silently is
+  // indistinguishable from the button being broken, so say why. As with the
+  // no-room case, autoSelectionFormula takes this back if another pass over the
+  // same selection did find numbers to total.
+  if (!isNull && !isNum) {
+    ctx.warnDialog = locale(ctx).generalDialog.noNumericDataError;
+  }
+
   return true;
 }
 
@@ -796,6 +955,14 @@ export function autoSelectionFormula(
   if (!ctx.luckysheet_select_save) return;
 
   _.forEach(ctx.luckysheet_select_save, (selection) => {
+    // Each selection answers for itself. A 2D range is totalled in two
+    // independent passes and only one of them may be short of room, so a pass
+    // that gives up is taken back if its partner delivered — but a *different*
+    // range in the same ctrl-click is not a partner, and must still be able to
+    // say it was refused. Snapshotting per selection instead of once around the
+    // whole loop is what keeps those two cases apart.
+    const priorWarnDialog = ctx.warnDialog;
+    const writtenBefore = ctx.formulaCache.execFunctionExist?.length ?? 0;
     const [st_r, ed_r] = selection.row;
     const [st_c, ed_c] = selection.column;
     const row_index = selection.row_focus;
@@ -870,6 +1037,7 @@ export function autoSelectionFormula(
             "r",
             cache,
             true,
+            false,
             false
           ) && r_false;
       }
@@ -890,6 +1058,7 @@ export function autoSelectionFormula(
             "c",
             cache,
             true,
+            false,
             false
           ) && c_false;
       }
@@ -898,6 +1067,18 @@ export function autoSelectionFormula(
     }
 
     isfalse = isfalse && isfalse;
+
+    // execFunctionExist gains one entry per formula actually written, so a
+    // longer list than we started this selection with means the user got
+    // something here and does not need telling that one of the two directions
+    // was full. Only the corner sub-path of the single-cell branch (A1, with no
+    // neighbour above or to the left) returns before reaching this; its
+    // siblings fall through to here. Either way it is harmless, because none of
+    // those paths goes through `singleFormulaInput` and so none writes a
+    // warning for this to withdraw.
+    if ((ctx.formulaCache.execFunctionExist?.length ?? 0) > writtenBefore) {
+      ctx.warnDialog = priorWarnDialog;
+    }
   });
 
   if (!isfalse) {
@@ -1465,9 +1646,36 @@ export function handleBorder(
   // }, 1);
 }
 
-export function handleMerge(ctx: Context, type: string) {
+/**
+ * Why a merge press did nothing, or that it did something.
+ *
+ * Every one of these but `"changed"` and `"refused"` was silent: the selection
+ * a sheet mounts with is a single cell, so the merge button did nothing at all
+ * until the selection was extended, and read as broken to mouse and keyboard
+ * alike. `"nothingMerged"` is the same dead end for *un*-merge, and the
+ * locale has carried the words for `"overlap"` and `"partMerge"`
+ * (`merge.overlappingError`, `merge.partiallyError`) all along — their alerts
+ * are the ones commented out below. `"refused"` covers the states the user
+ * cannot act on anyway (a read-only sheet, no selection at all) and stays
+ * unspoken — `"readOnly"` is split out of it because nothing on screen marks
+ * a read-only row, so of every ending here it is the one a user is least able
+ * to work out unaided. `generalDialog.readOnlyError` is what the right-click
+ * menu already shows for it.
+ */
+export type MergeOutcome =
+  | "changed"
+  | "singleCell"
+  | "readOnly"
+  | "overlap"
+  | "partMerge"
+  | "nothingMerged"
+  | "refused";
+
+/** Merges or un-merges the selection, reporting what came of it; see
+ *  `MergeOutcome`. */
+export function handleMerge(ctx: Context, type: string): MergeOutcome {
   const allowEdit = isAllowEdit(ctx);
-  if (!allowEdit) return;
+  if (!allowEdit) return "readOnly";
   // if (!checkProtectionNotEnable(ctx.currentSheetId)) {
   //   return;
   // }
@@ -1478,12 +1686,12 @@ export function handleMerge(ctx: Context, type: string) {
     //   } else {
     //     tooltip.info("不能合并重叠区域", "");
     //   }
-    return;
+    return "overlap";
   }
 
   if (ctx.config.merge != null) {
     let has_PartMC = false;
-    if (!ctx.luckysheet_select_save) return;
+    if (!ctx.luckysheet_select_save) return "refused";
     for (let s = 0; s < ctx.luckysheet_select_save.length; s += 1) {
       const r1 = ctx.luckysheet_select_save[s].row[0];
       const r2 = ctx.luckysheet_select_save[s].row[1];
@@ -1503,20 +1711,63 @@ export function handleMerge(ctx: Context, type: string) {
       // } else {
       //   tooltip.info("无法对部分合并单元格执行此操作", "");
       // }
-      return;
+      return "partMerge";
     }
   }
 
   const flowdata = getFlowdata(ctx);
-  if (!flowdata) return;
+  if (!flowdata) return "refused";
 
-  if (!ctx.luckysheet_select_save) return;
+  if (!ctx.luckysheet_select_save) return "refused";
 
-  mergeCells(ctx, ctx.currentSheetId, ctx.luckysheet_select_save, type);
+  // `[]` is truthy, and `[].every()` is vacuously true — so without this an
+  // empty selection answered "singleCell" and the user was told they cannot
+  // merge one cell while nothing at all was selected. It is a state this
+  // sheet reaches transiently before the mount selection is seeded (see the
+  // note in `selection.ts`), so it needs its own honest ending.
+  if (ctx.luckysheet_select_save.length === 0) return "refused";
+
+  // Asked of the selection rather than inferred from `mergeCells` returning
+  // false, because that answer has two causes and they need different words:
+  // a range too small to merge, and an un-merge over cells that were never
+  // merged.
+  const everyRangeIsOneCell = ctx.luckysheet_select_save.every((range) => {
+    // A selection's far edge is nil until a layout pass resolves it — the
+    // sheet's first selection is `row: [0, null]` (see NameBox) — and that
+    // state is one cell as far as the user is concerned, so it must answer the
+    // same way rather than falling through to a merge that iterates nothing.
+    const lastRow = _.isNil(range.row[1]) ? range.row[0] : range.row[1];
+    const lastCol = _.isNil(range.column[1])
+      ? range.column[0]
+      : range.column[1];
+    return range.row[0] === lastRow && range.column[0] === lastCol;
+  });
+  if (everyRangeIsOneCell) return "singleCell";
+
+  const acted = mergeCells(
+    ctx,
+    ctx.currentSheetId,
+    ctx.luckysheet_select_save,
+    type
+  );
+  if (acted) return "changed";
+  return type === "merge-cancel" ? "nothingMerged" : "refused";
 }
 
-export function handleSort(ctx: Context, isAsc: boolean) {
-  sortSelection(ctx, isAsc);
+/**
+ * Passes the whole outcome through; see `sortSelection`.
+ *
+ * This narrowed to `sorted` on the reasoning that "the toolbar has no surface"
+ * for a refusal reason. It has one, and this work is what gave it one: the
+ * funnel menu's sort now announces itself (ticket C1, "toolbar action status
+ * not announced"), so a sort declined for a multi-range selection or a merged
+ * range has somewhere to say so — and dropping the reason here made the
+ * toolbar the one of three sort call sites that stayed silent, while the
+ * right-click menu and the custom-sort dialog both explain themselves from
+ * this same `SortRefusal`.
+ */
+export function handleSort(ctx: Context, isAsc: boolean): SortOutcome {
+  return sortSelection(ctx, isAsc);
 }
 
 export function handleFreeze(ctx: Context, type: string) {
