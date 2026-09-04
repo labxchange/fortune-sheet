@@ -50,10 +50,33 @@ const DISABLED = '[disabled], [aria-disabled="true"]';
  *
  * Neither restore fires when focus has already left the dialog by the time it
  * closes. A caller that deliberately moves focus and then dismisses — a
- * shortcut that leaves this dialog for the grid, an outside click — has
- * already put focus where it belongs, and restoring would drag it back to the
- * opener. This mirrors useEscapeToClose, which gates its own restore the same
- * way for the same reason.
+ * shortcut that leaves the shortcuts dialog for the grid, an outside click —
+ * has already put focus where it belongs, and restoring would drag it back to
+ * the opener.
+ *
+ * That gate duplicates `useEscapeToClose`'s, deliberately. Handing the restore
+ * to that hook instead — `Dialog` calls it, and did exactly this at one point —
+ * is foreclosed twice over:
+ *
+ * Its restore is synchronous in its own cleanup, and `Dialog`'s cannot be: see
+ * `deferRestore` below and the reasoning at the cleanup. Delegating would put
+ * the focus change back ahead of the announcement that rides it, which is the
+ * defect the deferral was added to fix.
+ *
+ * And `SearchReplace` calls this hook and not that one — it handles no Escape
+ * at all — so a restore that lived only in `useEscapeToClose` would leave it
+ * with none, which is the drop-to-<body> failure the restore exists to prevent.
+ *
+ * The condition therefore lives with the restore it guards, in the one place
+ * both callers share. Kept in the same shape as the hook it duplicates so the
+ * two read as one behaviour, including tracking the boolean continuously — see
+ * the listener below for why cleanup cannot just re-read the ref.
+ *
+ * One cost of that, worth knowing before someone counts listeners: a `Dialog`
+ * runs two document-level focusin listeners while it is open, this one and
+ * `useEscapeToClose`'s, and the latter's `focusInsideContainer` is computed and
+ * then discarded because `Dialog` passes `restoreFocus: false`. Cheap, but not
+ * free, and it is not what a reader expects from a hook that already tracks it.
  *
  * `deferRestore` decides *when* the restore runs, and only `Dialog` needs it —
  * see the cleanup for the full reasoning. It defaults to the synchronous
