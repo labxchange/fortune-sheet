@@ -1,8 +1,10 @@
 import { contextFactory, selectionFactory } from "../factories/context";
 import { handleCellAreaMouseDown } from "../../src/events/mouse";
 import {
+  applyPointModeStep,
   handleFormulaArrowKey,
   handleGlobalKeyDown,
+  resolvePointModeStep,
 } from "../../src/events/keyboard";
 import { functionHTMLGenerate } from "../../src/modules/formula";
 import { GRID_ROOT_CLASS } from "../../src/constants";
@@ -372,6 +374,88 @@ describe("formula point mode", () => {
 
       expect(handled).toBe(false);
       expect(cellInput.innerHTML).toBe(before);
+    });
+
+    describe("the resolved step is what both callers act on", () => {
+      // The formula bar has to cancel the key before its setContext producer
+      // can write anything, so it cancels on the resolution and then applies
+      // that same resolution. Deciding twice -- gate first, step second --
+      // cancelled arrows the step went on to decline, and the caret stopped
+      // moving: Left in column A, Up in row 1.
+      test.each(["ArrowUp", "ArrowLeft"])(
+        "%s from A1 declines, so the arrow keeps its ordinary meaning",
+        (key) => {
+          const ctx = getContext();
+          ctx.luckysheetCellUpdate = [0, 0];
+          editFormula("=SUM(");
+          const before = cellInput.innerHTML;
+
+          expect(
+            resolvePointModeStep(ctx, new KeyboardEvent("keydown", { key }))
+          ).toBeNull();
+          expect(
+            handleFormulaArrowKey(
+              ctx,
+              cellInput,
+              fxInput,
+              new KeyboardEvent("keydown", { key })
+            )
+          ).toBe(false);
+
+          // Nothing written, and the grid leaves the key to the browser so the
+          // caret still moves through the text.
+          expect(cellInput.innerHTML).toBe(before);
+          expect(ctx.formulaCache.rangestart).toBeFalsy();
+          expect(pressArrow(ctx, key, cellInput).defaultPrevented).toBe(false);
+        }
+      );
+
+      test("once point mode is running the edge still belongs to it", () => {
+        const ctx = getContext();
+        ctx.luckysheetCellUpdate = [1, 0];
+        editFormula("=SUM(");
+
+        pressArrow(ctx, "ArrowUp", cellInput);
+        expect(cellInput.textContent).toBe("=SUM(A1");
+
+        // A null target rather than a null resolution: there is nowhere left to
+        // step, but the key is still point mode's, so it does not walk the
+        // caret out of the reference being built.
+        expect(
+          resolvePointModeStep(
+            ctx,
+            new KeyboardEvent("keydown", { key: "ArrowUp" })
+          )
+        ).toEqual({ target: null });
+        expect(
+          handleFormulaArrowKey(
+            ctx,
+            cellInput,
+            fxInput,
+            new KeyboardEvent("keydown", { key: "ArrowUp" })
+          )
+        ).toBe(true);
+        expect(cellInput.textContent).toBe("=SUM(A1");
+      });
+
+      test("a resolved target is applied without deciding again", () => {
+        const ctx = getContext();
+        ctx.luckysheetCellUpdate = [2, 2];
+        editFormula("=SUM(");
+
+        // The formula bar's two halves, in order: resolve while the caret is
+        // live, apply once the producer runs.
+        const step = resolvePointModeStep(
+          ctx,
+          new KeyboardEvent("keydown", { key: "ArrowUp" })
+        );
+        expect(step).toEqual({ target: { row: 1, column: 2 } });
+
+        applyPointModeStep(ctx, cellInput, fxInput, step);
+
+        expect(cellInput.textContent).toBe("=SUM(C2");
+        expect(ctx.formulaCache.rangestart).toBe(true);
+      });
     });
   });
 });
