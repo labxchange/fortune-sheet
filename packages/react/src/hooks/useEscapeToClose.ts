@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { isWithinPopup, isWithinPopupContent } from "../utils/containment";
+import { focusAfterCommit } from "../utils/keyboardActivation";
 
 const DEFAULT_FOCUSABLE_SELECTOR =
   '[role="button"]:not([aria-disabled="true"]), [tabindex="0"]:not([aria-disabled="true"])';
@@ -32,6 +33,32 @@ export type UseEscapeToCloseOptions = {
    * call site also makes the diff say which popups were actually considered.
    */
   closeOnFocusOut?: boolean;
+  /**
+   * Where focus belongs after a `closeOnFocusOut` dismissal — overriding the
+   * destination the user's Tab was heading for.
+   *
+   * **Omit it and the Tab stands**, which is right for a popup that lives in
+   * the tab sequence: you arrived by tabbing, so tabbing onward is the sequence
+   * working. The two popups that set it are anchored to a grid cell instead —
+   * opened by right-click or from a column-header funnel, by a gesture the tab
+   * order knows nothing about — so the element "after" them is an accident of
+   * DOM order (the next funnel, the sheet-tab strip, the zoom control, the
+   * embedding page) and leaving the user there strands them outside the grid
+   * with no way back but traversing the whole chrome. WCAG 2.4.3.
+   *
+   * Resolved twice, and deferred, for the same reasons `focusAfterCommit`
+   * exists: the close this hook has just triggered rebuilds the grid, so an
+   * element captured now can be detached by the time focus is placed.
+   *
+   * Skipped entirely when focus has *already* reached the returned element (or
+   * inside it), which is not just an optimisation — it is what keeps this from
+   * fighting the app's own deliberate handoffs. `ContextMenu`'s Sort, Insert
+   * image and Link rows call `focusGridBeforeHandoff` to put focus on the cell
+   * synchronously *before* opening a dialog, and that focus move is itself the
+   * focusout that lands here. Re-aiming at the cell a task later would pull
+   * focus straight back out of the dialog that had just claimed it.
+   */
+  focusOutTarget?: () => HTMLElement | null | undefined;
   /**
    * Elements that count as "inside" for `closeOnFocusOut` despite not being DOM
    * descendants of `containerRef` — a submenu rendered as a sibling rather than
@@ -79,10 +106,13 @@ export function useEscapeToClose({
   autoFocusSelector = DEFAULT_FOCUSABLE_SELECTOR,
   restoreFocus = true,
   closeOnFocusOut = false,
+  focusOutTarget,
   withinRefs,
 }: UseEscapeToCloseOptions): void {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const focusOutTargetRef = useRef(focusOutTarget);
+  focusOutTargetRef.current = focusOutTarget;
   // Tracked through a ref for the same reason as onClose: the effect keys on
   // `open` alone, and callers pass this array inline, so a fresh identity every
   // render must not mean a stale list inside the handler.
@@ -191,19 +221,26 @@ export function useEscapeToClose({
       if (!isInside(e.target as Node)) return;
       if (isInside(next)) return;
       if (!focusHasBeenInside) return;
-      // Recorded before closing, so the restore in the cleanup below cannot
-      // depend on whether `focusin` for the new target has been dispatched yet.
-      // It normally has — Chrome fires `focusout` and `focusin` in the same
-      // task and only reaches a microtask checkpoint after both, so React's
-      // batched close (and this effect's cleanup) always run with
+      // Recorded before closing, so the cleanup's restore cannot depend on
+      // whether `focusin` for the new target has been dispatched yet. It
+      // normally has — Chrome fires `focusout` and `focusin` in the same task
+      // and only reaches a microtask checkpoint after both, so React's batched
+      // close (and this effect's cleanup) always run with
       // `focusInsideContainer` already false. Verified in Chrome rather than
-      // assumed. But the whole point of reaching this line is that focus has
-      // left, so saying so here makes the outcome independent of that ordering
-      // — a browser that did interleave them would otherwise pull focus back to
-      // the trigger and swallow the Tab, reintroducing the 2.4.3 failure that
-      // this 2.4.11 fix is supposed to sit alongside.
+      // assumed; saying so here makes the outcome independent of that ordering.
+      //
+      // What it suppresses is the cleanup's restore, which aims at whatever was
+      // focused before opening — the trigger. That destination is wrong on this
+      // route whichever way the caller wants it: either the user's Tab should
+      // stand, or `focusOutTarget` names somewhere else. Never the trigger.
       focusInsideContainer = false;
       onCloseRef.current();
+
+      const target = focusOutTargetRef.current?.();
+      // Already there (or inside it): the app moved focus itself, and this is
+      // the focusout it produced. See `focusOutTarget`'s docs.
+      if (!target || target === next || target.contains(next)) return;
+      focusAfterCommit(() => focusOutTargetRef.current?.());
     };
     if (closeOnFocusOut) {
       document.addEventListener("focusout", handleFocusOut);

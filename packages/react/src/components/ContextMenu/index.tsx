@@ -194,6 +194,15 @@ const ContextMenu: React.FC = () => {
     // WCAG 2.4.11 — an absolutely-positioned menu left open behind whatever the
     // user tabbed to obscures it. No submenus here, so no withinRefs.
     closeOnFocusOut: true,
+    /*
+     * ...and Tab comes back to the cell rather than carrying on out of the
+     * grid (WCAG 2.4.3). This menu is opened from a cell by a gesture the tab
+     * order knows nothing about, so the element "after" it is an accident of
+     * DOM order — the sheet-tab strip, the zoom control, the embedding page's
+     * own navigation — and every other route out already settles on the cell.
+     * Escape then Tab is how a user leaves the spreadsheet from here.
+     */
+    focusOutTarget: () => refs.cellInput.current,
   });
   useRovingFocus({
     containerRef,

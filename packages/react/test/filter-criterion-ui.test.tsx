@@ -380,10 +380,12 @@ describe("filter criteria applied through the dropdown", () => {
       expect(document.activeElement).toBe(cellInput());
     });
 
-    it("leaves focus where the user tabbed when focus-out closes it", async () => {
-      // The inverse, and the regression this pair guards: restoring here would
-      // pull focus off the control the user just reached and throw it backwards
-      // onto the cell, silently swallowing their Tab.
+    it("returns focus to the cell when Tab closes it", async () => {
+      // `restoreFocusIfLost` declines on this route — focus has already landed
+      // on the control the Tab reached — so the return is `focusOutTarget`'s.
+      // Without it the user leaves the grid entirely: the funnel is in the
+      // column header, so "next" is the following funnel, then the sheet tabs
+      // and the zoom control (WCAG 2.4.3).
       focus(0, 2);
       pressFunnel(0);
       const row = popup()!.querySelector<HTMLElement>('[role="button"]')!;
@@ -396,7 +398,8 @@ describe("filter criteria applied through the dropdown", () => {
       });
       await flushFocus();
       expect(popup()).toBeNull();
-      expect(document.activeElement).toBe(outside);
+      expect(document.activeElement).toBe(cellInput());
+      expect(document.activeElement).not.toBe(outside);
     });
 
     it("moves focus to the active cell when Clear filter removes every funnel", async () => {

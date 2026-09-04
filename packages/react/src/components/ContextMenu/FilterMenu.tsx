@@ -289,24 +289,15 @@ const FilterMenu: React.FC = () => {
   /**
    * The same destination, but only when closing would otherwise *lose* focus.
    *
-   * The footer buttons above can restore unconditionally: the user asked for an
-   * outcome and the popup is the only thing that had focus. The three dismissal
-   * routes cannot. Tab out of the popup and `closeOnFocusOut` fires `close`,
-   * which a task later would pull focus off the control the user just tabbed to
-   * and drop it back on the cell — the Tab silently swallowed and focus thrown
-   * backwards, a fresh 2.4.3 failure manufactured by the 2.4.11 fix. An outside
-   * click on anything focusable does the same.
+   * This is the pointer route's rule. An outside click on a real control means
+   * the user picked a destination, and dragging focus off it a task later would
+   * throw them backwards; an outside click on non-focusable chrome moves focus
+   * nowhere, so the popup unmounts from under it and focus lands on `<body>`.
+   * Those two are indistinguishable at the call site — the difference only
+   * exists once the DOM has settled — so the question is deferred and asked
+   * once: focus is rescued only if nothing else claimed it.
    *
-   * Deciding by route (`close(restore)` per caller) leaves a hole: an outside
-   * click on non-focusable chrome moves focus nowhere, so the popup unmounts
-   * from under it and focus lands on `<body>`. That route has to restore, and it
-   * is indistinguishable from the focusable case at the call site — the
-   * difference only exists once the DOM has settled.
-   *
-   * So the question is asked then, and asked once: focus is rescued only if
-   * nothing else claimed it. Escape and a press on dead chrome both leave it on
-   * `<body>` and land on the cell; Tab and a press on a real control keep the
-   * destination the user chose.
+   * The keyboard route does *not* use this; see `closeFromFocusOut`.
    */
   const restoreFocusIfLost = useCallback(() => {
     focusAfterCommit(() => {
@@ -321,9 +312,9 @@ const FilterMenu: React.FC = () => {
     setContext((ctx) => {
       ctx.filterContextMenu = undefined;
     });
-    // Escape, an outside click and focus-out all arrive here. `useEscapeToClose`'s
-    // own restore is disabled below so this is the single decision point —
-    // otherwise it would put focus back on the funnel, which the ticket rejected.
+    // Escape and an outside click arrive here. `useEscapeToClose`'s own restore
+    // is disabled below so this is the single decision point — otherwise it
+    // would put focus back on the funnel, which the ticket rejected.
     restoreFocusIfLost();
   }, [setContext, restoreFocusIfLost]);
 
@@ -341,6 +332,16 @@ const FilterMenu: React.FC = () => {
     // WCAG 2.4.11. Only the outer layer opts in: the submenu's own instance
     // below would otherwise close itself when focus moved back to these rows.
     closeOnFocusOut: true,
+    /*
+     * ...and Tab returns to the cell (WCAG 2.4.3 — the ticket's own
+     * "Cell → Popup → Close → Same cell"). `restoreFocusIfLost` above declines
+     * on this route by design, because focus has already landed somewhere; the
+     * funnel sits in the column header, so that somewhere is the next column's
+     * funnel, then the sheet tabs, the zoom control, the page beyond. A pointer
+     * user who clicks a real control still keeps it — that route never reaches
+     * this hook.
+     */
+    focusOutTarget: () => refs.cellInput.current,
     withinRefs: [subMenuRef],
     // This hook's restore goes to whatever was focused before opening — the
     // funnel button — which is the behaviour the audit rejected. `close` places
