@@ -126,6 +126,73 @@ describe("focus after a context-menu action", () => {
     }
   );
 
+  /**
+   * Paste is the one row whose handler is `async` — it awaits
+   * `navigator.clipboard.readText()` before committing — and it was the one row
+   * missing from the matrix above. Reported from the stage review app: the
+   * paste lands, the menu closes and focus falls out of the spreadsheet
+   * entirely (Asana 1217709848562420, WCAG 2.4.3).
+   *
+   * Two flushes, and that is the whole point. `runAction`'s single flush covers
+   * a synchronous row: commit, then `focusAfterCommit`'s task. Paste spends the
+   * first flush resolving the clipboard promise, so the commit and its focus
+   * task both land in the second. A test that flushed once would report focus
+   * on `<body>` for a reason that is a test artefact rather than the bug.
+   */
+  it("lands focus on the grid, not the body, after Paste", async () => {
+    const { container, ref } = renderSheet();
+    sessionStorage.setItem("localClipboard", "pasted");
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      '<div id="fortune-copy-content">pasted</div>'
+    );
+
+    await runAction(container, ref, "Paste");
+    await flush();
+
+    expect(statusRegion(container)!.textContent).toMatch(/paste/i);
+    expect(document.activeElement).not.toBe(document.body);
+    expect(document.activeElement).toBe(cellInput(container));
+
+    sessionStorage.removeItem("localClipboard");
+    document.getElementById("fortune-copy-content")?.remove();
+  });
+
+  /**
+   * The same row with a clipboard that actually resolves, which is what a real
+   * browser has and jsdom does not: above, `navigator.clipboard` is absent, so
+   * the `await` rejects immediately and the commit stays in the click's own
+   * microtask chain. Here the read resolves a macrotask later, so the commit
+   * happens well after the click — the shape the review app runs.
+   */
+  it("lands focus on the grid after Paste when the clipboard read resolves late", async () => {
+    const readText = jest.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          setTimeout(() => resolve("pasted"), 0);
+        })
+    );
+    Object.defineProperty(navigator, "clipboard", {
+      value: { readText },
+      configurable: true,
+    });
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      '<div id="fortune-copy-content">pasted</div>'
+    );
+
+    const { container, ref } = renderSheet();
+    await runAction(container, ref, "Paste");
+    await flush();
+    await flush();
+
+    expect(readText).toHaveBeenCalled();
+    expect(document.activeElement).toBe(cellInput(container));
+
+    delete (navigator as any).clipboard;
+    document.getElementById("fortune-copy-content")?.remove();
+  });
+
   it("leaves focus alone when the action declines to act", async () => {
     const { container, ref } = renderSheet();
     // Two ranges: copy bails with an alert, so nothing should move — pulling
