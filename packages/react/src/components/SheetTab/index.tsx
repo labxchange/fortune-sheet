@@ -205,7 +205,16 @@ const SheetTab: React.FC = () => {
           the dropdown and Alt+Arrow shortcut switch sheets without moving
           focus onto the new tab, and Move left/right and tab colour are
           silent, visual-only changes. Polite, since none of these compete
-          with an in-progress alert the way the grid's own selection does. */}
+          with an in-progress alert the way the grid's own selection does.
+
+          These live with the controls they describe, which means they ride on
+          `showSheetTabs` along with the rest of this bar. Move and colour are
+          only reachable from the tabs, so that is right for them; the Alt+Arrow
+          switch shortcut also works from the grid, so with the bar hidden a
+          switch is unannounced again. Hoisting a region into `Workbook` for
+          that one case would put it outside the component that owns the state
+          it reports, so it stays here until a workbook that hides its tabs and
+          still switches sheets by shortcut is a case someone has. */}
       <div id="sr-sheetSwitch" className="sr-only" role="status">
         {sheetSwitchAnnouncement}
       </div>

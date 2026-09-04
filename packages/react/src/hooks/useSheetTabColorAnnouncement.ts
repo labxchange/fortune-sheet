@@ -14,6 +14,22 @@ type LocaleInfo = ReturnType<typeof locale>["info"];
  * place that writes `sheet.color`. That effect runs on mount too (re-writing
  * the sheet's existing colour), so the counter — not `sheet.color` itself —
  * is what tells a real change from the mount no-op.
+ *
+ * Two deliberate silences, both a consequence of driving this from the write:
+ *
+ * Re-picking the colour a tab already has says nothing, and neither does
+ * resetting a tab that has no colour. React bails out of the identical
+ * `selectColor` state write, so `ChangeColor`'s effect never runs and the
+ * counter never moves. That differs from `useSelectAllAnnouncement`, which
+ * speaks a repeat activation through `markAsRepeat` even though the resulting
+ * state is identical — but select-all is an action the user invoked and got
+ * no other feedback for, whereas a swatch that is already applied has the
+ * visible checkmark next to it, and the alternative here is a counter bumped
+ * on every submenu open, which would announce colours nobody chose.
+ *
+ * A custom colour announces its hex ("#ff5733"), since `colorNames` only
+ * covers the palette swatches. Read out digit by digit it is poor, but it
+ * does identify the colour, and the user picked the value being read back.
  */
 export function useSheetTabColorAnnouncement(
   context: Context,
