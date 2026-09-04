@@ -228,7 +228,13 @@ describe("Sheet tab keyboard accessibility", () => {
     const submenuId = colorRow.getAttribute("aria-controls");
     expect(submenuId).toBeTruthy();
     const submenu = document.getElementById(submenuId!)!;
-    expect(submenu.getAttribute("role")).toBe("menu");
+    // A group rather than a menu: it owns `ChangeColor`, whose palette is a
+    // `listbox` of 64 options, and `role="menu"` may only own
+    // `menuitem`/`menuitemradio`/`menuitemcheckbox`/`group` — axe reports
+    // `aria-required-children` for the menu version. The trigger drops
+    // `aria-haspopup` to match; `aria-expanded` plus `aria-controls` is the
+    // whole disclosure relationship either way.
+    expect(submenu.getAttribute("role")).toBe("group");
     expect(colorRow.contains(submenu)).toBe(false);
     const submenuButtons = within(submenu).getAllByRole("button");
     expect(document.activeElement).toBe(submenuButtons[0]);

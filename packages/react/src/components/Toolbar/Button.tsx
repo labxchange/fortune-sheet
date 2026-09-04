@@ -7,6 +7,19 @@ import {
 
 type Props = {
   tooltip: string;
+  /**
+   * The accessible name, when it has to differ from the tooltip. Defaults to
+   * `tooltip`, which is the right answer everywhere the visible label and the
+   * name are the same string.
+   *
+   * The shortcuts button is the exception: it carries its key binding on its
+   * face in a `<kbd>`, so putting the same keys in the tooltip printed them
+   * twice on hover — while the name still has to include them, because that is
+   * the whole of what the ticket asked for. Splitting the two keeps the name a
+   * superset of the visible label, which is what Label in Name (WCAG 2.5.3)
+   * requires.
+   */
+  ariaLabel?: string;
   iconId: string;
   onClick?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
   /**
@@ -42,6 +55,7 @@ type Props = {
 
 const Button: React.FC<Props> = ({
   tooltip,
+  ariaLabel,
   onClick,
   onMouseDown,
   iconId,
@@ -69,7 +83,7 @@ const Button: React.FC<Props> = ({
       tabIndex={0}
       data-tips={tooltip}
       role="button"
-      aria-label={tooltip}
+      aria-label={ariaLabel ?? tooltip}
       // `selected` is the toggle state of bold, italic, underline and
       // strikethrough, and until now it reached the user as a background colour
       // and nothing else — a screen reader was told these were plain buttons

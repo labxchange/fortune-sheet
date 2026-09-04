@@ -74,6 +74,15 @@ export const CustomColor: React.FC<Props> = ({
       <ColorPicker
         selectedColor={appliedColor}
         onPick={(color) => {
+          // The draft Confirm would apply has to follow the palette. It did
+          // not: `inputColor` was written only by the native swatch and by the
+          // hex field, so picking White and then pressing Confirm applied the
+          // `"#000000"` seed *over* the white — while the swatch and the hex
+          // field beside it still read black and the palette announced white as
+          // selected. `ChangeColor` keeps the two in step the same way, and
+          // `ColorHexInput`'s contract says it mirrors the colour in force,
+          // which it cannot do if a pick never reaches here.
+          setInputColor(color);
           onColorPick(color);
         }}
       />

@@ -599,10 +599,16 @@ describe("toolbar actions announce what they did", () => {
     expect(second).not.toBe(first);
   });
 
-  it("says nothing when the sort was refused", async () => {
-    // A read-only sheet is the first of sortSelection's five refusals, and all
-    // five are silent — which is why announcing on the click rather than on the
-    // outcome would report sorts that never happened.
+  it("says why the sort was refused, and never that it happened", async () => {
+    // A read-only sheet is the first of `sortSelection`'s five refusals. What
+    // must never be announced is the *success* — announcing on the click rather
+    // than on the outcome would report a sort that never happened, which is
+    // what this originally guarded by requiring silence.
+    //
+    // Silence was the wrong half of that, though: this menu is the surface this
+    // work gave the toolbar, and leaving it mute made it the one of three sort
+    // call sites that declines without a word, while the right-click menu and
+    // the Sort dialog both explain themselves from the same reason.
     const { container, ref } = renderSheet({
       toolbarItems: ["filter"],
       allowEdit: false,
@@ -614,7 +620,30 @@ describe("toolbar actions announce what they did", () => {
     pickFromCombo(container, "Ascending");
     await flush();
 
-    expect(announcement(container)).toBe("");
+    expect(announcement(container)).toContain(
+      "Cannot perform this operation in read-only mode"
+    );
+    expect(announcement(container)).not.toContain("sort applied");
+  });
+
+  it("names the reason, rather than one refusal standing for all five", async () => {
+    // Two ctrl-clicked ranges, which is a different refusal from a read-only
+    // sheet and has to read differently: the reason is `sortSelection`'s, the
+    // same typed `SortRefusal` the other two call sites turn into an alert.
+    const { container, ref } = renderSheet({ toolbarItems: ["filter"] });
+    act(() => {
+      ref.current?.setSelection([
+        { row: [0, 1], column: [0, 0] },
+        { row: [0, 1], column: [2, 2] },
+      ]);
+    });
+
+    pickFromCombo(container, "Ascending");
+    await flush();
+
+    expect(announcement(container)).toContain(
+      "Cannot perform this operation on multiple selection areas"
+    );
   });
 
   it("announces the border colour, the third colour popup in the toolbar", async () => {
@@ -736,7 +765,9 @@ describe("toolbar actions announce what they did", () => {
     const { container } = renderSheet();
     const region = container.querySelector("#sr-toolbar")!;
     expect(region.getAttribute("role")).toBe("alert");
-    expect(region.getAttribute("aria-atomic")).toBe("true");
+    // No `aria-atomic` to assert: `role="alert"` already implies
+    // `aria-atomic="true"`, so spelling it out said nothing the role had not
+    // and made this the only one of the sibling regions carrying it.
     expect(region.classList.contains("sr-only")).toBe(true);
   });
 });

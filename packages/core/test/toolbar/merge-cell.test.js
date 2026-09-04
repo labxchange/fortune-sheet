@@ -204,6 +204,15 @@ describe("handleMerge reports what came of the press", () => {
     expect(handleMerge(ctx, "merge-all")).toEqual("refused");
   });
 
+  it("stays unspoken with an empty selection, rather than blaming one cell", () => {
+    // `[]` is truthy and `[].every()` is vacuously true, so this answered
+    // "singleCell" and the user was told they cannot merge a single cell while
+    // nothing at all was selected.
+    const ctx = { ...sheetWith(twoByOne()), luckysheet_select_save: [] };
+
+    expect(handleMerge(ctx, "merge-all")).toEqual("refused");
+  });
+
   it("declines rather than throwing when the selection is undefined", () => {
     const ctx = { ...sheetWith(twoByOne()) };
     delete ctx.luckysheet_select_save;

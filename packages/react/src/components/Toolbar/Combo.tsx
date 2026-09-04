@@ -87,6 +87,9 @@ const Combo: React.FC<Props> = ({
    * action and the arrow is the only route to the popup, so it keeps its own
    * tab stop and its own ARIA.
    */
+  const arrowToggle = mouseDownToggleHandlers<HTMLDivElement>(() =>
+    setOpen(!open)
+  );
   const arrowProps: React.HTMLAttributes<HTMLDivElement> = ownsPopup
     ? { "aria-hidden": true }
     : {
@@ -168,8 +171,18 @@ const Combo: React.FC<Props> = ({
         </div>
         <div
           className="fortune-toolbar-combo-arrow"
-          {...mouseDownToggleHandlers(() => setOpen(!open))}
-          data-tips={tooltip}
+          onMouseDown={arrowToggle.onMouseDown}
+          onClick={arrowToggle.onClick}
+          // Keyboard activation only while this arrow is a control in its own
+          // right. Demoted, it is `aria-hidden` with no tabindex, so nothing
+          // can put focus on it and the handler was unreachable code that read
+          // as a promise the element does not keep.
+          //
+          // The `data-tips` that was here went with it: no stylesheet in this
+          // package renders that attribute — it is luckysheet residue — and the
+          // tooltip the user actually sees is the `.fortune-tooltip` sibling
+          // below.
+          onKeyDown={ownsPopup ? undefined : arrowToggle.onKeyDown}
           {...arrowProps}
           style={style}
         >

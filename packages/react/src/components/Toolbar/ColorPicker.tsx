@@ -133,6 +133,11 @@ const ColorPicker: React.FC<Props> = ({ onPick, selectedColor }) => {
   useRovingFocus({
     containerRef,
     orientation: "linear",
+    // No wrap, which the hook does by default: the APG listbox pattern stops
+    // at the ends, and it is the stop that tells a keyboard user they have
+    // reached the last of the 64 rather than silently returning them to the
+    // first — the same information the "n of 64" position carries.
+    loop: false,
     // the swatches carry role="option" now, so the default [role="button"]
     // selector would match nothing
     itemSelector: '[role="option"]',

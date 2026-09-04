@@ -15,6 +15,7 @@ import { genarate, is_date, update } from "./format";
 import {
   execfunction,
   execFunctionGroup,
+  getcellrange,
   israngeseleciton,
   rangeSetValue,
   setCaretPosition,
@@ -31,7 +32,7 @@ import {
   selectionCopyShow,
   selectIsOverlap,
 } from "./selection";
-import { sortSelection } from "./sort";
+import { SortOutcome, sortSelection } from "./sort";
 import {
   hasPartMC,
   isdatatypemulti,
@@ -350,6 +351,72 @@ function checkNoNullValueAll(cell) {
 
   return false;
 }
+/**
+ * The functions the auto-formula buttons write, so a result of one of them can
+ * be told apart from data the user put there.
+ */
+const AUTO_FORMULA_CALL =
+  /^=\s*(SUM|AVERAGE|COUNT|MAX|MIN)\s*\(([^()]+)\)\s*$/i;
+
+/**
+ * Is this cell one of *our own* results, totalling a stretch of the very line
+ * it sits on?
+ *
+ * The trim below places the result inside the selection, because a whole-column
+ * selection leaves nowhere else to put it — and `luckysheet_select_save` is not
+ * narrowed afterwards, so the same range is still live for the next press. That
+ * makes the previous total indistinguishable from data: `backFormulaInput`
+ * writes `{ v, f }` with no `ct`, `checkNoNullValue` accepts it, `lastFilled`
+ * advances onto it, and the next press totals a range that contains the last
+ * total. Sum twice gave 70 then 140; worse, Sum then Average divided the
+ * previous sum back into the mean and answered 46.67 where 35 is right — a
+ * wrong statistic, silently, from two ordinary presses.
+ *
+ * So the scan asks whether a filled cell is a total of its own line before
+ * counting it as the line's data. The test is deliberately narrow: one of the
+ * five functions these buttons write, over a single range, on the same line,
+ * ending strictly before the cell holding it. A user's own `=A1*2` is data (it
+ * is not one of these calls), a `=SUM(B1:B3)` sitting in column A is data (it
+ * totals a different line), and a hand-written `=SUM(A1:A2)` under A1:A2 is not
+ * — which is right, because totalling it would double-count exactly as our own
+ * result would.
+ *
+ * Only `lastFilled` is affected. `isNum`/`isNull` still see the cell, so which
+ * branch runs is unchanged: a range whose only number is a previous total keeps
+ * behaving as a range with a number in it.
+ */
+function isSelfTotal(
+  ctx: Context,
+  cell: Cell | null | undefined,
+  index: number,
+  fix: number,
+  st_m: number,
+  type: string
+): boolean {
+  const f = cell?.f;
+  if (typeof f !== "string") return false;
+  const call = f.match(AUTO_FORMULA_CALL);
+  if (call == null) return false;
+  const range = getcellrange(ctx, call[2].trim());
+  if (range == null) return false;
+  // A reference into another sheet cannot be a total of this line, whatever it
+  // spans. `getcellrange` resolves a bare range against the current sheet, so
+  // the two agree in the ordinary case and this only rejects an explicit
+  // `Sheet2!A1:A3`.
+  if (range.sheetId != null && range.sheetId !== ctx.currentSheetId) {
+    return false;
+  }
+  const [rowSt, rowEd] = range.row;
+  const [colSt, colEd] = range.column;
+  if (type === "c") {
+    // Down a column: the same single column, over rows inside this range and
+    // finishing before the cell that holds the formula.
+    return colSt === fix && colEd === fix && rowSt >= st_m && rowEd < index;
+  }
+  // Along a row, mirrored.
+  return rowSt === fix && rowEd === fix && colSt >= st_m && colEd < index;
+}
+
 function getNoNullValue(d: CellMatrix, st_x: number, ed: number, type: string) {
   // let hasValueSum = 0;
   let hasValueStart = null;
@@ -537,8 +604,11 @@ function singleFormulaInput(
 
   let isNull = true;
   let isNum = false;
-  // The last cell in the range holding anything at all, so a range that runs
-  // past the end of its own data can be trimmed back to it below.
+  // The last cell in the range holding anything the *user* put there, so a
+  // range that runs past the end of its own data can be trimmed back to it
+  // below. Results this feature wrote on an earlier press do not count — see
+  // `isSelfTotal`, and the trim's own comment for why they end up in range at
+  // all.
   let lastFilled = st_m - 1;
 
   for (let c = st_m; c <= ed_m; c += 1) {
@@ -553,10 +623,10 @@ function singleFormulaInput(
     if (checkNoNullValue(cell)) {
       isNull = false;
       isNum = true;
-      lastFilled = c;
+      if (!isSelfTotal(ctx, cell, c, fix, st_m, type)) lastFilled = c;
     } else if (checkNoNullValueAll(cell)) {
       isNull = false;
-      lastFilled = c;
+      if (!isSelfTotal(ctx, cell, c, fix, st_m, type)) lastFilled = c;
     }
   }
 
@@ -666,7 +736,12 @@ function singleFormulaInput(
     // Along a row the read is merely undefined rather than a throw, but the
     // write that follows would extend that one row past every other and place
     // a formula in a column that does not exist, so both are guarded.
-    const limit = type === "c" ? d.length : d[0].length;
+    //
+    // The extent of the line the result goes on: rows for a column pass, and
+    // this row's own width for a row pass. Row 0's width was close enough on a
+    // rectangular matrix and wrong on a ragged one, where the guard is meant to
+    // stop a write landing past the row it is writing to.
+    const limit = type === "c" ? d.length : d[fix].length;
 
     // Selecting a whole column is an ordinary thing to do, and it is exactly
     // what runs the range off the end. There is no shortage of room in that
@@ -675,6 +750,13 @@ function singleFormulaInput(
     // put the result immediately after that, which is where a spreadsheet is
     // expected to put it. Only a range filled right to the final row has
     // genuinely nowhere to go.
+    //
+    // The result lands *inside* the surviving selection, and nothing narrows
+    // that selection afterwards, so the next press scans the total it just
+    // wrote. `isSelfTotal` is what stops it counting: the scan above refuses to
+    // let one of our own results stand as the line's last data, so a second
+    // press totals the same data again — a duplicate at worst, never a range
+    // that has swallowed its own total.
     //
     // Off for the 2D caller, which is the one case where the trim is not just
     // unhelpful but wrong. That caller runs a row pass and then a column pass
@@ -722,12 +804,14 @@ function singleFormulaInput(
 
       while (cell != null && cell.v != null && cell.v.toString().length > 0) {
         c += 1;
+        // Same bound as `limit` above, and the same reason for asking the line
+        // rather than row 0.
         let len = null;
 
         if (type === "c") {
           len = d.length;
         } else {
-          len = d[0].length;
+          len = d[fix].length;
         }
 
         if (c >= len) {
@@ -1636,6 +1720,13 @@ export function handleMerge(ctx: Context, type: string): MergeOutcome {
 
   if (!ctx.luckysheet_select_save) return "refused";
 
+  // `[]` is truthy, and `[].every()` is vacuously true — so without this an
+  // empty selection answered "singleCell" and the user was told they cannot
+  // merge one cell while nothing at all was selected. It is a state this
+  // sheet reaches transiently before the mount selection is seeded (see the
+  // note in `selection.ts`), so it needs its own honest ending.
+  if (ctx.luckysheet_select_save.length === 0) return "refused";
+
   // Asked of the selection rather than inferred from `mergeCells` returning
   // false, because that answer has two causes and they need different words:
   // a range too small to merge, and an un-merge over cells that were never
@@ -1664,16 +1755,19 @@ export function handleMerge(ctx: Context, type: string): MergeOutcome {
 }
 
 /**
- * Passes through whether the sort happened; see `sortSelection`.
+ * Passes the whole outcome through; see `sortSelection`.
  *
- * `sortSelection` reports a typed `SortRefusal` alongside the outcome, which
- * the right-click menu and the custom-sort dialog use to say *why* a sort was
- * declined. The toolbar has no surface for that — it announces success and
- * stays silent otherwise — so it narrows to the boolean it acts on rather than
- * carrying a reason no caller here reads.
+ * This narrowed to `sorted` on the reasoning that "the toolbar has no surface"
+ * for a refusal reason. It has one, and this work is what gave it one: the
+ * funnel menu's sort now announces itself (ticket C1, "toolbar action status
+ * not announced"), so a sort declined for a multi-range selection or a merged
+ * range has somewhere to say so — and dropping the reason here made the
+ * toolbar the one of three sort call sites that stayed silent, while the
+ * right-click menu and the custom-sort dialog both explain themselves from
+ * this same `SortRefusal`.
  */
-export function handleSort(ctx: Context, isAsc: boolean): boolean {
-  return sortSelection(ctx, isAsc).sorted;
+export function handleSort(ctx: Context, isAsc: boolean): SortOutcome {
+  return sortSelection(ctx, isAsc);
 }
 
 export function handleFreeze(ctx: Context, type: string) {

@@ -6,7 +6,6 @@ import React, {
   useLayoutEffect,
   useMemo,
   useId,
-  useState,
 } from "react";
 import "./index.css";
 import {
@@ -614,26 +613,43 @@ const SheetOverlay: React.FC = () => {
    * value. Keeping the hint to the one grid nobody has moved in yet costs a
    * later sheet its hint, which is what upstream gave that case too.
    */
-  const [selectionHasMoved, setSelectionHasMoved] = useState(false);
   const arrivedAtRef = useRef<string | null>(null);
-  useEffect(() => {
-    // Seeded rather than cleared, so that switching between two sheets whose
-    // selections read the same leaves a reference to compare against:
-    // `rangeText` would not change, the effect below would not run, and the
-    // first real move on the new sheet would be spent re-seeding instead of
-    // clearing the intro.
+  const arrivedOnSheetRef = useRef(context.currentSheetId);
+  const hasMovedRef = useRef(false);
+  // Derived while rendering, not latched in an effect afterwards.
+  //
+  // It was `useState` + a passive effect on `[rangeText]`, and a passive effect
+  // runs *after* the commit that carried the new `rangeText` — so the first
+  // ArrowDown from A1 wrote the region twice: once as "A2. Use the arrow keys
+  // to..." (new reference, flag still false) and then, an effect later, as
+  // "A2. <value>". Two assertive announcements for one keypress, the first of
+  // them the intro this flag exists to retire. A `useLayoutEffect` would land
+  // the second write before paint but still after the first had been put in the
+  // DOM, and a live region is read from DOM mutations rather than from paint.
+  // The only version with one write is the one where the render that has the
+  // new reference already knows the selection moved.
+  //
+  // Seeded on a sheet switch rather than cleared, so that switching between two
+  // sheets whose selections read the same still has a reference to compare
+  // against, and so a switch is never mistaken for a move (the flag itself is
+  // latched for the workbook, as above).
+  //
+  // Writing to refs during render is what makes it single-write, and it is
+  // idempotent: a repeated render with the same inputs finds the reference
+  // already recorded and latches nothing new, so a double invocation under
+  // StrictMode reaches the same answer.
+  if (arrivedOnSheetRef.current !== context.currentSheetId) {
+    arrivedOnSheetRef.current = context.currentSheetId;
     arrivedAtRef.current = rangeText || null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [context.currentSheetId]);
-  useEffect(() => {
-    if (!rangeText) return;
+  } else if (rangeText) {
     if (arrivedAtRef.current === null) {
       // The mount selection arriving, one commit after the empty first render.
       arrivedAtRef.current = rangeText;
-      return;
+    } else if (rangeText !== arrivedAtRef.current) {
+      hasMovedRef.current = true;
     }
-    if (rangeText !== arrivedAtRef.current) setSelectionHasMoved(true);
-  }, [rangeText]);
+  }
+  const selectionHasMoved = hasMovedRef.current;
 
   const selectionModeAnnouncement = useSelectionModeAnnouncement(context);
   const selectAllAnnouncement = useSelectAllAnnouncement(context);

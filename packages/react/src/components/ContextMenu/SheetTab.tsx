@@ -193,14 +193,23 @@ const SheetTabContextMenu: React.FC = () => {
    * `SheetTabContextMenu` is itself mounted unconditionally by `Workbook`, so
    * the region is in the accessibility tree well before anything is written to
    * it — which is also what live regions require to fire at all.
+   *
+   * Assertive, and it was polite. The two rationales in this branch could not
+   * both be right: `#sr-toolbar` argues at length that activating a control
+   * leaves VoiceOver mid-hint and that a polite update is dropped rather than
+   * queued while other speech is in progress — verified by ear, and the
+   * `status` → `alert` flip there is what made those announcements audible.
+   * This region reports the same kind of event, a colour applied by a
+   * deliberate press, so the same reasoning applies to it and it was the one
+   * sibling still contradicting it. The genuinely polite regions are the ones
+   * driven by navigation or typing, where an interruption would talk over what
+   * the user moved to hear.
+   *
+   * No `aria-atomic`: implicit for both roles, and none of the sibling regions
+   * spells it out.
    */
   const colorStatus = (
-    <div
-      id="sr-sheetColor"
-      className="sr-only"
-      role="status"
-      aria-atomic="true"
-    >
+    <div id="sr-sheetColor" className="sr-only" role="alert">
       {colorAnnouncement}
     </div>
   );
@@ -341,7 +350,11 @@ const SheetTabContextMenu: React.FC = () => {
                 <Menu
                   role="button"
                   expanded={isShowChangeColor}
-                  hasPopup="menu"
+                  // No `hasPopup`: what this discloses is a panel of colours,
+                  // not a menu — see the container below. `aria-expanded` plus
+                  // `aria-controls` is already the whole disclosure
+                  // relationship, which is the argument `Combo` makes for the
+                  // same shape.
                   controls={changeColorMenuId}
                   onClick={() => {
                     setChangeColorOpenedBy("pointer");
@@ -360,7 +373,15 @@ const SheetTabContextMenu: React.FC = () => {
                 {isShowChangeColor && context.allowEdit && (
                   <div
                     id={changeColorMenuId}
-                    role="menu"
+                    // A group, not a menu. `role="menu"` may only own
+                    // `menuitem`/`menuitemradio`/`menuitemcheckbox`/`group`,
+                    // and this owns the shared `ColorPicker` — a `listbox` of
+                    // 64 options since this work gave the palette the role its
+                    // interaction model already had — plus a text field and
+                    // Confirm. axe reports `aria-required-children` for it. The
+                    // filter-by-colour submenu answers the same question the
+                    // same way (`ContextMenu/Menu.tsx`).
+                    role="group"
                     ref={changeColorMenuRef}
                     style={{ position: "absolute" }}
                   >

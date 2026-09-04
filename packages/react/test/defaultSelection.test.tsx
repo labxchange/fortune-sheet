@@ -77,6 +77,39 @@ describe("the selection a sheet mounts with", () => {
     expect(region.textContent).not.toContain("Use the arrow keys");
   });
 
+  it("writes the region once on the first move, not the intro and then the value", async () => {
+    // `selectionHasMoved` used to latch in a passive effect keyed on the
+    // reference, and a passive effect runs after the commit that carried it —
+    // so the render that already said "A2" still said "Use the arrow keys",
+    // and the value arrived in a second commit. One ArrowDown, two assertive
+    // announcements, the first of them the message the flag exists to retire.
+    const { container, ref } = renderSheet();
+    await flush();
+
+    const region = container.querySelector("#sr-selection")!;
+    const writes: string[] = [];
+    const observer = new MutationObserver(() => {
+      writes.push(region.textContent ?? "");
+    });
+    observer.observe(region, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+
+    act(() => {
+      ref.current?.setSelection([{ row: [1, 1], column: [0, 0] }]);
+    });
+    await flush();
+    await flush();
+    observer.disconnect();
+
+    // The move is announced, and announced once.
+    expect(writes.length).toBe(1);
+    // And what it announced was never the intro.
+    expect(writes.filter((w) => w.includes("Use the arrow keys"))).toEqual([]);
+  });
+
   it("does not repeat the intro when a sheet is left and returned to", async () => {
     // The intro used to be cleared on every sheet switch, which made hopping
     // between two sheets re-read "use the arrow keys" in place of the cell

@@ -1,6 +1,9 @@
 import { render, fireEvent, act, within } from "@testing-library/react";
 import React from "react";
 import Workbook from "../src/components/Workbook";
+// The marker itself rather than a re-typed "\u200B": one definition, so a
+// change to how a repeat is marked cannot leave this passing by coincidence.
+import { ZERO_WIDTH_SPACE } from "../src/utils/liveRegion";
 
 // Sheet Options -> Change Color, and the near-identical custom-colour popup the
 // toolbar's font/background buttons open. Between them they own every control
@@ -148,7 +151,10 @@ describe("Change Color accessibility", () => {
       const region = document.querySelector("#sr-sheetColor");
       expect(menuIsOpen()).toBe(false);
       expect(region).toBeTruthy();
-      expect(region!.getAttribute("role")).toBe("status");
+      // Assertive, like `#sr-toolbar`: both report the result of a deliberate
+      // press, and a polite update is dropped rather than queued while
+      // VoiceOver is still reading the control's own hint.
+      expect(region!.getAttribute("role")).toBe("alert");
       expect(region!.textContent).toContain("Sheet color:");
     });
 
@@ -222,8 +228,9 @@ describe("Change Color accessibility", () => {
       fireEvent.click(swatch);
       const second = status();
 
+      const spoken = (text: string) => text.split(ZERO_WIDTH_SPACE).join("");
       expect(second).not.toBe(first);
-      expect(second.replace(/\u200B/g, "")).toBe(first.replace(/\u200B/g, ""));
+      expect(spoken(second)).toBe(spoken(first));
     });
   });
 
@@ -298,10 +305,16 @@ describe("Change Color accessibility", () => {
       expect(status()).toContain("#aabbcc");
     });
 
-    it("says so when the text is not a colour, and restores the last good value", () => {
+    it("says so when the text is not a colour, and keeps the text it refused", () => {
       // Reverting in silence was the defect: no outcome and no reason, in the
       // control this work adds (WCAG 3.3.1). The sheet is still left alone —
       // `status()` reports colours that were applied, and none was.
+      //
+      // The text stays. Reverting it in the same breath as marking the field
+      // invalid made the two disagree — a valid `#rrggbb` on screen wearing an
+      // `aria-invalid` about a value nobody could see, and a message describing
+      // text that was no longer there. Keeping it is also what lets the user
+      // correct the entry instead of retyping it.
       const { getByRole, getByText } = render(
         <Workbook data={[{ name: "Sheet1" }]} />
       );
@@ -313,9 +326,50 @@ describe("Change Color accessibility", () => {
       fireEvent.keyDown(field, { key: "Enter" });
 
       expect(status()).toBe("");
-      expect(field.value).toBe("#000000");
+      expect(field.value).toBe("not a colour");
       expect(fieldAlert(submenu).textContent).toBe(NOT_A_COLOR);
       expect(field.getAttribute("aria-invalid")).toBe("true");
+    });
+
+    it("shows the reason on screen and not only to a screen reader", () => {
+      // The first version of this refusal lived in an `sr-only` region: right
+      // for a screen reader, and for everyone else the same wordless reversion
+      // the defect was about. WCAG 3.3.1 wants the error identified in text,
+      // and 1.4.1 wants it identified by more than the field turning red.
+      const { getByRole, getByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      const { submenu } = openChangeColor(getByRole, getByText);
+      const field = hexField(submenu);
+
+      fireEvent.focus(field);
+      fireEvent.change(field, { target: { value: "reddish" } });
+      fireEvent.keyDown(field, { key: "Enter" });
+
+      const alert = fieldAlert(submenu);
+      expect(alert.textContent).toBe(NOT_A_COLOR);
+      expect(alert.classList.contains("sr-only")).toBe(false);
+      expect(alert.classList.contains("fortune-color-hex-error")).toBe(true);
+    });
+
+    it("refuses an over-long value rather than trimming it into a colour", () => {
+      // `maxLength={7}` applied to a paste as well as to typing, so
+      // `#12345678` arrived as `#123456` and was accepted — an invalid value
+      // silently becoming a *different* valid colour, which is worse than a
+      // refusal because nothing tells the user their colour was not the one
+      // they asked for.
+      const { getByRole, getByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      const { submenu } = openChangeColor(getByRole, getByText);
+      const field = hexField(submenu);
+
+      fireEvent.focus(field);
+      fireEvent.change(field, { target: { value: "#12345678" } });
+      fireEvent.keyDown(field, { key: "Enter" });
+
+      expect(status()).toBe("");
+      expect(fieldAlert(submenu).textContent).toBe(NOT_A_COLOR);
     });
 
     it("stays quiet while a colour is only half-typed", () => {
@@ -337,9 +391,8 @@ describe("Change Color accessibility", () => {
 
     it("speaks a second refusal too, having cleared the region between them", () => {
       // A live region speaks only what *changed*, so a refusal that follows an
-      // identical one is silent. That cannot arise here, and this pins why:
-      // failing reverts the field to the colour in force, so reaching a second
-      // refusal means typing, and typing clears the region on the way.
+      // identical one is silent. Typing clears the region on the way, so a
+      // corrected-then-broken-again entry is answered afresh.
       const { getByRole, getByText } = render(
         <Workbook data={[{ name: "Sheet1" }]} />
       );
@@ -351,12 +404,69 @@ describe("Change Color accessibility", () => {
       fireEvent.keyDown(field, { key: "Enter" });
       expect(fieldAlert(submenu).textContent).toBe(NOT_A_COLOR);
 
-      // The revert already happened, so this is a fresh edit, not a retry.
-      fireEvent.change(field, { target: { value: "reddish" } });
+      // A real keystroke, not the same string again: the refused text stays in
+      // the field now, and React fires no change event for a value identical to
+      // the one already there.
+      fireEvent.change(field, { target: { value: "greenish" } });
       expect(fieldAlert(submenu).textContent).toBe("");
 
       fireEvent.keyDown(field, { key: "Enter" });
-      expect(fieldAlert(submenu).textContent).toBe(NOT_A_COLOR);
+      // `toContain`, because this is the second refusal of the visit and so
+      // carries the repeat marker — an invisible zero-width space that makes
+      // the region's text differ from the last thing written to it. The words
+      // are what a screen reader says.
+      expect(fieldAlert(submenu).textContent).toContain(NOT_A_COLOR);
+    });
+
+    it("speaks Enter pressed twice on the same bad value", () => {
+      // Now reachable, and it was not before: a refusal used to revert the
+      // text, so a second Enter always landed on a valid value. The text stays
+      // now, which makes two identical refusals an ordinary thing to ask for —
+      // and a region written the identical string says nothing. Same modulo-2
+      // marker as the other regions in this package: the text differs by an
+      // invisible zero-width space, so the mutation fires, and both readings
+      // say the same words.
+      const { getByRole, getByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      const { submenu } = openChangeColor(getByRole, getByText);
+      const field = hexField(submenu);
+
+      fireEvent.focus(field);
+      fireEvent.change(field, { target: { value: "reddish" } });
+      fireEvent.keyDown(field, { key: "Enter" });
+      const first = fieldAlert(submenu).textContent;
+
+      fireEvent.keyDown(field, { key: "Enter" });
+      const second = fieldAlert(submenu).textContent;
+
+      expect(first).toContain(NOT_A_COLOR);
+      expect(second).toContain(NOT_A_COLOR);
+      expect(second).not.toBe(first);
+    });
+
+    it("drops the refusal when a colour is applied from elsewhere in the popup", () => {
+      // The one event that makes a refused entry stale: the palette or the
+      // swatch changing the colour in force means the field is no longer
+      // showing an unfinished edit against it, so both the text and the mark
+      // give way. This is what keeps a display-toggled popup — the border
+      // one — from reopening with a judgement about a value it is not showing.
+      const { getByRole, getByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      const { submenu } = openChangeColor(getByRole, getByText);
+      const field = hexField(submenu);
+
+      fireEvent.focus(field);
+      fireEvent.change(field, { target: { value: "reddish" } });
+      fireEvent.keyDown(field, { key: "Enter" });
+      expect(field.getAttribute("aria-invalid")).toBe("true");
+
+      const swatches = submenu.querySelectorAll<HTMLElement>('[role="option"]');
+      fireEvent.click(swatches[1]);
+
+      expect(fieldAlert(submenu).textContent).toBe("");
+      expect(field.getAttribute("aria-invalid")).toBeNull();
     });
 
     it("clears the refusal as soon as the text changes", () => {
@@ -521,7 +631,73 @@ describe("Change Color accessibility", () => {
       expect(toolbarStatus).toContain("Text color:");
       expect(toolbarStatus).toContain(name);
     });
+
+    it("confirms the colour picked from the palette, not the seeded draft", async () => {
+      // `onPick` reported the colour to the caller and never touched
+      // `inputColor`, which is what Confirm applies — so picking White and
+      // pressing Confirm wrote the `"#000000"` seed *over* the white, while the
+      // hex field and the swatch beside it both still read black and the
+      // palette announced White as selected. Three call sites share this popup:
+      // the font combo, the background combo and the border submenu.
+      let sheets: any;
+      const { getByRole } = render(
+        <Workbook
+          data={[
+            {
+              name: "Sheet1",
+              celldata: [{ r: 0, c: 0, v: { v: "hi", m: "hi" } }],
+            } as any,
+          ]}
+          onChange={(data) => {
+            sheets = data;
+          }}
+        />
+      );
+
+      fireEvent.mouseDown(
+        getByRole("button", { name: "Font color: Dropdown" })
+      );
+      const popup = document.querySelector<HTMLElement>(
+        "#fortune-custom-color"
+      )!;
+      const white = Array.from(
+        popup.querySelectorAll<HTMLElement>('[role="option"]')
+      ).find((o) => o.style.backgroundColor === "rgb(255, 255, 255)")!;
+      fireEvent.click(white);
+      await tick();
+
+      const confirm = within(popup)
+        .getByText("OK")
+        .closest('[role="button"]') as HTMLElement;
+      fireEvent.click(confirm);
+      await tick();
+
+      expect(sheets?.[0]?.data?.[0]?.[0]?.fc).toBe("#ffffff");
+    });
+
+    it("keeps the typed-colour field in step with a palette pick", async () => {
+      // The field's own contract is that it mirrors the colour in force, which
+      // it cannot do if a pick never reaches the draft it mirrors.
+      const { getByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+
+      fireEvent.mouseDown(
+        getByRole("button", { name: "Font color: Dropdown" })
+      );
+      const popup = document.querySelector<HTMLElement>(
+        "#fortune-custom-color"
+      )!;
+      const white = Array.from(
+        popup.querySelectorAll<HTMLElement>('[role="option"]')
+      ).find((o) => o.style.backgroundColor === "rgb(255, 255, 255)")!;
+      fireEvent.click(white);
+      await tick();
+
+      expect(
+        popup.querySelector<HTMLInputElement>(".fortune-color-hex-input")!.value
+      ).toBe("#ffffff");
+    });
   });
+
   describe("the palette's selected option", () => {
     it("marks the colour that is currently in force", () => {
       // aria-selected was a constant false on all 64 options, which is not a

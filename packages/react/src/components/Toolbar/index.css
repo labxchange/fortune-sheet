@@ -351,6 +351,35 @@
   outline-offset: 1px;
 }
 
+/* A refused entry, marked where a sighted user can see it and not by colour
+   alone: the border pairs with the message below the field, which is the thing
+   that actually identifies the error (WCAG 3.3.1, 1.4.1). Keyed on
+   `aria-invalid` so the visual state cannot drift from the announced one. */
+#fortune-custom-color .fortune-color-hex-input[aria-invalid="true"],
+#fortune-change-color .fortune-color-hex-input[aria-invalid="true"] {
+  border-color: #b00020;
+}
+
+/* Its own line: both hosts lay the row out with `flex-wrap`, so a full basis is
+   what puts the message under the field rather than squeezing the row. 6.7:1 on
+   the white panel. Collapsed while empty — the element stays mounted so the
+   live region is in the tree before it is written to, and must cost no space
+   until it says something. */
+#fortune-custom-color .fortune-color-hex-error,
+#fortune-change-color .fortune-color-hex-error {
+  flex: 0 0 100%;
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: #b00020;
+  text-align: left;
+}
+
+#fortune-custom-color .fortune-color-hex-error:empty,
+#fortune-change-color .fortune-color-hex-error:empty {
+  display: none;
+}
+
 #fortune-custom-color .custom-color {
   position: relative;
   padding: 10px;

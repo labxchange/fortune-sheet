@@ -201,9 +201,23 @@ describe("Toolbar keyboard accessibility", () => {
     ) as HTMLElement;
 
     [
-      { label: "border color", menuClass: "fortune-border-select-menu" },
-      { label: "border style", menuClass: "fortune-border-select-menu" },
-    ].forEach(({ label, menuClass }) => {
+      // The two submenus differ in role, and deliberately: the colour one owns
+      // the shared `ColorPicker`, which is a `listbox`, and `role="menu"` may
+      // only own `menuitem`/`menuitemradio`/`menuitemcheckbox`/`group` — so it
+      // is a group (axe: aria-required-children). The style one still says
+      // menu; its children are `role="button"`, the same class of mismatch, but
+      // pre-existing and left alone here.
+      {
+        label: "border color",
+        menuClass: "fortune-border-select-menu",
+        role: "group",
+      },
+      {
+        label: "border style",
+        menuClass: "fortune-border-select-menu",
+        role: "menu",
+      },
+    ].forEach(({ label, menuClass, role }) => {
       const trigger = getByText(label).closest(
         '[role="button"]'
       ) as HTMLElement;
@@ -225,7 +239,7 @@ describe("Toolbar keyboard accessibility", () => {
       const submenuId = trigger.getAttribute("aria-controls");
       expect(submenuId).toBeTruthy();
       const submenu = document.getElementById(submenuId!)!;
-      expect(submenu.getAttribute("role")).toBe("menu");
+      expect(submenu.getAttribute("role")).toBe(role);
       expect(trigger.contains(submenu)).toBe(false);
 
       fireEvent.keyDown(document.activeElement!, { key: "Escape" });

@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import _ from "lodash";
 import { Cell, Context, getFlowdata } from "@fortune-sheet/core";
 
@@ -168,6 +168,32 @@ export function useToolbarAnnouncements(
   const [announcement, setAnnouncement] = useState("");
   const announceCount = useRef(0);
 
+  /**
+   * The deferrals below, so they can be dropped if this toolbar goes away
+   * first.
+   *
+   * Both `announceAfterCommit` and `announceOutcome` wait a task before reading
+   * `contextRef` — see each for why — and an unguarded `setTimeout` outlives
+   * the component. `settings.showToolbar` unmounts it, so a press followed by
+   * hiding the toolbar left a callback reading a `contextRef` belonging to a
+   * torn-down workbook and calling `setAnnouncement` on it.
+   */
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(
+    () => () => {
+      timers.current.forEach(clearTimeout);
+      timers.current = [];
+    },
+    []
+  );
+  const defer = useCallback((run: () => void) => {
+    const id = setTimeout(() => {
+      timers.current = timers.current.filter((t) => t !== id);
+      run();
+    });
+    timers.current.push(id);
+  }, []);
+
   /** A live region is silent when written the same text twice running, and
    *  toggling an attribute off and on again produces exactly that. Same
    *  modulo-2 marker the other announcement hooks use. */
@@ -193,14 +219,14 @@ export function useToolbarAnnouncements(
       fingerprint: (ctx: Context) => unknown = actionFingerprint
     ) => {
       const before = fingerprint(contextRef.current);
-      setTimeout(() => {
+      defer(() => {
         const ctx = contextRef.current;
         if (_.isEqual(fingerprint(ctx), before)) return;
         const phrase = getPhrase(ctx);
         if (phrase) announce(phrase);
       });
     },
-    [contextRef, announce]
+    [contextRef, announce, defer]
   );
 
   /**
@@ -219,12 +245,12 @@ export function useToolbarAnnouncements(
    */
   const announceOutcome = useCallback(
     (getPhrase: (ctx: Context) => string) => {
-      setTimeout(() => {
+      defer(() => {
         const phrase = getPhrase(contextRef.current);
         if (phrase) announce(phrase);
       });
     },
-    [contextRef, announce]
+    [contextRef, announce, defer]
   );
 
   /**

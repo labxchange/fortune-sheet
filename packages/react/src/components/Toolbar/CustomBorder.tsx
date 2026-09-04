@@ -186,7 +186,9 @@ const CustomBorder: React.FC<Props> = ({ onPick, onColorPicked }) => {
           ref={colorOptionRef}
           role="button"
           tabIndex={0}
-          aria-haspopup="menu"
+          // No `aria-haspopup`: this discloses a panel of colours rather than a
+          // menu — see the container below — and `aria-expanded` with
+          // `aria-controls` is the complete disclosure relationship on its own.
           aria-expanded={openSubmenu === "color"}
           aria-controls={colorMenuId}
           onKeyDown={onActivate(() => {
@@ -207,7 +209,14 @@ const CustomBorder: React.FC<Props> = ({ onPick, onColorPicked }) => {
         <div
           ref={colorRef}
           id={colorMenuId}
-          role="menu"
+          // A group, not a menu: this owns `CustomColor`, whose palette is a
+          // `listbox` of 64 options, and `role="menu"` may only own
+          // `menuitem`/`menuitemradio`/`menuitemcheckbox`/`group`
+          // (axe: aria-required-children). The style submenu below keeps
+          // `role="menu"` for now — its children are `role="button"`, which is
+          // the same class of mismatch, but it is pre-existing and untouched by
+          // this work.
+          role="group"
           className="fortune-border-select-menu"
           style={{
             display: openSubmenu === "color" ? "block" : "none",
