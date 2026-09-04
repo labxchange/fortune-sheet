@@ -11063,6 +11063,7 @@ export default {
     leftFilteredRegion: "已离开筛选区域。",
     currentCellInput: "当前单元格输入",
     newSheet: "新表",
+    sheetTabs: "工作表标签",
     sheetOptions: "图纸选项",
     allSheets: "所有工作表",
     scrollLeft: "向左滚动标签",

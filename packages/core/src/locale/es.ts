@@ -11055,6 +11055,7 @@ export default {
     leftFilteredRegion: "Se salió de la región filtrada.",
     currentCellInput: "Entrada de celda actual",
     newSheet: "Nueva hoja",
+    sheetTabs: "Pestañas de hojas",
     sheetOptions: "Opciones de hoja",
     allSheets: "Todas las hojas",
     scrollLeft: "Desplazar pestañas a la izquierda",

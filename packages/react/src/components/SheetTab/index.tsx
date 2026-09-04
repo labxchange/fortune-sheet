@@ -90,7 +90,27 @@ const SheetTab: React.FC = () => {
       onContextMenu={(e) => e.preventDefault()}
       id="luckysheet-sheet-area"
     >
-      <div id="luckysheet-sheet-content">
+      {/*
+        A landmark, so the sheet switcher can be jumped to from a screen
+        reader's landmark list (WCAG 1.3.1). Every other region of the chrome
+        was already one — banner for the toolbar, complementary for the formula
+        bar and the zoom control, main for the grid — leaving this strip the
+        one set of controls reachable only by walking there.
+
+        `region` rather than `nav`: the strip is not purely navigation, since
+        the add-sheet button creates something rather than going anywhere. A
+        region counts as a landmark only while it has an accessible name, so
+        the label below is load-bearing, not decoration.
+
+        On this element rather than its parent: the parent also holds
+        ZoomControl, whose own `complementary` would then nest inside a region
+        named for the sheet tabs.
+      */}
+      <div
+        id="luckysheet-sheet-content"
+        role="region"
+        aria-label={info.sheetTabs}
+      >
         {context.allowEdit && (
           <div
             className="fortune-sheettab-button"

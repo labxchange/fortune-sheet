@@ -11085,6 +11085,7 @@ export default {
     leftFilteredRegion: "Left filtered region.",
     currentCellInput: "Current cell input",
     newSheet: "New sheet",
+    sheetTabs: "Sheet tabs",
     sheetOptions: "Sheet options",
     allSheets: "All sheets",
     scrollLeft: "Scroll tabs left",

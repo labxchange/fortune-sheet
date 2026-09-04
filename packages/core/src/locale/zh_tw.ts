@@ -11030,6 +11030,7 @@ export default {
     leftFilteredRegion: "已離開篩選區域。",
     currentCellInput: "目前儲存格輸入",
     newSheet: "新表",
+    sheetTabs: "工作表標籤",
     sheetOptions: "圖紙選項",
     allSheets: "所有工作表",
     scrollLeft: "向左捲動標籤",
