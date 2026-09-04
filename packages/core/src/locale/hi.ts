@@ -11858,6 +11858,7 @@ export default {
     searchInputTip: "कृपया खोज सामग्री दर्ज करें",
 
     noReplceTip: "बदलने के लिए कुछ नहीं है",
+    lastMatchTip: "पिछले प्रतिस्थापन के बाद कोई और मिलान नहीं है",
     noMatchTip: "कोई मेल नहीं मिला",
 
     successTip: "${xlength} आइटम मिले",

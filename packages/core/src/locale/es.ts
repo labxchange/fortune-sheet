@@ -11822,6 +11822,7 @@ export default {
     searchInputTip: "Introduce el contenido de la búsqueda",
 
     noReplceTip: "No hay nada que reemplazar",
+    lastMatchTip: "No hay más coincidencias después del último reemplazo",
     noMatchTip: "No se encontraron coincidencias",
 
     successTip: "${xlength} elementos encontrados",

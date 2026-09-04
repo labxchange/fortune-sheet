@@ -430,7 +430,7 @@ export function replace(
     return findAndReplace.noReplceTip;
   }
 
-  let count = null;
+  let count: number | null = null;
 
   const last =
     ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
@@ -450,6 +450,34 @@ export function replace(
     }
 
     count = 0;
+  }
+
+  // Resume after the cell the previous press wrote, rather than on it. Only
+  // when the cursor belongs to this sheet, the selection is still sitting
+  // exactly where Replace left it, and the terms have not changed — see
+  // `replaceCursor` — so a user who has moved on by any means gets the
+  // selection-driven `count` above instead.
+  const cursor = ctx.replaceCursor;
+  if (
+    cursor != null &&
+    cursor.sheetId === ctx.currentSheetId &&
+    cursor.searchText === searchText &&
+    cursor.replaceText === replaceText &&
+    searchIndexArr[count].r === cursor.r &&
+    searchIndexArr[count].c === cursor.c
+  ) {
+    // `searchIndexArr` is row-major within each range and deduplicated by
+    // cell, so "after" is simply the next entry. Deliberately no wrap:
+    // wrapping walks back onto cells this run already rewrote, which is the
+    // same bug one lap later.
+    if (count + 1 >= searchIndexArr.length) {
+      // Distinct from `noReplceTip`: matches may well remain *before* the
+      // cursor, and this string is announced, so saying there is nothing to
+      // replace would be untrue to a screen reader as much as on screen.
+      return findAndReplace.lastMatchTip;
+    }
+
+    count += 1;
   }
 
   const d = flowdata;
@@ -490,6 +518,13 @@ export function replace(
   ctx.luckysheet_select_save = normalizeSelection(ctx, [
     { row: [r, r], column: [c, c] },
   ]);
+  ctx.replaceCursor = {
+    sheetId: ctx.currentSheetId,
+    r,
+    c,
+    searchText,
+    replaceText,
+  };
 
   // jfrefreshgrid(d, ctx.luckysheet_select_save);
   // selectHightlightShow();
@@ -564,7 +599,6 @@ export function replaceAll(
 
       setCellValue(ctx, r, c, d, v);
 
-      range.push({ row: [r, r], column: [c, c] });
       replaceCount += 1;
     }
   } else {
@@ -587,14 +621,27 @@ export function replaceAll(
 
       setCellValue(ctx, r, c, d, v);
 
-      range.push({ row: [r, r], column: [c, c] });
       replaceCount += 1;
     }
   }
 
   // jfrefreshgrid(d, range);
 
-  ctx.luckysheet_select_save = normalizeSelection(ctx, range);
+  // Not `range`. It is every cell this run rewrote, and — when the user had no
+  // selection of their own — the whole sheet it defaulted to as well, so
+  // selecting it left the sheet blanketed in a selection the user never made
+  // and arrow keys cycling inside it instead of navigating. Collapse onto the
+  // first cell replaced — first in search order, which is the top-left-most
+  // match of the first selected range: one predictable place to resume from,
+  // and it is something this run actually changed.
+  const first = searchIndexArr[0];
+  ctx.luckysheet_select_save = normalizeSelection(ctx, [
+    { row: [first.r, first.r], column: [first.c, first.c] },
+  ]);
+  // Replace All has consumed every match, so there is nothing for a following
+  // Replace to resume after.
+  ctx.replaceCursor = undefined;
+  scrollToHighlightCell(ctx, first.r, first.c);
 
   // `successTip` is "${xlength} items found" — the wrong sentence for an
   // action that just rewrote them, and the text the user is shown as well as

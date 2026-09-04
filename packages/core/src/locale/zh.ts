@@ -11878,6 +11878,7 @@ export default {
     searchInputTip: "请输入查找内容",
 
     noReplceTip: "没有可替换的内容",
+    lastMatchTip: "最后一次替换之后没有更多匹配项",
     noMatchTip: "找不到匹配项",
 
     successTip: "已经帮您搜索并进行了${xlength}处替换",
