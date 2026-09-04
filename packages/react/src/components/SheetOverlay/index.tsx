@@ -1079,8 +1079,22 @@ const SheetOverlay: React.FC = () => {
       {/* A toolbar command edits the cell in place rather than navigating to
           it, so `#sr-selection` -- built from the selection -- repeats itself
           and the focus return the command just made (WCAG 2.4.3) says
-          nothing. Polite, for the same reason as above. */}
-      <div id="sr-toolbarFocusReturn" className="sr-only" role="status">
+          nothing on its own.
+
+          Assertive, not polite: `withFocusReturn` bumps the counter this
+          region watches and then moves focus to the cell input in the same
+          deferred callback (`focusAfterCommit`) -- the exact moment the
+          context-menu region above is assertive to survive. A polite
+          announcement queued there risks the same VoiceOver fate that
+          region's own comment describes: the newly-focused element's own
+          announcement discards a polite message queued in the same moment. */}
+      <div
+        id="sr-toolbarFocusReturn"
+        className="sr-only"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+      >
         {toolbarFocusReturnAnnouncement}
       </div>
     </main>

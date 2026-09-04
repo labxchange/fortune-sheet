@@ -36,6 +36,7 @@ import {
   clearFilter,
   applyLocation,
   getSrSelectionCore,
+  handleLink,
 } from "@fortune-sheet/core";
 import _ from "lodash";
 import WorkbookContext from "../../context";
@@ -964,6 +965,34 @@ const Toolbar: React.FC<{
           >
             {(setOpen) => <ConditionalFormat items={items} setOpen={setOpen} />}
           </Combo>
+        );
+      }
+      if (name === "search" || name === "link") {
+        // Both open a dialog/card rather than committing anything into
+        // luckysheetfile -- search just flips ctx.showSearch, and handleLink
+        // (today) only ever writes ctx.linkCard. withFocusReturn's readStamp
+        // is luckysheetfile identity, so wrapping either would decline every
+        // time, same as format-painter above -- harmless today, but only by
+        // accident: if either ever starts committing into the cell (a link
+        // edit that writes the cell's text, say), the wrap would activate and
+        // yank focus into the cell input, fighting whichever dialog just
+        // opened. Excluded outright rather than left to that accident, same
+        // as keyboard-shortcuts and screenshot above.
+        return (
+          <Button
+            iconId={name}
+            tooltip={tooltip}
+            key={name}
+            onClick={() => {
+              setContext((draftCtx) => {
+                if (name === "search") {
+                  draftCtx.showSearch = true;
+                } else {
+                  handleLink(draftCtx);
+                }
+              });
+            }}
+          />
         );
       }
       if (name === "image") {

@@ -202,7 +202,7 @@ describe("Region focus", () => {
         altGraphEvent(workbook, { key: "/", code: "Digit7", ctrlKey: true })
       );
 
-      expect(container.querySelector(".fortune-shortcuts-dialog")).toBeNull();
+      expect(container.querySelector('[role="dialog"]')).toBeNull();
     });
 
     it("still opens the shortcuts dialog for the Mac chord", async () => {
@@ -220,10 +220,14 @@ describe("Region focus", () => {
       expect(await findByRole("dialog")).toBeTruthy();
     });
 
-    // The guard used to sit at the very top of the handler, ahead of the
-    // handleGlobalKeyDown call, so a composed keystroke stopped every key the
-    // grid handles -- plain arrows included, which no AltGr chord can produce.
-    // Moving the selection is the cheapest proof the handler now runs.
+    // The guard still sits at the very top of the handler, ahead of the
+    // handleGlobalKeyDown call -- that placement never changed. What changed
+    // is the condition: an earlier version of this PR gated on
+    // getModifierState("AltGraph") alone, which stopped every key the grid
+    // handles once AltGraph was reported, plain arrows included -- even
+    // though no AltGr chord can produce one. `e.key.length === 1` is what
+    // exempts arrows now, not the guard's position. Moving the selection is
+    // the cheapest proof the handler still runs for a non-character key.
     it("no longer gates the grid's own keys", () => {
       const { container } = render(<Workbook data={[{ name: "Sheet1" }]} />);
       const nameBox =
@@ -240,6 +244,33 @@ describe("Region focus", () => {
       );
 
       expect(nameBox.value).toBe("B1");
+    });
+
+    // Option+Up/Down (previous/next sheet, core's own keyboard.ts) is the
+    // other Mac binding this guard has to leave alone, and the one case where
+    // `!e.metaKey` does *not* rescue it: it holds Option with no Cmd, so
+    // metaKey is genuinely false and AltGraph genuinely true. It survives
+    // purely on `e.key.length === 1` being false for "ArrowDown", same
+    // mechanism as the plain-arrow case above, not the Mac-chord exemption
+    // the Cmd+Option tests below rely on.
+    it("still switches sheets on Option+Down, where metaKey is genuinely false", () => {
+      const { container } = render(
+        <Workbook data={[{ name: "Sheet1" }, { name: "Sheet2" }]} />
+      );
+      const grid = container.querySelector<HTMLElement>(`.${GRID_ROOT_CLASS}`)!;
+
+      fireEvent(
+        grid,
+        altGraphEvent(grid, {
+          key: "ArrowDown",
+          code: "ArrowDown",
+          altKey: true,
+        })
+      );
+
+      expect(
+        container.querySelector('[aria-label="Sheet2"][aria-selected="true"]')
+      ).toBeTruthy();
     });
 
     // Unlike the plain arrow above, a single-character key is exactly what

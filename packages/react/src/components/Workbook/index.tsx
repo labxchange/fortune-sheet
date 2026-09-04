@@ -649,8 +649,14 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
         // single-character `key` can collide with a Ctrl+letter binding.
         //
         // `!e.metaKey` is what keeps this off macOS. MDN documents AltGraph as
-        // true whenever Option is held there, and every Mac binding here is
-        // Cmd+Option+letter — so an unqualified guard killed all of them.
+        // true whenever Option is held there, and every Mac binding gated by
+        // `withPrimary` below is Cmd+Option+letter — so an unqualified guard
+        // killed all of those. Two Mac bindings hold Option with no Cmd
+        // instead (previous/next sheet, Option+Up/Down — core's own
+        // keyboard.ts, not this file): `!e.metaKey` does not rescue them,
+        // since metaKey is genuinely false for that chord. They survive on
+        // `e.key.length === 1` alone, same as a plain arrow does — "ArrowUp"/
+        // "ArrowDown" is never what this guard is checking for.
         if (
           !e.metaKey &&
           e.key.length === 1 &&
