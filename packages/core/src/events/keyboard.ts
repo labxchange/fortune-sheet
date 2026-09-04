@@ -761,12 +761,10 @@ function stepToVisibleIndex(
  * at either call site is what stops Shift+Left selecting text in the cell and
  * writing a reference in the formula bar.
  *
- * The formula bar also calls this *outside* its setContext producer, on
- * purpose: israngeseleciton reads the live DOM caret through
- * window.getSelection(), and the producer may not run until React renders, by
- * which time the browser has moved it. Calling here is safe — formulaCache is a
- * class instance, so immer passes it through undrafted and the rangeSetValueTo
- * it records is the same object the producer will read.
+ * This answers only "may a reference go here", not "is there a cell to step
+ * to": resolvePointModeStep asks the second question, and a caller that has to
+ * cancel the key before applying anything must go through that rather than
+ * through this, or it cancels arrows point mode will decline.
  */
 export function canEnterPointMode(ctx: Context, e: KeyboardEvent) {
   if (e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return false;
@@ -783,28 +781,49 @@ export function canEnterPointMode(ctx: Context, e: KeyboardEvent) {
 }
 
 /**
- * Point mode: while a formula is being edited, the arrow keys pick a cell
- * reference instead of walking the caret through the text. It is the keyboard's
- * half of the gesture that already exists for the pointer — clicking a cell
- * mid-formula — and it goes through the same entry point, so the reference is
- * inserted, replaced and highlighted identically.
+ * What point mode will do with an arrow key.
  *
- * Returns true when the key was consumed; false leaves the arrow its ordinary
- * meaning.
+ * `target` names the cell to pick. A null `target` means the key belongs to
+ * point mode but the step ran off the sheet, so the reference stays where it
+ * is. A null *resolution*, as opposed to a null `target`, means point mode
+ * declines the key altogether and the arrow keeps its ordinary meaning.
  */
-export function handleFormulaArrowKey(
+export type PointModeStep = {
+  target: { row: number; column: number } | null;
+};
+
+/**
+ * Resolve an arrow key against point mode without applying anything.
+ *
+ * Split from applyPointModeStep because a caller has to know whether the key is
+ * consumed *before* it can decide to cancel it, and must then act on that same
+ * answer rather than asking a second time. Asking twice is how an arrow pressed
+ * in the formula bar at the edge of the sheet came to be swallowed: the gate
+ * admitted the key, the step then found nowhere to go and declined, and a
+ * cancelled arrow moved no caret. One resolution, read once, leaves the two
+ * drivers unable to disagree.
+ *
+ * Resolving this early is also what makes the formula-bar path correct at all.
+ * israngeseleciton, reached through canEnterPointMode, reads the live DOM caret
+ * through window.getSelection() and records the rangeSetValueTo that
+ * rangeSetValue inserts after. setContext takes a functional updater, which
+ * React only evaluates eagerly while the fiber has no pending update; deferred,
+ * that read would happen after the browser had already moved the caret.
+ * Resolving before preventDefault and applying inside the producer is safe
+ * because formulaCache is a class instance: immer passes it through undrafted,
+ * so the producer reads back the same object this call primed.
+ */
+export function resolvePointModeStep(
   ctx: Context,
-  cellInput: HTMLDivElement,
-  fxInput: HTMLDivElement | null | undefined,
   e: KeyboardEvent
-) {
-  if (!canEnterPointMode(ctx, e)) return false;
+): PointModeStep | null {
+  if (!canEnterPointMode(ctx, e)) return null;
 
   const flowdata = getFlowdata(ctx);
-  if (!flowdata) return false;
+  if (!flowdata) return null;
   const rowCount = flowdata.length;
   const colCount = flowdata[0]?.length ?? 0;
-  if (rowCount === 0 || colCount === 0) return false;
+  if (rowCount === 0 || colCount === 0) return null;
 
   const inPointMode = !!ctx.formulaCache.rangestart;
 
@@ -835,7 +854,7 @@ export function handleFormulaArrowKey(
       _.isNil(startCol) ||
       _.isNil(endCol)
     ) {
-      return false;
+      return null;
     }
   } else {
     const [editRow, editCol] = ctx.luckysheetCellUpdate;
@@ -846,44 +865,87 @@ export function handleFormulaArrowKey(
 
   // Step off the edge the arrow points away from, so a merged reference is
   // stepped over instead of re-entered.
-  let targetRow = startRow;
-  let targetCol = startCol;
+  let axis: "row" | "column";
   let next: number | null;
-  if (e.key === "ArrowUp") {
-    next = stepToVisibleIndex(
-      startRow,
-      -1,
-      rowCount,
-      ctx.config.rowhidden ?? {}
-    );
-    targetRow = next ?? startRow;
-  } else if (e.key === "ArrowDown") {
-    next = stepToVisibleIndex(endRow, 1, rowCount, ctx.config.rowhidden ?? {});
-    targetRow = next ?? startRow;
-  } else if (e.key === "ArrowLeft") {
-    next = stepToVisibleIndex(
-      startCol,
-      -1,
-      colCount,
-      ctx.config.colhidden ?? {}
-    );
-    targetCol = next ?? startCol;
-  } else if (e.key === "ArrowRight") {
-    next = stepToVisibleIndex(endCol, 1, colCount, ctx.config.colhidden ?? {});
-    targetCol = next ?? startCol;
-  } else {
-    // Both in-repo call sites pre-filter to the four arrows, but this is
-    // re-exported from the core barrel, so any other key must decline rather
-    // than fall through to "right".
-    return false;
+  switch (e.key) {
+    case "ArrowUp":
+      axis = "row";
+      next = stepToVisibleIndex(
+        startRow,
+        -1,
+        rowCount,
+        ctx.config.rowhidden ?? {}
+      );
+      break;
+    case "ArrowDown":
+      axis = "row";
+      next = stepToVisibleIndex(
+        endRow,
+        1,
+        rowCount,
+        ctx.config.rowhidden ?? {}
+      );
+      break;
+    case "ArrowLeft":
+      axis = "column";
+      next = stepToVisibleIndex(
+        startCol,
+        -1,
+        colCount,
+        ctx.config.colhidden ?? {}
+      );
+      break;
+    case "ArrowRight":
+      axis = "column";
+      next = stepToVisibleIndex(
+        endCol,
+        1,
+        colCount,
+        ctx.config.colhidden ?? {}
+      );
+      break;
+    default:
+      // Both in-repo call sites pre-filter to the four arrows, but this is
+      // re-exported from the core barrel, so any other key must decline rather
+      // than fall through to "right".
+      return null;
   }
+
   if (next == null) {
     // Nowhere to go. Once point mode is running the key still belongs to it —
-    // the reference simply stops at the edge of the sheet. Before it starts,
-    // there is nothing to show for the keypress, so the arrow keeps its
-    // ordinary meaning.
-    return inPointMode;
+    // the reference simply stops at the edge of the sheet. Before it starts
+    // there is nothing to show for the keypress, so it is declined and both
+    // callers leave the arrow its ordinary meaning: the grid falls through to
+    // handleArrowKey, and the formula bar never cancels the event.
+    return inPointMode ? { target: null } : null;
   }
+
+  return {
+    target:
+      axis === "row"
+        ? { row: next, column: startCol }
+        : { row: startRow, column: next },
+  };
+}
+
+/**
+ * Pick the cell a resolved step names: write its reference at the caret and
+ * move the highlight onto it, through the same entry point the mouse uses, so
+ * the reference is inserted, replaced and highlighted identically.
+ *
+ * A null `target` is a deliberate no-op. The key was point mode's, but the
+ * reference had nowhere left to go.
+ */
+export function applyPointModeStep(
+  ctx: Context,
+  cellInput: HTMLDivElement,
+  fxInput: HTMLDivElement | null | undefined,
+  step: PointModeStep
+) {
+  if (!step.target) return;
+  const flowdata = getFlowdata(ctx);
+  if (!flowdata) return;
+  const { row: targetRow, column: targetCol } = step.target;
 
   // A merged target is referenced as the whole merge, and mergeBorder hands back
   // the span and the pixel rectangle together, exactly as the mouse driver uses
@@ -919,6 +981,30 @@ export function handleFormulaArrowKey(
   );
 
   scrollToHighlightCell(ctx, rowStart, colStart);
+}
+
+/**
+ * Point mode: while a formula is being edited, the arrow keys pick a cell
+ * reference instead of walking the caret through the text. It is the keyboard's
+ * half of the gesture that already exists for the pointer — clicking a cell
+ * mid-formula.
+ *
+ * Resolve and apply in one call, for a caller that can decide what to do with
+ * the key from the return value. Returns true when the key was consumed; false
+ * leaves the arrow its ordinary meaning, and handleGlobalKeyDown then falls
+ * through to handleArrowKey. A caller that has to cancel the event before it
+ * can apply anything — the formula bar, which cannot write until its producer
+ * runs — uses resolvePointModeStep and applyPointModeStep instead.
+ */
+export function handleFormulaArrowKey(
+  ctx: Context,
+  cellInput: HTMLDivElement,
+  fxInput: HTMLDivElement | null | undefined,
+  e: KeyboardEvent
+) {
+  const step = resolvePointModeStep(ctx, e);
+  if (!step) return false;
+  applyPointModeStep(ctx, cellInput, fxInput, step);
   return true;
 }
 

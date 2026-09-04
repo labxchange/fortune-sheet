@@ -8,8 +8,8 @@ import {
   isInlineStringCell,
   escapeScriptTag,
   moveHighlightCell,
-  canEnterPointMode,
-  handleFormulaArrowKey,
+  resolvePointModeStep,
+  applyPointModeStep,
   handleFormulaInput,
   rangeHightlightselected,
   valueShowEs,
@@ -131,22 +131,30 @@ const FxEditor: React.FC = () => {
         e.stopPropagation();
       }
 
-      // Decided here rather than inside the producer below. setContext takes a
-      // functional updater, which React only evaluates eagerly while the fiber
-      // has no pending update; when it defers, canEnterPointMode would read
-      // window.getSelection() after the browser had already moved the caret,
-      // and preventDefault would land too late to stop it. Reading it now also
-      // primes rangeSetValueTo from the caret as it stood at keydown --
-      // formulaCache is a class instance, so immer leaves it undrafted and the
-      // producer sees the same object.
-      const entersPointMode =
+      // Resolved here rather than inside the producer below, and resolved
+      // exactly once. setContext takes a functional updater, which React only
+      // evaluates eagerly while the fiber has no pending update; when it
+      // defers, the caret test behind this would read window.getSelection()
+      // after the browser had already moved the caret, and preventDefault would
+      // land too late to stop it. Reading it now also primes rangeSetValueTo
+      // from the caret as it stood at keydown -- formulaCache is a class
+      // instance, so immer leaves it undrafted and the producer sees the same
+      // object.
+      //
+      // The step, not just the gate: cancelling the key on "a reference may go
+      // here" alone swallowed arrows the driver went on to decline. At the edge
+      // of the sheet -- Left in column A, Up in row 1 -- the key was cancelled
+      // and nothing replaced it, so the caret sat still. Now the same
+      // resolution decides the cancel and drives the apply.
+      const pointModeStep =
         (key === "ArrowUp" ||
           key === "ArrowDown" ||
           key === "ArrowLeft" ||
           key === "ArrowRight") &&
-        !!refs.cellInput.current &&
-        canEnterPointMode(context, e.nativeEvent);
-      if (entersPointMode) {
+        refs.cellInput.current
+          ? resolvePointModeStep(context, e.nativeEvent)
+          : null;
+      if (pointModeStep) {
         e.preventDefault();
         e.stopPropagation();
       }
@@ -250,16 +258,17 @@ const FxEditor: React.FC = () => {
               // of typing it. The grid's own key handler never sees these: it
               // hands every key straight back to a text-entry target sitting
               // outside the grid, and Left/Right are stopPropagation()ed above
-              // in any case. So the formula bar calls the same driver the
-              // in-cell editor reaches through handleGlobalKeyDown -- and, via
-              // canEnterPointMode, through the same modifier filter, which the
-              // grid applies upstream and this switch on `key` alone would not.
-              if (entersPointMode) {
-                handleFormulaArrowKey(
+              // in any case. So the formula bar drives point mode itself,
+              // applying the step resolved above rather than resolving one
+              // here -- and through the same canEnterPointMode modifier filter
+              // the grid applies upstream, which this switch on `key` alone
+              // would not.
+              if (pointModeStep) {
+                applyPointModeStep(
                   draftCtx,
                   refs.cellInput.current!,
                   refs.fxInput.current,
-                  e.nativeEvent
+                  pointModeStep
                 );
                 break;
               }
