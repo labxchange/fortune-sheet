@@ -2,6 +2,7 @@ import { render, act, fireEvent } from "@testing-library/react";
 import React from "react";
 import { virtual } from "@guidepup/virtual-screen-reader";
 import Workbook, { WorkbookInstance } from "../src/components/Workbook";
+import { CONTEXT_MENU_REGION_ID_SUFFIX } from "../src/hooks/useContextMenuAnnouncements";
 
 /**
  * What a screen reader actually says, rather than which attributes are set.
@@ -181,5 +182,276 @@ describe("what a screen reader announces", () => {
     // A live region is silent when written the same text twice running; the
     // zero-width space is what makes the second write a change.
     expect(announcements).toHaveLength(2);
+  });
+
+  /**
+   * The one question the rename fix could not answer from the source.
+   *
+   * `tab` is a children-presentational role in ARIA 1.2, so read strictly, the
+   * editable name nested inside `role="tab"` is not exposed at all and naming
+   * it is pointless. Core-AAM contradicts that for *focusable* descendants, and
+   * a contenteditable is focusable. The two specs disagree, and which one an
+   * implementation follows decides whether inline renaming is viable or has to
+   * become a dialog.
+   *
+   * This is the spec's own answer, from a reader that resolves the tree the way
+   * ARIA says to — not VoiceOver's or NVDA's, which is why the manual pass
+   * still stands. But it turns that pass into a confirmation of platform
+   * behaviour rather than the first time anyone finds out.
+   */
+  it("announces the sheet rename field as a named textbox inside its tab", async () => {
+    const strip = container.querySelector<HTMLElement>(
+      ".fortune-sheettab-container-c"
+    )!;
+    const caret = strip.querySelector<HTMLElement>(
+      ".luckysheet-sheets-item-function"
+    )!;
+
+    await act(async () => {
+      caret.focus();
+      fireEvent.keyDown(caret, { key: "Enter" });
+    });
+    const renameRow = Array.from(
+      document.querySelectorAll<HTMLElement>('[role="button"]')
+    ).find((el) => el.textContent === "Rename")!;
+    await act(async () => {
+      renameRow.focus();
+      fireEvent.keyDown(renameRow, { key: "Enter" });
+    });
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+
+    const spoken = await readAll(strip);
+    const field = spoken.find((p) => p.includes("Sheet name"));
+
+    expect(field).toBeDefined();
+    // Exposed despite the children-presentational `tab` ancestor, and exposed
+    // as something you can type into rather than as static text.
+    expect(field).toContain("textbox");
+    // Not swallowed by the tab's own accessible name.
+    expect(field).not.toBe("tab, Sheet1");
+  });
+
+  /**
+   * That the status region's textContent changes is not the same claim as "a
+   * screen reader says it" — the region has to be in the accessibility tree,
+   * live, and not drowned by the focus move that happens in the same
+   * interaction. Committing a rename focuses the tab, and a *polite* region
+   * queued alongside a focus utterance is discarded by VoiceOver rather than
+   * spoken after it; #sr-contextMenuRegion is assertive for that reason, and
+   * this is the assertion that keeps it so.
+   */
+  const startRename = async (root: HTMLElement) => {
+    const caret = root.querySelector<HTMLElement>(
+      ".luckysheet-sheets-item-function"
+    )!;
+    await act(async () => {
+      caret.focus();
+      fireEvent.keyDown(caret, { key: "Enter" });
+    });
+    const renameRow = Array.from(
+      document.querySelectorAll<HTMLElement>('[role="button"]')
+    ).find((el) => el.textContent === "Rename")!;
+    await act(async () => {
+      renameRow.focus();
+      fireEvent.keyDown(renameRow, { key: "Enter" });
+    });
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+    return document.querySelector<HTMLElement>(
+      '.luckysheet-sheets-item-name[contenteditable="true"]'
+    )!;
+  };
+
+  const settle = async () => {
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+  };
+
+  it("speaks the result of a context-menu action that moves focus", async () => {
+    // The case reported silent three times over: the action commits, focus moves
+    // to the cell input, and in real VoiceOver the focus utterance won and the
+    // result was never heard. Two mechanisms carry it now — this region, and the
+    // cell input's `aria-describedby` pointing at it — so this asserts the region
+    // speaks and the description is wired for the platform path.
+    // Captured when focus arrives, not read afterwards — the same rule as the
+    // Sort case below, and for a sharper reason here. The description is
+    // deliberately temporary (`CLEAR_AFTER_MS`, 4s) and the virtual reader is
+    // slow: under a full-suite run this case takes over six seconds, so a read
+    // taken after the interaction was racing the clear and losing. It was a
+    // wall-clock coin flip — green run on its own, red in the full suite, at
+    // `ad69182` as much as here. A screen reader composes the utterance from
+    // what exists when focus lands, so that is also the only correct moment.
+    let describedByAtFocus: string | null = null;
+    const captureAtFocus = (e: Event) => {
+      const el = e.target as HTMLElement;
+      if (el?.id !== "luckysheet-rich-text-editor") return;
+      describedByAtFocus = el.getAttribute("aria-describedby");
+    };
+    document.addEventListener("focusin", captureAtFocus);
+
+    await virtual.start({ container });
+    act(() => {
+      ref.current?.setSelection([{ row: [0, 0], column: [0, 0] }]);
+    });
+    // pageX/pageY have to be real: handleContextMenu resolves the cell from the
+    // event position, and jsdom reports every box as 0x0 without them.
+    const rightClick = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(rightClick, "pageX", { value: 5 });
+    Object.defineProperty(rightClick, "pageY", { value: 5 });
+    await act(async () => {
+      container
+        .querySelector<HTMLElement>(".fortune-cell-area")!
+        .dispatchEvent(rightClick);
+    });
+    const clearRow = Array.from(
+      document.querySelectorAll<HTMLElement>('[role="button"]')
+    ).find((el) => el.textContent === "Clear content");
+    // Throws rather than returning: a `return` here made the case's two
+    // strongest assertions — the assertive utterance and the
+    // `aria-describedby` wiring — vanish silently if the lookup ever broke on a
+    // locale change, a reordered menu or render timing. Matches the Sort case
+    // below.
+    if (!clearRow) throw new Error("no Clear content row in the context menu");
+    await act(async () => {
+      clearRow.focus();
+      fireEvent.keyDown(clearRow, { key: "Enter" });
+    });
+    await settle();
+    document.removeEventListener("focusin", captureAtFocus);
+
+    const spoken = await virtual.spokenPhraseLog();
+    expect(spoken).toContain("assertive: Contents cleared.");
+    // And the description path, which is what survives a real focus utterance.
+    // Resolved through `getElementById` over the whole document, the way an
+    // assistive technology resolves an IDREF, so a description naming another
+    // workbook's region fails here rather than passing on the string alone.
+    expect(describedByAtFocus).toBeTruthy();
+    expect(document.getElementById(describedByAtFocus!)).toBe(
+      container.querySelector(`[id$="-${CONTEXT_MENU_REGION_ID_SUFFIX}"]`)
+    );
+  });
+
+  it("speaks the result of the Sort dialog's Sort button", async () => {
+    // The specific case reported silent. Unlike the menu rows, this one closes a
+    // dialog: `Dialog`'s unmount cleanup refocuses the cell input *during* the
+    // commit, whereas `focusAfterCommit` defers to a macrotask. So the focus can
+    // land before the description is in the DOM, and the utterance is composed
+    // without it — the same bug in a different order.
+    //
+    // That was written as a hazard to watch for and then asserted against the
+    // settled DOM, which is always right by the time the assertions run. It was
+    // green for the whole of the second report of this bug. The `atFocus`
+    // capture below is what makes it able to fail: a screen reader composes the
+    // utterance from what exists when focus arrives, so that is the only moment
+    // worth reading.
+    let atFocus: { describedBy: string | null; text: string | null } | null =
+      null;
+    const captureAtFocus = (e: Event) => {
+      const el = e.target as HTMLElement;
+      const describedBy = el.getAttribute?.("aria-describedby") ?? null;
+      atFocus = {
+        describedBy,
+        text: describedBy
+          ? document.getElementById(describedBy)?.textContent ?? null
+          : null,
+      };
+    };
+
+    await virtual.start({ container });
+    act(() => {
+      ref.current?.setSelection([{ row: [0, 2], column: [0, 0] }]);
+    });
+    const rightClick = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(rightClick, "pageX", { value: 5 });
+    Object.defineProperty(rightClick, "pageY", { value: 5 });
+    await act(async () => {
+      container
+        .querySelector<HTMLElement>(".fortune-cell-area")!
+        .dispatchEvent(rightClick);
+    });
+    const sortRow = Array.from(
+      document.querySelectorAll<HTMLElement>('[role="button"]')
+    ).find((el) => el.textContent === "Sort");
+    if (!sortRow) throw new Error("no Sort row in the context menu");
+    await act(async () => {
+      sortRow.focus();
+      fireEvent.keyDown(sortRow, { key: "Enter" });
+    });
+    await settle();
+
+    const sortButton = Array.from(
+      document.querySelectorAll<HTMLElement>('[role="button"]')
+    ).find((el) => el.textContent === "Sort" && el.closest(".fortune-sort"));
+    if (!sortButton) throw new Error("no Sort button in the dialog");
+    document.addEventListener("focusin", captureAtFocus);
+    await act(async () => {
+      fireEvent.click(sortButton);
+    });
+    await settle();
+    document.removeEventListener("focusin", captureAtFocus);
+
+    // The virtual reader reports the assertive region dutifully, so it cannot
+    // reproduce VoiceOver *discarding* it — that is the whole bug. What decides
+    // the real outcome is whether the description is in place, and non-empty, at
+    // the moment focus lands on the cell input.
+    expect(atFocus).not.toBeNull();
+    expect(document.getElementById(atFocus!.describedBy!)).toBe(
+      container.querySelector(`[id$="-${CONTEXT_MENU_REGION_ID_SUFFIX}"]`)
+    );
+    expect(atFocus!.text).toMatch(/Sorted in ascending order/);
+
+    const cell = container.querySelector("#luckysheet-rich-text-editor")!;
+    expect(document.activeElement).toBe(cell);
+
+    const spoken = await virtual.spokenPhraseLog();
+    expect(spoken.join(" | ")).toMatch(/Sorted in ascending order/);
+  });
+
+  it("speaks the result of a committed rename", async () => {
+    await virtual.start({ container });
+    const field = await startRename(container);
+
+    field.textContent = "Budget";
+    await act(async () => {
+      fireEvent.keyDown(field, { key: "Enter" });
+    });
+    await settle();
+
+    const spoken = await virtual.spokenPhraseLog();
+    // Assertive, not polite: it has to survive the focus move to the tab.
+    expect(spoken).toContain("assertive: Sheet renamed to Budget.");
+  });
+
+  it("speaks a cancelled rename, and does not claim it succeeded", async () => {
+    await virtual.start({ container });
+    const field = await startRename(container);
+
+    field.textContent = "Discarded";
+    await act(async () => {
+      fireEvent.keyDown(field, { key: "Escape" });
+    });
+    await settle();
+
+    const spoken = await virtual.spokenPhraseLog();
+    expect(
+      spoken.some((p) => p.replace(/\u200B/g, "").includes("Rename cancelled."))
+    ).toBe(true);
+    expect(spoken.some((p) => p.includes("Sheet renamed to"))).toBe(false);
   });
 });

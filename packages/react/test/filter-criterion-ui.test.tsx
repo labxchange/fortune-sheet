@@ -245,10 +245,12 @@ describe("filter criteria applied through the dropdown", () => {
       expect(document.getElementById(controls!)).toBe(popup());
     });
 
-    it("reopens from the funnel focus is returned to after a criterion is applied", async () => {
-      // The pair the ticket cares about: confirming a criterion puts focus back
-      // on the funnel, and from there the keyboard has to be able to get into
-      // the dropdown again without a mouse.
+    it("lands on the cell after a criterion is applied, and the funnel reopens from there", async () => {
+      // Confirming used to put focus back on the funnel. Ticket 1217709848562415
+      // rejected that: the funnels are a row of adjacent tab stops, so landing on
+      // one leaves a keyboard user tabbing sideways along the header instead of
+      // back in their data. Focus goes to the cell, and the funnel stays
+      // reachable from there.
       focus(0, 2);
       toggleValue(0, "Banana");
       await act(async () => {
@@ -256,23 +258,31 @@ describe("filter criteria applied through the dropdown", () => {
           setTimeout(resolve, 0);
         });
       });
-      expect(document.activeElement).toBe(funnels()[0]);
+      expect(document.activeElement).toBe(
+        container.querySelector("#luckysheet-rich-text-editor")
+      );
 
       act(() => {
-        fireEvent.keyDown(document.activeElement!, { key: "Enter" });
+        fireEvent.keyDown(funnels()[0], { key: "Enter" });
       });
       expect(popup()).not.toBeNull();
     });
   });
 
-  // WCAG 2.4.3. Every button here closes the popup, and the funnels are rebuilt
-  // (or removed) by the same action — so the focus restore in useEscapeToClose
-  // cannot be relied on, and each button names its own target instead. The
-  // funnels are never focused by hand in these tests: `fireEvent.click` does not
-  // move focus, so anything but <body> at the end is focus this code placed.
+  // WCAG 2.4.3, and ticket 1217709848562415: every route out of the popup —
+  // Confirm, Cancel, Clear filter, Escape, an outside click, focus-out — puts
+  // focus on the cell the popup was opened from. It used to come back to the
+  // funnel button, which the audit rejected: the funnels are a row of adjacent
+  // tab stops, so a keyboard user who closed the popup was left tabbing sideways
+  // between filter buttons and had to traverse the header to get back to the
+  // data. The funnels are never focused by hand in these tests: `fireEvent.click`
+  // does not move focus, so anything but <body> at the end is focus this code
+  // placed.
   describe("focus once the filter popup closes", () => {
     const cellInput = () =>
       container.querySelector<HTMLElement>("#luckysheet-rich-text-editor");
+
+    const popup = () => container.querySelector(".fortune-filter-menu");
 
     /** focusAfterCommit defers by a task, so let that task run. */
     const flushFocus = async () => {
@@ -288,7 +298,7 @@ describe("filter criteria applied through the dropdown", () => {
         fireEvent.click(screen.getByText(text));
       });
 
-    it("returns focus to the funnel it was opened from when a criterion is confirmed", async () => {
+    it("returns focus to the cell when a criterion is confirmed", async () => {
       focus(0, 2);
       pressFunnel(0);
       act(() => {
@@ -296,11 +306,13 @@ describe("filter criteria applied through the dropdown", () => {
       });
       clickButton("Confirm");
       await flushFocus();
-      // Re-queried, because confirming rebuilds the funnel list.
-      expect(document.activeElement).toBe(funnels()[0]);
+      expect(document.activeElement).toBe(cellInput());
     });
 
-    it("returns focus to the funnel of the column that was filtered, not the first one", async () => {
+    it("returns focus to the cell regardless of which column was filtered", async () => {
+      // Previously asserted that the *funnel of that column* took focus, which
+      // is what changed. The cell is the target now, so filtering a non-first
+      // column must not leave focus on any funnel.
       focus(0, 3);
       pressFunnel(1);
       act(() => {
@@ -308,34 +320,83 @@ describe("filter criteria applied through the dropdown", () => {
       });
       clickButton("Confirm");
       await flushFocus();
-      expect(document.activeElement).toBe(funnels()[1]);
-      // The funnel is addressed by absolute column index rather than by its
-      // position in the list, which the frozen-pane handling can reorder.
-      expect(document.activeElement?.getAttribute("data-filter-col")).toBe("3");
+      expect(document.activeElement).toBe(cellInput());
+      expect(funnels()).not.toContain(document.activeElement);
     });
 
-    it("returns focus to the funnel when the popup is cancelled", async () => {
+    it("returns focus to the cell when the popup is cancelled", async () => {
       focus(0, 2);
       pressFunnel(0);
       clickButton("Cancel");
       await flushFocus();
-      expect(document.activeElement).toBe(funnels()[0]);
+      expect(document.activeElement).toBe(cellInput());
     });
 
-    it("falls through to the active cell when the funnel is hidden", async () => {
-      // The funnel is still mounted, so `isConnected` is no help: a funnel
-      // scrolled behind a frozen pane renders `display: none`, and a browser
-      // refuses `.focus()` on it — leaving focus on the footer button this
-      // commit unmounts, i.e. <body>. findFilterFunnel reports it absent so the
-      // caller's `?? cellInput` fallback runs. Hidden by hand here because the
-      // freeze geometry that produces it needs scroll offsets jsdom reports as
-      // zero; findFilterFunnel's own guard is unit-tested in filterDom.test.ts.
+    it("still reaches the cell when the funnel is hidden behind a frozen pane", async () => {
+      // This case existed because the old restore aimed at the funnel and a
+      // funnel rendered `display: none` cannot take focus, so it needed a
+      // fallback. The target is the cell unconditionally now, which makes the
+      // case trivially true — kept as a regression guard, since aiming at the
+      // funnel again would reintroduce exactly this hole.
       focus(0, 2);
       pressFunnel(0);
       funnels()[0].setAttribute("style", "display: none");
       clickButton("Confirm");
       await flushFocus();
       expect(document.activeElement).toBe(cellInput());
+    });
+
+    // The three dismissal routes, which the footer cases above do not reach.
+    // They split: two must restore focus, one must leave it alone, and the
+    // difference is only knowable after the DOM settles — see
+    // `restoreFocusIfLost` in FilterMenu.
+    it("returns focus to the cell when Escape closes the popup", async () => {
+      focus(0, 2);
+      pressFunnel(0);
+      act(() => {
+        fireEvent.keyDown(document, { key: "Escape" });
+      });
+      await flushFocus();
+      expect(popup()).toBeNull();
+      expect(document.activeElement).toBe(cellInput());
+    });
+
+    it("returns focus to the cell when a press on dead chrome closes it", async () => {
+      // The case a per-route `close(restore)` would strand: a mousedown on
+      // non-focusable chrome moves focus nowhere, so the popup unmounts from
+      // under whatever held it and focus falls to <body> unless something
+      // rescues it. Indistinguishable from a press on a real control at the
+      // call site, which is why the decision is deferred instead.
+      focus(0, 2);
+      pressFunnel(0);
+      const deadChrome = container.querySelector<HTMLElement>(
+        ".fortune-name-box-container"
+      )!;
+      act(() => {
+        fireEvent.mouseDown(deadChrome, { bubbles: true });
+      });
+      await flushFocus();
+      expect(popup()).toBeNull();
+      expect(document.activeElement).toBe(cellInput());
+    });
+
+    it("leaves focus where the user tabbed when focus-out closes it", async () => {
+      // The inverse, and the regression this pair guards: restoring here would
+      // pull focus off the control the user just reached and throw it backwards
+      // onto the cell, silently swallowing their Tab.
+      focus(0, 2);
+      pressFunnel(0);
+      const row = popup()!.querySelector<HTMLElement>('[role="button"]')!;
+      const outside = container.querySelector<HTMLElement>(
+        ".fortune-toolbar [role='button']"
+      )!;
+      act(() => {
+        outside.focus();
+        fireEvent.focusOut(row, { relatedTarget: outside });
+      });
+      await flushFocus();
+      expect(popup()).toBeNull();
+      expect(document.activeElement).toBe(outside);
     });
 
     it("moves focus to the active cell when Clear filter removes every funnel", async () => {

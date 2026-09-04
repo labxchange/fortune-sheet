@@ -11545,6 +11545,7 @@ export default {
       "No se puede realizar esta operación en múltiples áreas de selección, selecciona un solo rango e intenta nuevamente",
     mergeError:
       "Hay celdas combinadas en la selección, ¡esta operación no se puede realizar!",
+    nothingToSort: "No hay nada que ordenar en el rango seleccionado.",
   },
   filter: {
     filter: "crear filtro",
@@ -11605,6 +11606,8 @@ export default {
     valueBlank: "(Nulo)",
     mergeError:
       "Hay celdas combinadas en la selección del filtro, ¡esta operación no se puede realizar!",
+    announceFilterApplied: "Filtro aplicado.",
+    announceFilteredByColor: "Filtrado por color.",
   },
   rightclick: {
     copy: "Copiar",
@@ -11682,6 +11685,41 @@ export default {
       "No se puede insertar en la columna de solo lectura",
     rowOverLimit: "Límite de 10000 filas excedido",
     columnOverLimit: "Límite de 1000 columnas excedido",
+    createFilter: "Crear filtro",
+    removeFilter: "Quitar filtro",
+
+    insertColumnCountLabel: "Número de columnas a insertar",
+    insertRowCountLabel: "Número de filas a insertar",
+    rowHeightLabel: "Alto de fila en píxeles",
+    columnWidthLabel: "Ancho de columna en píxeles",
+
+    announceCopied: "Selección copiada.",
+    announcePasted: "Selección pegada.",
+    announceColumnInsertedLeft: "1 columna insertada a la izquierda.",
+    announceColumnsInsertedLeft: "${count} columnas insertadas a la izquierda.",
+    announceColumnInsertedRight: "1 columna insertada a la derecha.",
+    announceColumnsInsertedRight: "${count} columnas insertadas a la derecha.",
+    announceRowInsertedAbove: "1 fila insertada arriba.",
+    announceRowsInsertedAbove: "${count} filas insertadas arriba.",
+    announceRowInsertedBelow: "1 fila insertada abajo.",
+    announceRowsInsertedBelow: "${count} filas insertadas abajo.",
+    announceColumnDeleted: "1 columna eliminada.",
+    announceColumnsDeleted: "${count} columnas eliminadas.",
+    announceRowDeleted: "1 fila eliminada.",
+    announceRowsDeleted: "${count} filas eliminadas.",
+    announceRowHidden: "1 fila oculta.",
+    announceRowsHidden: "${count} filas ocultas.",
+    announceColumnHidden: "1 columna oculta.",
+    announceColumnsHidden: "${count} columnas ocultas.",
+    announceCleared: "Contenido borrado.",
+    announceRowsShown: "Filas ocultas mostradas.",
+    announceColumnsShown: "Columnas ocultas mostradas.",
+    announceRowHeightSet: "Alto de fila establecido en ${value} píxeles.",
+    announceColumnWidthSet: "Ancho de columna establecido en ${value} píxeles.",
+    announceSortedAsc: "Ordenado de forma ascendente.",
+    announceSortedDesc: "Ordenado de forma descendente.",
+    announceFilterCreated: "Filtro creado.",
+    announceFilterRemoved: "Filtro eliminado.",
   },
   comment: {
     insert: "Insertar",
@@ -11747,6 +11785,13 @@ export default {
     space: "espacio",
   },
   findAndReplace: {
+    resultRowLabel: "Hoja ${sheet}, celda ${cell}, valor ${value}",
+    resultsListName: "Resultados de la búsqueda",
+    resultsUsageHint: "Active un resultado para ir a esa celda",
+    matchesFoundTip: "Coincidencias encontradas: ${xlength}",
+    replacedTip: "Apariciones reemplazadas: ${xlength}",
+    resultsShownTip: "Lista de resultados mostrada",
+    dialogTitle: "Buscar y reemplazar",
     find: "Encontrar",
     replace: "Reemplazar",
     goto: "Ir a",
@@ -11818,6 +11863,10 @@ export default {
     cancelText: "Cancelar",
     chooseText: "Confirmar color",
     focus: "Enfocar",
+
+    sheetNameInputLabel: "Nombre de la hoja",
+    announceSheetRenamed: "Hoja renombrada a ${name}.",
+    announceSheetRenameCancelled: "Cambio de nombre cancelado.",
 
     tipNameRepeat:
       "¡El nombre de la página de la pestaña no se puede repetir! Revísalo",

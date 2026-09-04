@@ -13,6 +13,7 @@ import SVGIcon from "../SVGIcon";
 import "./index.css";
 import SheetItem from "./SheetItem";
 import ZoomControl from "../ZoomControl";
+import { SHEET_LIST_ID } from "../SheetList";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
 import { useSheetSwitchAnnouncement } from "../../hooks/useSheetSwitchAnnouncement";
 import { useSheetTabMoveAnnouncement } from "../../hooks/useSheetTabMoveAnnouncement";
@@ -119,6 +120,13 @@ const SheetTab: React.FC = () => {
               aria-label={info.allSheets}
               aria-haspopup
               aria-expanded={!!context.showSheetList}
+              // Completes the pairing this button already half had, and is what
+              // lets `isWithinPopup` recognise it as part of the sheet list
+              // rather than as somewhere outside it — without which Shift+Tab
+              // onto this button closes the list and the next Enter reopens it.
+              // Only while open: an `aria-controls` naming an element that is
+              // not in the document is itself a defect.
+              aria-controls={context.showSheetList ? SHEET_LIST_ID : undefined}
               {...mouseDownToggleHandlers(() => {
                 setContext((ctx) => {
                   ctx.showSheetList = _.isUndefined(ctx.showSheetList)

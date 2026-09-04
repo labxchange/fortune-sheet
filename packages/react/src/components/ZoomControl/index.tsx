@@ -17,6 +17,9 @@ import {
 } from "../../utils/keyboardActivation";
 import "./index.css";
 
+/** See `SHEET_LIST_ID` in `SheetList` for why the container needs an id. */
+const ZOOM_MENU_ID = "fortune-zoom-ratio-menu-popup";
+
 const presets = [
   {
     text: "10%",
@@ -74,6 +77,8 @@ const ZoomControl: React.FC = () => {
     open: radioMenuOpen,
     onClose: () => setRadioMenuOpen(false),
     containerRef: menuRef,
+    // WCAG 2.4.11.
+    closeOnFocusOut: true,
   });
   useRovingFocus({
     containerRef: menuRef,
@@ -125,6 +130,11 @@ const ZoomControl: React.FC = () => {
           role="button"
           aria-haspopup
           aria-expanded={radioMenuOpen}
+          // Named so `isWithinPopup` can match this trigger against the menu's
+          // id and treat it as part of the same widget. Without it, Shift+Tab
+          // from the first preset onto this control read as focus leaving,
+          // closed the menu, and left the next Enter reopening it.
+          aria-controls={radioMenuOpen ? ZOOM_MENU_ID : undefined}
           // no aria-label: it would only repeat the visible "100%" below, and
           // an accessible name that duplicates the text content adds nothing.
           // Naming it "Zoom level: 100%" would read better but needs a new
@@ -133,7 +143,11 @@ const ZoomControl: React.FC = () => {
           {(context.zoomRatio * 100).toFixed(0)}%
         </div>
         {radioMenuOpen && (
-          <div className="fortune-zoom-ratio-menu" ref={menuRef}>
+          <div
+            id={ZOOM_MENU_ID}
+            className="fortune-zoom-ratio-menu"
+            ref={menuRef}
+          >
             {presets.map((v) => (
               <div
                 className="fortune-zoom-ratio-item"

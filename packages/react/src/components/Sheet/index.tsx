@@ -4,6 +4,8 @@ import {
   updateContextWithCanvas,
   updateContextWithSheetData,
   handleGlobalWheel,
+  isOverSelfScrollingElement,
+  shouldCancelGlobalWheel,
   initFreeze,
   Sheet as SheetType,
 } from "@fortune-sheet/core";
@@ -241,16 +243,46 @@ const Sheet: React.FC<Props> = ({ sheet }) => {
 
   const onWheel = useCallback(
     (e: WheelEvent) => {
+      // Cancelling the gesture has to happen here, not inside the recipe
+      // below. setContext hands its recipe to React as a state updater, and
+      // React only runs an updater eagerly while the fiber has no pending
+      // work — during a continuous gesture it usually has, so the recipe runs
+      // in the render pass instead, long after this event finished
+      // dispatching. A preventDefault that late is ignored, and the browser
+      // scrolls whatever is under the cursor on top of the grid scrolling
+      // itself.
+      //
+      // Gated on shouldCancelGlobalWheel rather than on the recipe's own
+      // shouldSkipGlobalWheel: the two agree only over the Find All results
+      // box, which is asking for the browser's scrolling. A gesture over the
+      // grid while a filter menu is open is one the grid declines to scroll
+      // but still cancels, as it did before this branch, so it does not fall
+      // through to whatever contains an embedded workbook.
+      //
+      // The DOM is read once, here, and the answer handed to both halves. The
+      // cancel is decided now; the scroll is decided inside the recipe, which
+      // React usually defers to the render pass — and the box can unmount in
+      // between (Find Next clears the results), so asking again there could
+      // leave a gesture uncancelled *and* scroll the grid. Reading it here is
+      // also what makes `e.currentTarget` available to bound the lookup.
+      //
+      // Note there is no ref and no mirrored context: the question is asked of
+      // the event, so unlike the two revisions before it there is nothing that
+      // can answer for a render that was never committed.
+      const overSelfScroller = isOverSelfScrollingElement(e);
+      if (shouldCancelGlobalWheel(overSelfScroller)) {
+        e.preventDefault();
+      }
       setContext((draftCtx) => {
         handleGlobalWheel(
           draftCtx,
           e,
           refs.globalCache,
           refs.scrollbarX.current!,
-          refs.scrollbarY.current!
+          refs.scrollbarY.current!,
+          overSelfScroller
         );
       });
-      e.preventDefault();
     },
     [refs.globalCache, refs.scrollbarX, refs.scrollbarY, setContext]
   );

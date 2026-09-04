@@ -40,6 +40,7 @@ import _ from "lodash";
 import WorkbookContext from "../../context";
 import "./index.css";
 import Button from "./Button";
+import { MORE_ITEMS_ID } from "./MoreItemsContainer";
 import Divider, { MenuDivider } from "./Divider";
 import Combo from "./Combo";
 import Select, { Option } from "./Select";
@@ -1566,6 +1567,11 @@ const Toolbar: React.FC<{
           <Button
             iconId="more"
             tooltip={toolbar.toolMore}
+            // The disclosure pairing this trigger never had. `controls` is also
+            // what lets the More popup's `closeOnFocusOut` recognise this
+            // button as its own trigger rather than as somewhere outside it.
+            expanded={moreItemsOpen}
+            controls={moreItemsOpen ? MORE_ITEMS_ID : undefined}
             onMouseDown={() => {
               if (moreItemsOpen) {
                 setMoreItems(null);

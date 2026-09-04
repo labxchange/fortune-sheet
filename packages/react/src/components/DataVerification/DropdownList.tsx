@@ -15,6 +15,7 @@ import React, {
 } from "react";
 import WorkbookContext from "../../context";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
+import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import SVGIcon from "../SVGIcon";
 
 import "./index.css";
@@ -34,6 +35,23 @@ const DropDownList: React.FC = () => {
   }, [setContext]);
 
   useOutsideClick(containerRef, close, [close]);
+  /* The only popup here with no Escape at all — an un-ticketed 2.1.1 gap found
+   * while wiring the rest, and the same hook call that adds focus-out
+   * dismissal (2.4.11) fixes it.
+   *
+   * autoFocus is off deliberately: the hook otherwise focuses the first
+   * [role="button"]/[tabindex="0"] on open, and this list is opened by cell
+   * interaction rather than by a menu button — pulling focus into it would be a
+   * behaviour change well past these tickets. restoreFocus is off for the same
+   * reason: there is no trigger to come back to. */
+  useEscapeToClose({
+    open: !!context.dataVerificationDropDownList,
+    onClose: close,
+    containerRef,
+    autoFocus: false,
+    restoreFocus: false,
+    closeOnFocusOut: true,
+  });
 
   // 初始化
   useEffect(() => {

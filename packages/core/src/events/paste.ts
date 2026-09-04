@@ -2046,13 +2046,21 @@ export function handlePaste(ctx: Context, e: ClipboardEvent) {
   }
 }
 
+/**
+ * Paste into the current selection. Returns whether anything was actually
+ * pasted.
+ *
+ * `beforePaste` is the bail-out worth naming: it is a host-app integration
+ * point, so an embedding app that vetoes a paste would otherwise have its users
+ * told the paste succeeded. See the docblock on `sortSelection`.
+ */
 export function handlePasteByClick(
   ctx: Context,
   clipboardData: string,
   triggerType?: string
-) {
+): boolean {
   const allowEdit = isAllowEdit(ctx);
-  if (!allowEdit) return;
+  if (!allowEdit) return false;
 
   if (clipboardData) clipboard.writeHtml(clipboardData);
 
@@ -2063,10 +2071,10 @@ export function handlePasteByClick(
   // 等50毫秒，keyPress事件发生了再去处理数据
   // setTimeout(function () {
   const data = textarea?.innerHTML || textarea?.textContent;
-  if (!data) return;
+  if (!data) return false;
 
   if (ctx.hooks.beforePaste?.(ctx.luckysheet_select_save, data) === false) {
-    return;
+    return false;
   }
 
   if (
@@ -2081,9 +2089,14 @@ export function handlePasteByClick(
     } else {
       pasteHandlerOfCopyPaste(ctx, ctx.luckysheet_copy_save);
     }
-  } else if (data.indexOf("fortune-copy-action-image") > -1) {
+    return true;
+  }
+  if (data.indexOf("fortune-copy-action-image") > -1) {
     // imageCtrl.pasteImgItem();
-  } else if (triggerType !== "btn") {
+    // Image paste is not implemented, so nothing was written.
+    return false;
+  }
+  if (triggerType !== "btn") {
     const isExcelFormula = clipboardData.startsWith("=");
 
     if (isExcelFormula) {
@@ -2091,15 +2104,16 @@ export function handlePasteByClick(
     } else {
       pasteHandler(ctx, clipboardData);
     }
-  } else {
-    // if (isEditMode()) {
-    //   alert(local_drag.pasteMustKeybordAlert);
-    // } else {
-    //   tooltip.info(
-    //     local_drag.pasteMustKeybordAlertHTMLTitle,
-    //     local_drag.pasteMustKeybordAlertHTML
-    //   );
-    // }
+    return true;
   }
+  // if (isEditMode()) {
+  //   alert(local_drag.pasteMustKeybordAlert);
+  // } else {
+  //   tooltip.info(
+  //     local_drag.pasteMustKeybordAlertHTMLTitle,
+  //     local_drag.pasteMustKeybordAlertHTML
+  //   );
+  // }
   // }, 10);
+  return false;
 }

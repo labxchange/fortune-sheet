@@ -17,8 +17,10 @@ import { useAlert } from "../../hooks/useAlert";
 import SVGIcon from "../SVGIcon";
 import {
   activateOnEnterOrSpace,
+  focusAfterCommit,
   mouseDownToggleHandlers,
 } from "../../utils/keyboardActivation";
+import { announce } from "../../hooks/useContextMenuAnnouncements";
 import { SHEET_TAB_MENU_ID } from "../ContextMenu/SheetTab";
 
 type Props = {
@@ -37,7 +39,14 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
   const optionsMenuOpen = context.sheetTabContextMenu?.sheet?.id === sheet.id;
   const isActiveSheet = context.currentSheetId === sheet.id;
   const { showAlert } = useAlert();
-  const { info } = locale(context);
+  const { info, sheetconfig } = locale(context);
+  /**
+   * Set when Escape abandons a rename, and cleared by the blur that follows it.
+   * Leaving the blur to commit the restored text would look harmless — the name
+   * is unchanged, so `editSheetName` succeeds — but a success is exactly what it
+   * would then announce, for a rename the user just cancelled.
+   */
+  const renameCancelled = useRef(false);
 
   useEffect(() => {
     setContext((draftCtx) => {
@@ -79,29 +88,92 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
         range.moveToElementText(editable.current);
         range.select();
       }
+
+      /* Selecting the text does not focus the field, and nothing else here did
+       * either — which is why keyboard rename appeared to work and swallowed
+       * every keystroke (WCAG 2.1.1).
+       *
+       * Deferred rather than called inline because the options menu that
+       * activated Rename is closing in this same commit, and React flushes
+       * every passive-effect *destroy* before any create: useEscapeToClose's
+       * cleanup restores focus to the options caret before this effect body
+       * runs at all. That is an ordering guarantee, not a race, so an inline
+       * focus() here would lose every time. A deferred one lands after the
+       * whole passive phase. */
+      focusAfterCommit(() => editable.current);
     }
 
     // store the current text
     editable.current.dataset.oldText = editable.current.innerText;
   }, [editing]);
 
+  /**
+   * Both exits from rename land here. Focus goes to the tab — the thing the
+   * user acted on, and already in the tab order — rather than to the options
+   * caret, which discloses a menu that is no longer open. Enter previously
+   * called `blur()` and left focus on `<body>` (WCAG 2.4.3).
+   */
+  const leaveEditing = useCallback(() => {
+    setEditing(false);
+    focusAfterCommit(() => containerRef.current);
+  }, []);
+
   const onBlur = useCallback(() => {
+    if (renameCancelled.current) {
+      renameCancelled.current = false;
+      return;
+    }
     setContext((draftCtx) => {
+      const el = editable.current!;
+      const oldName = el.dataset.oldText ?? "";
+      const attempted = el.innerText;
       try {
-        editSheetName(draftCtx, editable.current!);
+        editSheetName(draftCtx, el);
+        /* `editSheetName` restores `oldText` on every rejection — it throws for
+         * an empty or malformed name but returns *quietly* for a duplicate — so
+         * the element's own text is the only reliable signal of success.
+         * Announcing on "did not throw" would speak a rename that never
+         * happened. */
+        if (el.innerText === attempted && attempted !== oldName) {
+          announce(draftCtx, "sheetconfig.announceSheetRenamed", {
+            name: attempted,
+          });
+        }
       } catch (e: any) {
         showAlert(e.message);
       }
     });
-    setEditing(false);
-  }, [setContext, showAlert]);
+    leaveEditing();
+  }, [leaveEditing, setContext, showAlert]);
 
-  const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLSpanElement>) => {
-    if (e.key === "Enter") {
-      editable.current?.blur();
-    }
-    e.stopPropagation();
-  }, []);
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLSpanElement>) => {
+      if (e.key === "Enter") {
+        editable.current?.blur();
+      } else if (e.key === "Escape") {
+        /* Abandon the rename. The text is restored from `dataset.oldText` —
+         * the same value `editSheetName` itself writes back on a rejection, so
+         * this reuses the existing revert rather than adding a second way to
+         * set a sheet name. The flag then suppresses the commit outright
+         * instead of trusting it to be a no-op; see `renameCancelled`. */
+        renameCancelled.current = true;
+        if (editable.current) {
+          editable.current.innerText = editable.current.dataset.oldText ?? "";
+        }
+        setContext((draftCtx) => {
+          announce(draftCtx, "sheetconfig.announceSheetRenameCancelled");
+        });
+        leaveEditing();
+        editable.current?.blur();
+      }
+      /* The grid's own key handling is a React handler on `.fortune-container`,
+       * an ancestor of this span, so this stops Enter and Escape from also
+       * moving the selection. `useRovingFocus` is a *native* listener and
+       * cannot be stopped from here — it excludes contenteditable itself. */
+      e.stopPropagation();
+    },
+    [leaveEditing, setContext]
+  );
 
   const onDragStart = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
@@ -267,6 +339,25 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
         spellCheck="false"
         suppressContentEditableWarning
         contentEditable={isDropPlaceholder ? false : editing}
+        /* Named and typed only while editing (WCAG 4.1.2). A bare
+         * contenteditable is announced inconsistently across screen readers,
+         * and role="textbox" on a span that is not editable would be a lie the
+         * rest of the time — it would also add a second "text field" to every
+         * tab in the strip.
+         *
+         * The name is a generic "Sheet name", not the sheet's own name: the tab
+         * already carries that as its accessible name, so repeating it would
+         * announce the same words twice and convey nothing about there now
+         * being a field to type in.
+         *
+         * On the `role="tab"` ancestor: `tab` is a children-presentational role
+         * in ARIA 1.2, which taken alone would hide this element. Core-AAM
+         * keeps *focusable* descendants in the tree, and a contenteditable is
+         * focusable, so it survives in practice — verified with NVDA and
+         * VoiceOver rather than assumed, because the two specs disagree. */
+        role={editing ? "textbox" : undefined}
+        aria-label={editing ? sheetconfig.sheetNameInputLabel : undefined}
+        aria-multiline={editing ? false : undefined}
         onDoubleClick={() => setEditing(true)}
         onBlur={onBlur}
         onKeyDown={onKeyDown}

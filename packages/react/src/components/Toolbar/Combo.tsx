@@ -78,6 +78,11 @@ const Combo: React.FC<Props> = ({
     open,
     onClose: () => setOpen(false),
     containerRef: popupRef,
+    /* WCAG 2.4.11. The riskiest of the eight: these popups host colour pickers
+     * and native inputs, and opening an OS colour picker takes focus out of the
+     * document entirely. That reports a null relatedTarget, which the hook
+     * never treats as leaving — see the focusout handler. */
+    closeOnFocusOut: true,
   });
 
   useLayoutEffect(() => {

@@ -11603,6 +11603,7 @@ export default {
 
     noRangeError: "不能对多重选择区域执行此操作，请选择单个区域，然后再试",
     mergeError: "选区有合并单元格，无法执行此操作！",
+    nothingToSort: "选区中没有可排序的内容。",
   },
   filter: {
     filter: "筛选",
@@ -11662,6 +11663,8 @@ export default {
 
     valueBlank: "(空白)",
     mergeError: "筛选选区有合并单元格，无法执行此操作！",
+    announceFilterApplied: "已应用筛选。",
+    announceFilteredByColor: "已按颜色筛选。",
   },
   rightclick: {
     copy: "复制",
@@ -11735,6 +11738,41 @@ export default {
     cannotInsertOnColumnReadOnly: "无法对只读列插入",
     rowOverLimit: "超出10000行限制",
     columnOverLimit: "超出1000列限制",
+    createFilter: "创建筛选",
+    removeFilter: "移除筛选",
+
+    insertColumnCountLabel: "要插入的列数",
+    insertRowCountLabel: "要插入的行数",
+    rowHeightLabel: "行高（像素）",
+    columnWidthLabel: "列宽（像素）",
+
+    announceCopied: "已复制所选内容。",
+    announcePasted: "已粘贴所选内容。",
+    announceColumnInsertedLeft: "已在左侧插入 1 列。",
+    announceColumnsInsertedLeft: "已在左侧插入 ${count} 列。",
+    announceColumnInsertedRight: "已在右侧插入 1 列。",
+    announceColumnsInsertedRight: "已在右侧插入 ${count} 列。",
+    announceRowInsertedAbove: "已在上方插入 1 行。",
+    announceRowsInsertedAbove: "已在上方插入 ${count} 行。",
+    announceRowInsertedBelow: "已在下方插入 1 行。",
+    announceRowsInsertedBelow: "已在下方插入 ${count} 行。",
+    announceColumnDeleted: "已删除 1 列。",
+    announceColumnsDeleted: "已删除 ${count} 列。",
+    announceRowDeleted: "已删除 1 行。",
+    announceRowsDeleted: "已删除 ${count} 行。",
+    announceRowHidden: "已隐藏 1 行。",
+    announceRowsHidden: "已隐藏 ${count} 行。",
+    announceColumnHidden: "已隐藏 1 列。",
+    announceColumnsHidden: "已隐藏 ${count} 列。",
+    announceCleared: "已清除内容。",
+    announceRowsShown: "已显示隐藏的行。",
+    announceColumnsShown: "已显示隐藏的列。",
+    announceRowHeightSet: "行高已设置为 ${value} 像素。",
+    announceColumnWidthSet: "列宽已设置为 ${value} 像素。",
+    announceSortedAsc: "已按升序排列。",
+    announceSortedDesc: "已按降序排列。",
+    announceFilterCreated: "已创建筛选。",
+    announceFilterRemoved: "已移除筛选。",
   },
   comment: {
     insert: "新建批注",
@@ -11802,6 +11840,13 @@ export default {
     space: "空格",
   },
   findAndReplace: {
+    resultRowLabel: "工作表 ${sheet}，单元格 ${cell}，值 ${value}",
+    resultsListName: "搜索结果",
+    resultsUsageHint: "激活某个结果以跳转到该单元格",
+    matchesFoundTip: "找到 ${xlength} 处匹配",
+    replacedTip: "已替换 ${xlength} 处",
+    resultsShownTip: "已显示结果列表",
+    dialogTitle: "查找替换",
     find: "查找",
     replace: "替换",
     goto: "转到",
@@ -11873,6 +11918,10 @@ export default {
     cancelText: "取消",
     chooseText: "确定颜色",
     focus: "聚焦",
+
+    sheetNameInputLabel: "工作表名称",
+    announceSheetRenamed: "工作表已重命名为 ${name}。",
+    announceSheetRenameCancelled: "已取消重命名。",
 
     tipNameRepeat: "标签页的名称不能重复！请重新修改",
     noMoreSheet:
