@@ -19,6 +19,7 @@ import {
 } from "@fortune-sheet/core";
 import WorkbookContext from "../../context";
 import { markAsRepeat } from "../../utils/liveRegion";
+import { focusAfterCommit } from "../../utils/keyboardActivation";
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -254,24 +255,22 @@ const LocationBox: React.FC = () => {
     // this: it would strand whoever mistyped.
     //
     // The target is the cell input, which is exactly where a plain click on a
-    // cell leaves focus (`cellAreaMouseDown`), deferred the same way so the
-    // input is in position first. Focusing the grid *root* was the obvious
+    // cell leaves focus (`cellAreaMouseDown`), deferred through
+    // `focusAfterCommit` so the input is in position first and a detached one
+    // is left alone rather than focused, which would drop focus on <body>. Focusing the grid *root* was the obvious
     // choice and was wrong: it is an unnamed container with focusable
     // descendants, so a screen reader landing there navigated into it and read
     // the first thing it found — announcing "Select all cells" to a user who
     // had just navigated somewhere else entirely. The cell input is carved out
     // of `handleGlobalKeyDown`'s grid guard by name, so the arrows still work
     // from it, and focusing it does not begin editing — a click proves both.
-    setTimeout(() => {
-      const cellInput = refs.cellInput.current;
-      if (cellInput) {
-        cellInput.focus();
-        return;
-      }
-      refs.workbookContainer.current
-        ?.querySelector<HTMLElement>(`.${GRID_ROOT_CLASS}`)
-        ?.focus();
-    });
+    focusAfterCommit(
+      () =>
+        refs.cellInput.current ??
+        refs.workbookContainer.current?.querySelector<HTMLElement>(
+          `.${GRID_ROOT_CLASS}`
+        )
+    );
   }, [
     announce,
     context,

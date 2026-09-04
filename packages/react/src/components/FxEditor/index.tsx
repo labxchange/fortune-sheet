@@ -127,7 +127,7 @@ const FxEditor: React.FC = () => {
        * Nothing else does it. `moveToEnd` is called from `InputBox` alone, and
        * only when `globalCache.doNotFocus` is unset — which the recipe above
        * sets, deliberately, to stop the cell input pulling focus back out of
-       * the formula bar. That left the caret whereever the browser puts it in a
+       * the formula bar. That left the caret wherever the browser puts it in a
        * freshly focused contenteditable, which is offset 0.
        *
        * Synchronous, unlike `InputBox`'s deferred call: the value in this field

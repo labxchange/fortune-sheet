@@ -59,7 +59,10 @@ import { useNameBoxClampAnnouncement } from "../../hooks/useNameBoxClampAnnounce
 import { useContextMenuAnnouncements } from "../../hooks/useContextMenuAnnouncements";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
-import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
+import {
+  activateOnEnterOrSpace,
+  focusAfterCommit,
+} from "../../utils/keyboardActivation";
 
 const SheetOverlay: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
@@ -478,22 +481,22 @@ const SheetOverlay: React.FC = () => {
       draftCtx.scrollLeft = 0;
     });
 
-    // The cell input, exactly where a plain click on a cell leaves focus, and
-    // deferred the same way the name box defers it so the grid has repositioned
-    // it onto A1 first. The grid *root* is the wrong target: it is an unnamed
-    // container whose first focusable descendant is the select-all corner, so a
-    // screen reader landing there announces "Select all cells" instead of the
-    // cell the user just travelled to.
-    setTimeout(() => {
-      const cellInput = refs.cellInput.current;
-      if (cellInput) {
-        cellInput.focus();
-        return;
-      }
-      refs.workbookContainer.current
-        ?.querySelector<HTMLElement>(`.${GRID_ROOT_CLASS}`)
-        ?.focus();
-    });
+    // The cell input, exactly where a plain click on a cell leaves focus,
+    // deferred through `focusAfterCommit` so the grid has repositioned it onto
+    // A1 first — and so a cell input that is gone by then is left alone rather
+    // than focused while detached, which would drop focus on <body>. The grid
+    // *root* is the wrong target: it is an unnamed container whose first
+    // focusable descendant is the select-all corner, so a screen reader landing
+    // there announces "Select all cells" instead of the cell the user just
+    // travelled to. The fallback lives inside the getter, where the helper
+    // wants it, since what still exists is only knowable in the timeout.
+    focusAfterCommit(
+      () =>
+        refs.cellInput.current ??
+        refs.workbookContainer.current?.querySelector<HTMLElement>(
+          `.${GRID_ROOT_CLASS}`
+        )
+    );
   }, [refs.cellInput, refs.workbookContainer, setContext]);
 
   useEffect(() => {
