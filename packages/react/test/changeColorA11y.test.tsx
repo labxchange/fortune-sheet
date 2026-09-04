@@ -235,6 +235,14 @@ describe("Change Color accessibility", () => {
     // palette grid covers only its 64 fixed colours.
     const hexField = (root: HTMLElement) =>
       root.querySelector<HTMLInputElement>(".fortune-color-hex-input")!;
+    // The field carries its own region: a refusal belongs to the control that
+    // refused, not to the toolbar's status region, which is reporting colours
+    // that were actually applied.
+    const fieldAlert = (root: HTMLElement) =>
+      root.querySelector<HTMLElement>(
+        '.fortune-color-hex-input ~ [role="alert"]'
+      )!;
+    const NOT_A_COLOR = "Not a color. Type a hex value such as #1a73e8.";
 
     it("is present and named", () => {
       const { getByRole, getByText } = render(
@@ -290,9 +298,10 @@ describe("Change Color accessibility", () => {
       expect(status()).toContain("#aabbcc");
     });
 
-    it("ignores text that is not a colour, and restores the last good value", () => {
-      // Silence rather than an error: the field is typed into a character at a
-      // time, so every prefix of a valid colour would otherwise be a mistake.
+    it("says so when the text is not a colour, and restores the last good value", () => {
+      // Reverting in silence was the defect: no outcome and no reason, in the
+      // control this work adds (WCAG 3.3.1). The sheet is still left alone —
+      // `status()` reports colours that were applied, and none was.
       const { getByRole, getByText } = render(
         <Workbook data={[{ name: "Sheet1" }]} />
       );
@@ -303,10 +312,71 @@ describe("Change Color accessibility", () => {
       fireEvent.change(field, { target: { value: "not a colour" } });
       fireEvent.keyDown(field, { key: "Enter" });
 
-      // Nothing applied, and the field is put back to the colour that is
-      // actually in force rather than left holding text that is not one.
       expect(status()).toBe("");
       expect(field.value).toBe("#000000");
+      expect(fieldAlert(submenu).textContent).toBe(NOT_A_COLOR);
+      expect(field.getAttribute("aria-invalid")).toBe("true");
+    });
+
+    it("stays quiet while a colour is only half-typed", () => {
+      // The field is typed into a character at a time, so every prefix of a
+      // valid colour would otherwise be announced as a mistake. Only an
+      // explicit commit is answered.
+      const { getByRole, getByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      const { submenu } = openChangeColor(getByRole, getByText);
+      const field = hexField(submenu);
+
+      fireEvent.focus(field);
+      fireEvent.change(field, { target: { value: "#12" } });
+
+      expect(fieldAlert(submenu).textContent).toBe("");
+      expect(field.getAttribute("aria-invalid")).toBeNull();
+    });
+
+    it("speaks a second refusal too, having cleared the region between them", () => {
+      // A live region speaks only what *changed*, so a refusal that follows an
+      // identical one is silent. That cannot arise here, and this pins why:
+      // failing reverts the field to the colour in force, so reaching a second
+      // refusal means typing, and typing clears the region on the way.
+      const { getByRole, getByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      const { submenu } = openChangeColor(getByRole, getByText);
+      const field = hexField(submenu);
+
+      fireEvent.focus(field);
+      fireEvent.change(field, { target: { value: "reddish" } });
+      fireEvent.keyDown(field, { key: "Enter" });
+      expect(fieldAlert(submenu).textContent).toBe(NOT_A_COLOR);
+
+      // The revert already happened, so this is a fresh edit, not a retry.
+      fireEvent.change(field, { target: { value: "reddish" } });
+      expect(fieldAlert(submenu).textContent).toBe("");
+
+      fireEvent.keyDown(field, { key: "Enter" });
+      expect(fieldAlert(submenu).textContent).toBe(NOT_A_COLOR);
+    });
+
+    it("clears the refusal as soon as the text changes", () => {
+      const { getByRole, getByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      const { submenu } = openChangeColor(getByRole, getByText);
+      const field = hexField(submenu);
+
+      fireEvent.focus(field);
+      fireEvent.change(field, { target: { value: "nope" } });
+      fireEvent.keyDown(field, { key: "Enter" });
+      expect(fieldAlert(submenu).textContent).toBe(NOT_A_COLOR);
+
+      fireEvent.change(field, { target: { value: "#abc" } });
+
+      // The judgement was about text the field no longer holds; leaving
+      // `aria-invalid` set would mark a value nobody has judged yet.
+      expect(fieldAlert(submenu).textContent).toBe("");
+      expect(field.getAttribute("aria-invalid")).toBeNull();
     });
 
     it("leaves the sheet alone when the field is only tabbed through", () => {

@@ -595,28 +595,27 @@ const SheetOverlay: React.FC = () => {
    *
    * With the mount selection written as a real cell, the malformation is gone
    * and the intro went with it. Asking the question directly is what it should
-   * always have been: it is shown until the selection changes, and reset when
-   * the sheet does, since arriving on a different sheet is arriving somewhere
-   * new. The `NaN` guard stays below as a guard — a selection can still reach
-   * here unresolved through `setSelection` or imported data — but it no longer
+   * always have been: it is shown until the selection moves, and not again.
+   * The `NaN` guard stays below as a guard — a selection can still reach here
+   * unresolved through `setSelection` or imported data — but it no longer
    * doubles as the trigger for a message about something else.
    *
-   * The visible consequence, stated so it is not read later as a regression:
-   * switching to a sheet that already has a selection now announces the intro
-   * rather than that cell's value, where before the reset it announced the
-   * value. That is the intended trade — the reference is still spoken either
-   * way, and the alternative is a grid whose only "how to move" hint is
-   * unreachable for anyone who did not arrive at mount.
+   * Latched for the workbook rather than cleared per sheet. Clearing it made
+   * a return to a sheet already moved in re-read the intro in place of that
+   * cell's value — on every switch, on a region a screen reader cannot skip,
+   * for a move as ordinary as comparing two sheets. Upstream never did that:
+   * its only trigger was the malformed range, so a switch always spoke the
+   * value. Keeping the hint to the one grid nobody has moved in yet costs a
+   * later sheet its hint, which is what upstream gave that case too.
    */
   const [selectionHasMoved, setSelectionHasMoved] = useState(false);
   const arrivedAtRef = useRef<string | null>(null);
   useEffect(() => {
-    // Seeded here rather than cleared to null, so that switching between two
-    // sheets whose selections read the same leaves a reference to compare
-    // against: `rangeText` would not change, the effect below would not run,
-    // and the first real move on the new sheet would be spent re-seeding
-    // instead of clearing the intro.
-    setSelectionHasMoved(false);
+    // Seeded rather than cleared, so that switching between two sheets whose
+    // selections read the same leaves a reference to compare against:
+    // `rangeText` would not change, the effect below would not run, and the
+    // first real move on the new sheet would be spent re-seeding instead of
+    // clearing the intro.
     arrivedAtRef.current = rangeText || null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context.currentSheetId]);

@@ -77,6 +77,42 @@ describe("the selection a sheet mounts with", () => {
     expect(region.textContent).not.toContain("Use the arrow keys");
   });
 
+  it("does not repeat the intro when a sheet is left and returned to", async () => {
+    // The intro used to be cleared on every sheet switch, which made hopping
+    // between two sheets re-read "use the arrow keys" in place of the cell
+    // value — every time, on a region a screen reader cannot skip, for a move
+    // as ordinary as comparing two sheets. Upstream always spoke the value
+    // here, because its only trigger was a malformed range.
+    const { container, ref } = renderSheet({
+      data: [
+        { name: "Sheet1", id: "s1", row: 10, column: 6 },
+        { name: "Sheet2", id: "s2", row: 10, column: 6 },
+      ],
+    });
+    await flush();
+
+    const region = container.querySelector("#sr-selection")!;
+    expect(region.textContent).toContain("Use the arrow keys");
+
+    act(() => {
+      ref.current?.setSelection([{ row: [1, 1], column: [0, 0] }]);
+    });
+    await flush();
+    expect(region.textContent).not.toContain("Use the arrow keys");
+
+    act(() => {
+      ref.current?.activateSheet({ id: "s2" });
+    });
+    await flush();
+    expect(region.textContent).not.toContain("Use the arrow keys");
+
+    act(() => {
+      ref.current?.activateSheet({ id: "s1" });
+    });
+    await flush();
+    expect(region.textContent).not.toContain("Use the arrow keys");
+  });
+
   it("leaves a sheet that brought its own selection alone", async () => {
     const { ref } = renderSheet({
       data: [

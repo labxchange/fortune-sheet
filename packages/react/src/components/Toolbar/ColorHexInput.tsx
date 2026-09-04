@@ -46,9 +46,17 @@ type Props = {
  * colour reachable.
  *
  * The field is deliberately forgiving about what it accepts (`abc`, `#abc`,
- * `AABBCC`) and silent about what it rejects: it commits on a valid colour and
- * otherwise leaves the last good one standing, so a half-typed value is never
- * treated as a colour and never announced as an error mid-keystroke.
+ * `AABBCC`) and quiet about what it rejects *mid-entry*: it commits on a valid
+ * colour and otherwise leaves the last good one standing, so a half-typed
+ * value is never treated as a colour nor announced as an error keystroke by
+ * keystroke.
+ *
+ * An explicit commit is different, and used to be silent too. Typing something
+ * that is not a colour and pressing Enter reverted the text and said nothing —
+ * no outcome, no reason — which is exactly the defect this work exists to
+ * remove, in the one control it adds. Failing that way is now spoken
+ * (WCAG 3.3.1), from Enter and from a blur that carried an edit, and never
+ * from typing.
  */
 const ColorHexInput: React.FC<Props> = ({
   value,
@@ -59,6 +67,9 @@ const ColorHexInput: React.FC<Props> = ({
   const { info } = locale(context);
   const [draft, setDraft] = useState(value ?? "");
   const [editing, setEditing] = useState(false);
+  // The message itself rather than a flag, so the region below holds "" while
+  // there is nothing wrong and a screen reader is told only on the change.
+  const [errorMessage, setErrorMessage] = useState("");
 
   // Ending is not the same as blurring: removing a focused node fires no blur
   // event. `useEscapeToClose` is capture-phase, so one Escape typed in here
@@ -79,50 +90,78 @@ const ColorHexInput: React.FC<Props> = ({
 
   const commit = (raw: string) => {
     const hex = normalizeHex(raw);
-    if (hex) onCommit(hex);
-    else setDraft(value ?? "");
+    if (hex) {
+      setErrorMessage("");
+      onCommit(hex);
+      return;
+    }
+    // No `markAsRepeat` needed, unusually for a live region here: the same
+    // refusal can never follow itself. Failing reverts the draft to the colour
+    // in force, so a second Enter is pressed on valid text, and reaching a
+    // second refusal means typing — which clears this back to "" on the way.
+    // The region therefore always moves from "" to the message, and every
+    // refusal is spoken.
+    setErrorMessage(info.hexColorInvalid);
+    setDraft(value ?? "");
   };
 
   return (
-    <input
-      type="text"
-      className="fortune-color-hex-input"
-      aria-label={info.hexColorInput}
-      placeholder="#000000"
-      maxLength={7}
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onFocus={() => {
-        setEditing(true);
-        onEditingChange?.(true);
-      }}
-      onBlur={(e) => {
-        setEditing(false);
-        onEditingChange?.(false);
-        // Only a value the user actually changed is a request to apply one, so
-        // that passing through the field is inert. `draft` is seeded from
-        // `value`, which makes a pristine field already hold a valid colour;
-        // committing on every blur therefore applied one — and announced it —
-        // to a keyboard user who did nothing but Tab past this control on the
-        // way to Confirm. Enter stays unconditional: that one is an explicit
-        // ask, and reapplying the colour already in force is harmless.
-        if (normalizeHex(e.target.value) !== normalizeHex(value ?? "")) {
-          commit(e.target.value);
-        } else {
-          setDraft(value ?? "");
-        }
-      }}
-      onKeyDown={(e) => {
-        // Enter applies without waiting for blur. Stopped here so it does not
-        // reach the popup's own controls, whose activation handlers would
-        // otherwise treat it as pressing whatever contains this field.
-        if (e.key === "Enter") {
-          e.preventDefault();
-          e.stopPropagation();
-          commit(e.currentTarget.value);
-        }
-      }}
-    />
+    <>
+      <input
+        type="text"
+        className="fortune-color-hex-input"
+        aria-label={info.hexColorInput}
+        aria-invalid={errorMessage ? true : undefined}
+        placeholder="#000000"
+        maxLength={7}
+        value={draft}
+        // Typing clears the refusal: it was about text that is no longer what
+        // the field holds, and leaving `aria-invalid` set would mark a value
+        // nobody has judged yet.
+        onChange={(e) => {
+          setErrorMessage("");
+          setDraft(e.target.value);
+        }}
+        onFocus={() => {
+          setEditing(true);
+          onEditingChange?.(true);
+        }}
+        onBlur={(e) => {
+          setEditing(false);
+          onEditingChange?.(false);
+          // Only a value the user actually changed is a request to apply one,
+          // so that passing through the field is inert. `draft` is seeded from
+          // `value`, which makes a pristine field already hold a valid colour;
+          // committing on every blur therefore applied one — and announced it —
+          // to a keyboard user who did nothing but Tab past this control on the
+          // way to Confirm. Enter stays unconditional: that one is an explicit
+          // ask, and reapplying the colour already in force is harmless.
+          if (normalizeHex(e.target.value) !== normalizeHex(value ?? "")) {
+            commit(e.target.value);
+          } else {
+            setDraft(value ?? "");
+          }
+        }}
+        onKeyDown={(e) => {
+          // Enter applies without waiting for blur. Stopped here so it does not
+          // reach the popup's own controls, whose activation handlers would
+          // otherwise treat it as pressing whatever contains this field.
+          if (e.key === "Enter") {
+            e.preventDefault();
+            e.stopPropagation();
+            commit(e.currentTarget.value);
+          }
+        }}
+      />
+      {/* Assertive, and carried here rather than in the toolbar's own region:
+          the refusal belongs to this field, and Enter leaves focus inside it,
+          so there is no cell announcement for it to talk over. Not wired to
+          `aria-describedby` as well — a described-by string is read with the
+          field's name, which would say it twice. */}
+      <span className="sr-only" role="alert">
+        {errorMessage}
+      </span>
+    </>
   );
 };
 
