@@ -96,7 +96,12 @@ const Dialog: React.FC<Props> = ({
     restoreFocus: false,
   });
 
-  useDialogFocus(dialogRef, initialFocusRef);
+  // `deferRestore`: this dialog's close is usually also a commit whose result a
+  // screen reader hears through the focus utterance of wherever focus lands, so
+  // the restore has to run after the announcement reaches the DOM. See the
+  // hook's cleanup. `SearchReplace` has no such announcement and stays
+  // synchronous.
+  useDialogFocus(dialogRef, initialFocusRef, undefined, true);
 
   return (
     <div
@@ -105,20 +110,18 @@ const Dialog: React.FC<Props> = ({
       ref={dialogRef}
       role={role}
       aria-modal="true"
-      // Callers that own a heading pass its id — the `labelledBy` prop the
-      // comment here used to defer to, now that a caller (ShortcutsDialog)
-      // needs it:
-      // https://app.asana.com/1/1201629421181554/project/1210962482862973/task/1217671504196361
+      // Callers that own a heading pass its id, by either route: ShortcutsDialog
+      // renders `Dialog` directly, and `useDialog.showDialog` forwards a
+      // `labelledBy` from its options — which is how the Sort modal points at
+      // its own "Sort range from A1 to D20" heading.
       //
-      // Callers that pass nothing still name themselves by content:
-      // role="dialog" plus aria-modal already has AT announce the role and read
-      // what is inside, and the hardcoded, untranslated aria-label="Dialog"
-      // that used to be here added nothing over the role. (It was paired with
-      // an aria-labelledby pointing at #fortune-sort-title, which exists only
-      // inside CustomSort, so every other dialog referenced a missing element.)
-      // Those callers do still trip axe's aria-dialog-name rule, which the
-      // useless "Dialog" name used to satisfy — the task above stays open until
-      // showDialog threads a name through for them too.
+      // Callers that pass nothing name themselves by content: role="dialog" plus
+      // aria-modal already has AT announce the role and read what is inside, and
+      // the hardcoded, untranslated aria-label="Dialog" that used to be here
+      // added nothing. They do still trip axe's aria-dialog-name rule; the
+      // mechanism now exists, what is left is each of them passing a name —
+      // SearchReplace and ConditionFormat in particular:
+      // https://app.asana.com/1/1201629421181554/project/1210962482862973/task/1217671504196361
       aria-labelledby={labelledBy}
       tabIndex={-1}
     >

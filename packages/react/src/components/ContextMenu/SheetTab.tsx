@@ -1,4 +1,4 @@
-import { locale, deleteSheet, api } from "@fortune-sheet/core";
+import { locale, deleteSheet, api, Context } from "@fortune-sheet/core";
 import _ from "lodash";
 import React, {
   useContext,
@@ -60,7 +60,14 @@ const SheetTabContextMenu: React.FC = () => {
 
   useOutsideClick(containerRef, close, [close]);
   const isOpen = sheet != null && x != null && y != null;
-  useEscapeToClose({ open: isOpen, onClose: close, containerRef });
+  useEscapeToClose({
+    open: isOpen,
+    onClose: close,
+    containerRef,
+    // WCAG 2.4.11. No withinRefs: unlike FilterMenu's, this menu's Change-color
+    // submenu renders *inside* containerRef, so contains() already covers it.
+    closeOnFocusOut: true,
+  });
   useRovingFocus({ containerRef, orientation: "vertical", enabled: isOpen });
   useEscapeToClose({
     open: isShowChangeColor,
@@ -77,6 +84,20 @@ const SheetTabContextMenu: React.FC = () => {
     boundaryRef: refs.workbookContainer,
   });
 
+  /**
+   * Where the sheet sits among the *visible* sheets — the position the tab
+   * strip shows and the announcement reports. Used to tell a real move from
+   * a no-op one (see moveSheet).
+   */
+  const visibleIndexOf = useCallback(
+    (ctx: Context) =>
+      _.sortBy(
+        ctx.luckysheetfile.filter((oneSheet) => oneSheet.hide !== 1),
+        (oneSheet) => Number(oneSheet.order)
+      ).findIndex((oneSheet) => oneSheet.id === sheet?.id),
+    [sheet?.id]
+  );
+
   const moveSheet = useCallback(
     (delta: number) => {
       if (context.allowEdit === false) return;
@@ -89,10 +110,21 @@ const SheetTabContextMenu: React.FC = () => {
             currentOrder = i;
           }
         });
+        const positionBefore = visibleIndexOf(ctx);
         api.setSheetOrder(ctx, { [sheet.id!]: currentOrder + delta });
+        // Only announce when the sheet actually changed visible position:
+        // setSheetOrder re-normalises orders from 0, so a move past either
+        // end is a no-op, and a ±1.5 hop over a hidden neighbour changes the
+        // all-sheets order without moving the sheet in the tab strip.
+        // The menu only opens for the current sheet, so the announcement
+        // hook can read the new position off currentSheetId — this counter
+        // just marks that a move happened at all.
+        if (visibleIndexOf(ctx) !== positionBefore) {
+          ctx.sheetTabMoveCount = (ctx.sheetTabMoveCount ?? 0) + 1;
+        }
       });
     },
-    [context.allowEdit, setContext, sheet]
+    [context.allowEdit, setContext, sheet, visibleIndexOf]
   );
 
   const hideSheet = useCallback(() => {

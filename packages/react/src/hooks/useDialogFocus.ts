@@ -1,4 +1,5 @@
 import { useEffect, RefObject } from "react";
+import { focusAfterCommit } from "../utils/keyboardActivation";
 
 const FOCUSABLE =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -46,11 +47,17 @@ const DISABLED = '[disabled], [aria-disabled="true"]';
  * document — a dialog opened from a control that the dialog's own work then
  * removed. Without it that case lands on <body>, which is the same lost-focus
  * failure the restore exists to prevent, just reached by a different route.
+ *
+ * `deferRestore` decides *when* the restore runs, and only `Dialog` needs it —
+ * see the cleanup for the full reasoning. It defaults to the synchronous
+ * restore this hook was extracted with, so `SearchReplace`, which has no
+ * announcement riding the focus utterance, keeps exactly the behaviour it had.
  */
 export function useDialogFocus(
   dialogRef: RefObject<HTMLElement | null>,
   initialFocusRef?: RefObject<HTMLElement | null>,
-  fallbackFocusRef?: RefObject<HTMLElement | null>
+  fallbackFocusRef?: RefObject<HTMLElement | null>,
+  deferRestore = false
 ): void {
   useEffect(() => {
     const previousActiveElement = document.activeElement as HTMLElement | null;
@@ -108,22 +115,50 @@ export function useDialogFocus(
     dialog.addEventListener("keydown", trapFocus);
     return () => {
       dialog.removeEventListener("keydown", trapFocus);
-      // Focusing a detached node does nothing at all — focus is left exactly
-      // where it is, which as this dialog unmounts means it goes to <body>
-      // along with the element being removed. That is the failure this restore
-      // exists to prevent, so a vanished opener is not focused and quietly
-      // relied on; it is handed to the fallback instead.
-      if (previousActiveElement?.isConnected) {
-        previousActiveElement.focus();
-      } else if (fallbackFocusRef?.current?.isConnected) {
-        // Read at close time, not captured when the dialog opened: the node
-        // this points at is owned by the workbook and can be replaced while
-        // the dialog is up, and a captured one would by then be detached — so
-        // focusing it would be a no-op and focus would fall to <body> with the
-        // unmounting dialog, exactly what this branch is here to avoid.
+      /*
+       * Focusing a detached node does nothing at all — focus is left exactly
+       * where it is, which as this dialog unmounts means it goes to <body>
+       * along with the element being removed. That is the failure this restore
+       * exists to prevent, so a vanished opener is not focused and quietly
+       * relied on; it is handed to the fallback instead.
+       *
+       * `fallbackFocusRef` is read at close time, not captured when the dialog
+       * opened: the node it points at is owned by the workbook and can be
+       * replaced while the dialog is up, and a captured one would by then be
+       * detached.
+       */
+      const restore = () => {
+        if (previousActiveElement?.isConnected) return previousActiveElement;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        fallbackFocusRef.current.focus();
+        return fallbackFocusRef?.current ?? null;
+      };
+
+      if (!deferRestore) {
+        const target = restore();
+        if (target?.isConnected) target.focus();
+        return;
       }
+
+      /*
+       * `Dialog` only. The restore is a focus change, and focus changes have to
+       * go last (the reasoning `focusAfterCommit` documents at length).
+       *
+       * An action that closes a dialog usually also commits something, and the
+       * status of what it committed reaches a screen reader through the focus
+       * utterance of the element focus lands on — `useContextMenuAnnouncements`
+       * writes the text and points the cell input's `aria-describedby` at it,
+       * rather than racing a live region the focus change would discard. That
+       * write happens in a passive *mount* effect, and React runs passive
+       * unmount cleanups first, so restoring focus from here inline beat the
+       * announcement into the DOM every time: the Sort modal's Sort button
+       * composed "text entry area, blank, main" and never mentioned the sort.
+       *
+       * `focusAfterCommit` re-checks `isConnected` inside the timeout, so an
+       * opener that goes away in the meantime is left alone rather than
+       * focused as a detached node — and because `restore` runs in there too,
+       * the fallback is chosen against the DOM as it stands then.
+       */
+      focusAfterCommit(restore);
     };
-  }, [dialogRef, initialFocusRef, fallbackFocusRef]);
+  }, [dialogRef, initialFocusRef, fallbackFocusRef, deferRestore]);
 }

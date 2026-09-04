@@ -13,7 +13,11 @@ import SVGIcon from "../SVGIcon";
 import "./index.css";
 import SheetItem from "./SheetItem";
 import ZoomControl from "../ZoomControl";
+import { SHEET_LIST_ID } from "../SheetList";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
+import { useSheetSwitchAnnouncement } from "../../hooks/useSheetSwitchAnnouncement";
+import { useSheetTabMoveAnnouncement } from "../../hooks/useSheetTabMoveAnnouncement";
+import { useSheetTabColorAnnouncement } from "../../hooks/useSheetTabColorAnnouncement";
 import {
   activateOnEnterOrSpace,
   mouseDownToggleHandlers,
@@ -28,6 +32,9 @@ const SheetTab: React.FC = () => {
   const [isShowScrollBtn, setIsShowScrollBtn] = useState<boolean>(false);
   const [isShowBoundary, setIsShowBoundary] = useState<boolean>(true);
   const { info } = locale(context);
+  const sheetSwitchAnnouncement = useSheetSwitchAnnouncement(context, info);
+  const sheetMoveAnnouncement = useSheetTabMoveAnnouncement(context, info);
+  const sheetColorAnnouncement = useSheetTabColorAnnouncement(context, info);
 
   useRovingFocus({
     containerRef: tabContainerRef,
@@ -89,7 +96,27 @@ const SheetTab: React.FC = () => {
       onContextMenu={(e) => e.preventDefault()}
       id="luckysheet-sheet-area"
     >
-      <div id="luckysheet-sheet-content">
+      {/*
+        A landmark, so the sheet switcher can be jumped to from a screen
+        reader's landmark list (WCAG 1.3.1). Every other region of the chrome
+        was already one — banner for the toolbar, complementary for the formula
+        bar and the zoom control, main for the grid — leaving this strip the
+        one set of controls reachable only by walking there.
+
+        `region` rather than `nav`: the strip is not purely navigation, since
+        the add-sheet button creates something rather than going anywhere. A
+        region counts as a landmark only while it has an accessible name, so
+        the label below is load-bearing, not decoration.
+
+        On this element rather than its parent: the parent also holds
+        ZoomControl, whose own `complementary` would then nest inside a region
+        named for the sheet tabs.
+      */}
+      <div
+        id="luckysheet-sheet-content"
+        role="region"
+        aria-label={info.sheetTabs}
+      >
         {context.allowEdit && (
           <div
             className="fortune-sheettab-button"
@@ -113,6 +140,13 @@ const SheetTab: React.FC = () => {
               aria-label={info.allSheets}
               aria-haspopup
               aria-expanded={!!context.showSheetList}
+              // Completes the pairing this button already half had, and is what
+              // lets `isWithinPopup` recognise it as part of the sheet list
+              // rather than as somewhere outside it — without which Shift+Tab
+              // onto this button closes the list and the next Enter reopens it.
+              // Only while open: an `aria-controls` naming an element that is
+              // not in the document is itself a defect.
+              aria-controls={context.showSheetList ? SHEET_LIST_ID : undefined}
               {...mouseDownToggleHandlers(() => {
                 setContext((ctx) => {
                   ctx.showSheetList = _.isUndefined(ctx.showSheetList)
@@ -194,6 +228,29 @@ const SheetTab: React.FC = () => {
             <SVGIcon name="arrow-doubleright" width={12} height={12} />
           </div>
         )}
+      </div>
+      {/* Sheet tab actions have no other feedback a screen reader picks up:
+          the dropdown and Alt+Arrow shortcut switch sheets without moving
+          focus onto the new tab, and Move left/right and tab colour are
+          silent, visual-only changes. Polite, since none of these compete
+          with an in-progress alert the way the grid's own selection does.
+
+          These live with the controls they describe, which means they ride on
+          `showSheetTabs` along with the rest of this bar. Move and colour are
+          only reachable from the tabs, so that is right for them; the Alt+Arrow
+          switch shortcut also works from the grid, so with the bar hidden a
+          switch is unannounced again. Hoisting a region into `Workbook` for
+          that one case would put it outside the component that owns the state
+          it reports, so it stays here until a workbook that hides its tabs and
+          still switches sheets by shortcut is a case someone has. */}
+      <div id="sr-sheetSwitch" className="sr-only" role="status">
+        {sheetSwitchAnnouncement}
+      </div>
+      <div id="sr-sheetMove" className="sr-only" role="status">
+        {sheetMoveAnnouncement}
+      </div>
+      <div id="sr-sheetColor" className="sr-only" role="status">
+        {sheetColorAnnouncement}
       </div>
       <div className="fortune-sheet-area-right">
         <ZoomControl />

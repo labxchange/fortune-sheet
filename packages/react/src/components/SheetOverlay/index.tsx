@@ -37,6 +37,7 @@ import {
   api,
   GRID_ROOT_CLASS,
   endSelectionModeOnFocusLeave,
+  normalizeSelection,
 } from "@fortune-sheet/core";
 import _ from "lodash";
 import WorkbookContext, { SetContextOptions } from "../../context";
@@ -56,9 +57,13 @@ import { useFilterAnnouncements } from "../../hooks/useFilterAnnouncements";
 import { useSelectionModeAnnouncement } from "../../hooks/useSelectionModeAnnouncement";
 import { useSelectAllAnnouncement } from "../../hooks/useSelectAllAnnouncement";
 import { useNameBoxClampAnnouncement } from "../../hooks/useNameBoxClampAnnouncement";
+import { useContextMenuAnnouncements } from "../../hooks/useContextMenuAnnouncements";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
-import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
+import {
+  activateOnEnterOrSpace,
+  focusAfterCommit,
+} from "../../utils/keyboardActivation";
 
 const SheetOverlay: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
@@ -444,6 +449,57 @@ const SheetOverlay: React.FC = () => {
     );
   }, [context, rightclick.rowOverLimit, setContext, showAlert]);
 
+  /**
+   * "Back to the top" — the second button in the bottom add-row strip.
+   *
+   * It used to set `scrollTop` and nothing else, which moved the viewport out
+   * from under the selection: from row 989 the grid showed row 1 while the
+   * active cell, the name box and `#sr-selection` all still said G989, so the
+   * next arrow key resumed a thousand rows below the fold (WCAG 2.4.3).
+   *
+   * So take the selection along, to A1 — what the label means, and what
+   * Ctrl+Home does in every other spreadsheet. `scrollLeft` goes back to the
+   * origin with it: A1 is at the left edge, and leaving the horizontal offset
+   * where it was would land the active cell off-screen on the other axis, which
+   * is the same defect turned sideways. Assigned outright rather than routed
+   * through `scrollToHighlightCell`, which computes an offset *relative* to the
+   * target — for row 0 that is `-20`, a negative scroll no scrollbar can hold.
+   *
+   * Focus follows, for the same reason it follows a name box commit: it is
+   * sitting on this button, the button is in the strip below the last row, and
+   * the scroll this just performed takes that strip off-screen. Worse, the
+   * button is a `[tabindex="0"]` control, so `handleGlobalKeyDown` reads it as
+   * outside the grid and leaves the arrow keys to the browser entirely.
+   */
+  const handleBackToTop = useCallback(() => {
+    setContext((draftCtx) => {
+      draftCtx.luckysheet_select_status = false;
+      draftCtx.luckysheet_select_save = [
+        { row: [0, 0], column: [0, 0], row_focus: 0, column_focus: 0 },
+      ];
+      normalizeSelection(draftCtx, draftCtx.luckysheet_select_save);
+      draftCtx.scrollTop = 0;
+      draftCtx.scrollLeft = 0;
+    });
+
+    // The cell input, exactly where a plain click on a cell leaves focus,
+    // deferred through `focusAfterCommit` so the grid has repositioned it onto
+    // A1 first — and so a cell input that is gone by then is left alone rather
+    // than focused while detached, which would drop focus on <body>. The grid
+    // *root* is the wrong target: it is an unnamed container whose first
+    // focusable descendant is the select-all corner, so a screen reader landing
+    // there announces "Select all cells" instead of the cell the user just
+    // travelled to. The fallback lives inside the getter, where the helper
+    // wants it, since what still exists is only knowable in the timeout.
+    focusAfterCommit(
+      () =>
+        refs.cellInput.current ??
+        refs.workbookContainer.current?.querySelector<HTMLElement>(
+          `.${GRID_ROOT_CLASS}`
+        )
+    );
+  }, [refs.cellInput, refs.workbookContainer, setContext]);
+
   useEffect(() => {
     setContext((draftCtx) => {
       const sheetIndex = getSheetIndex(draftCtx, draftCtx.currentSheetId);
@@ -566,6 +622,14 @@ const SheetOverlay: React.FC = () => {
   const selectionModeAnnouncement = useSelectionModeAnnouncement(context);
   const selectAllAnnouncement = useSelectAllAnnouncement(context);
   const clampAnnouncement = useNameBoxClampAnnouncement(context, info);
+  // The id comes back from the hook rather than being a module constant: this
+  // fork is embedded once per sim section, and a fixed id made every instance's
+  // `aria-describedby` resolve to the first instance's (empty) region. See
+  // CONTEXT_MENU_REGION_ID_SUFFIX.
+  const {
+    regionId: contextMenuRegionId,
+    announcement: contextMenuAnnouncement,
+  } = useContextMenuAnnouncements(context, refs.cellInput);
   const cellAreaId = useId();
   const { cellAnnouncement: filterCellAnnouncement, regionAnnouncement } =
     useFilterAnnouncements(context, info);
@@ -1070,11 +1134,7 @@ const SheetOverlay: React.FC = () => {
                   <span className="fortune-add-row-hint">({info.addLast})</span>
                   <span
                     className="fortune-add-row-button"
-                    onClick={() => {
-                      setContext((ctx) => {
-                        ctx.scrollTop = 0;
-                      });
-                    }}
+                    onClick={handleBackToTop}
                     onKeyDown={activateOnEnterOrSpace}
                     tabIndex={0}
                     role="button"
@@ -1111,6 +1171,30 @@ const SheetOverlay: React.FC = () => {
           Polite, for the same reason as above. */}
       <div id="sr-selectAll" className="sr-only" role="status">
         {selectAllAnnouncement}
+      </div>
+      {/* Context-menu actions were silent: the grid rearranges and `#sr-selection`
+          reports the new cell, but nothing says what the action did — "3 columns
+          inserted" is not recoverable from the after-state.
+
+          This element is both an assertive live region and the target of the cell
+          input's `aria-describedby`. Almost every one of these actions also moves
+          focus to the cell input, VoiceOver announces the newly focused element,
+          and that utterance discards a *polite* message queued in the same
+          moment — which is why this is not polite. So the text is delivered as
+          part of the focus announcement through the description, and the region
+          reaches the actions that do not move focus. Assertive specifically
+          because the sheet-rename announcement shares this region and
+          `sr-virtual.test.tsx` asserts it survives a focus move that way. The
+          full reasoning, including the double-speak question the two mechanisms
+          raise together, is in useContextMenuAnnouncements. */}
+      <div
+        id={contextMenuRegionId}
+        className="sr-only"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+      >
+        {contextMenuAnnouncement}
       </div>
     </main>
   );
