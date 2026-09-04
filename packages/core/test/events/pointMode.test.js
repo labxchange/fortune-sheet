@@ -49,8 +49,8 @@ describe("formula point mode", () => {
 
   const editFormula = (text) => editFormulaIn(cellInput, text);
 
-  const clickCell = (ctx, pageX, pageY) => {
-    const mouseEvent = new MouseEvent("click", { button: 0 });
+  const clickCell = (ctx, pageX, pageY, init = {}) => {
+    const mouseEvent = new MouseEvent("click", { button: 0, ...init });
     mouseEvent.pageX = pageX;
     mouseEvent.pageY = pageY;
     handleCellAreaMouseDown(
@@ -142,6 +142,93 @@ describe("formula point mode", () => {
 
   // The keyboard half of point mode: the arrows pick a reference instead of
   // walking the caret through the formula text.
+  // The plain-click tests above cover `enterPointModeAt`. These two cover the
+  // only branches of the mousedown handler whose control flow the extraction
+  // actually changed -- shift-extend, which keeps the selection it has just
+  // mutated and so calls `applyPointModeSelection` directly, and ctrl-click,
+  // which commits the previous reference before starting a new one. Both were
+  // uncovered, which meant the refactor was demonstrated only on the path that
+  // did not branch. Verified against `2f9e972~1`: the pre-refactor source
+  // produces these values character for character.
+  describe("the mouse branches the extraction rerouted", () => {
+    test("shift-clicking extends the reference to a range", () => {
+      const ctx = getContext();
+      editFormula("=SUM(");
+
+      clickCell(ctx, 369, 79); // E4
+      expect(cellInput.textContent).toBe("=SUM(E4");
+
+      clickCell(ctx, 100, 30, { shiftKey: true }); // B2
+
+      expect(cellInput.textContent).toBe("=SUM(B2:E4");
+      // row_focus/column_focus stay on the anchor the extension grew from, so
+      // a further shift-click re-extends from E4 rather than from B2.
+      expect(ctx.formulaCache.func_selectedrange).toMatchObject({
+        row: [1, 3],
+        column: [1, 4],
+        row_focus: 3,
+        column_focus: 4,
+      });
+      expect(ctx.formulaCache.rangestart).toBe(true);
+    });
+
+    test("shift-extend keeps the base rectangle and moves only the *_move one", () => {
+      const ctx = getContext();
+      editFormula("=SUM(");
+
+      clickCell(ctx, 369, 79); // E4: base and _move agree
+      clickCell(ctx, 100, 30, { shiftKey: true }); // B2
+
+      // This is the property that separates the two helpers, and the reason
+      // the branch calls `applyPointModeSelection` rather than
+      // `enterPointModeAt`: the shift path builds its result by mutating the
+      // previous selection, so `left/top/width/height` stay on E4 -- stale by
+      // design -- while the extended rectangle travels in the `_move` fields.
+      // `enterPointModeAt` replaces all eight, so routing this branch through
+      // it would overwrite the base with B2's geometry and silently change
+      // where a subsequent drag measures from. Asserted so that swap cannot
+      // happen unnoticed.
+      expect(ctx.formulaCache.func_selectedrange).toMatchObject({
+        left: 296,
+        top: 60,
+        width: 73,
+        height: 19,
+        left_move: 74,
+        top_move: 20,
+        width_move: 295,
+        height_move: 59,
+      });
+    });
+
+    test("ctrl-clicking starts a second reference instead of replacing the first", () => {
+      const ctx = getContext();
+      editFormula("=SUM(");
+
+      clickCell(ctx, 369, 79); // E4
+      clickCell(ctx, 100, 30, { ctrlKey: true }); // B2
+
+      // The comma is the branch's own work -- it commits the previous
+      // reference into the text before handing off -- and then the new pick
+      // goes through the shared entry point like any other, which is why the
+      // selection is replaced outright here and not merged.
+      expect(cellInput.textContent).toBe("=SUM(E4,B2");
+      expect(ctx.formulaCache.func_selectedrange).toMatchObject({
+        row: [1, 1],
+        column: [1, 1],
+        row_focus: 1,
+        column_focus: 1,
+        left: 74,
+        top: 20,
+        left_move: 74,
+        top_move: 20,
+      });
+      expect(ctx.formulaCache.rangestart).toBe(true);
+      expect(
+        cellInput.querySelectorAll("span.fortune-formula-functionrange-cell")
+      ).toHaveLength(2);
+    });
+  });
+
   describe("arrow keys", () => {
     let grid;
 
@@ -245,6 +332,48 @@ describe("formula point mode", () => {
       expect(cellInput.innerHTML).toBe(before);
       expect(ctx.formulaCache.rangestart).toBeFalsy();
       expect(event.defaultPrevented).toBe(false);
+
+      // The positive control, and the reason the three assertions above are
+      // worth making: on their own they also hold with point mode absent
+      // entirely, so they pin nothing without something that distinguishes
+      // them. The only difference here is where the caret sits -- the same
+      // editor, the same cell, a formula whose last token is `(` instead of
+      // `)` -- and that is enough to pick. So the decline above is the caret
+      // test doing its job, not the feature failing to run.
+      editFormula("=SUM(");
+      const picked = pressArrow(ctx, "ArrowUp", cellInput);
+
+      expect(cellInput.textContent).toBe("=SUM(C2");
+      expect(ctx.formulaCache.rangestart).toBe(true);
+      expect(picked.defaultPrevented).toBe(true);
+    });
+
+    test("arrowing back onto the edited cell is allowed", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      editFormula("=SUM(");
+
+      // The no-self-reference rule covers the *first* arrow only: it seeds off
+      // the edited cell so a formula never opens by referring to itself. Once
+      // point mode is running the step starts from the pick, so stepping away
+      // and back lands on C3 while C3 is what is being edited. Excel permits
+      // this, and refusing the key instead would make an arrow silently stop
+      // working; the circularity is reported on commit. Asserted so the
+      // narrowed comment on resolvePointModeStep and the code cannot drift.
+      pressArrow(ctx, "ArrowDown", cellInput);
+      expect(cellInput.textContent).toBe("=SUM(C4");
+
+      const event = pressArrow(ctx, "ArrowUp", cellInput);
+
+      expect(cellInput.textContent).toBe("=SUM(C3");
+      expect(event.defaultPrevented).toBe(true);
+      expect(ctx.formulaCache.func_selectedrange).toMatchObject({
+        row: [2, 2],
+        column: [2, 2],
+      });
+      expect(
+        cellInput.querySelectorAll("span.fortune-formula-functionrange-cell")
+      ).toHaveLength(1);
     });
 
     test("editing in the formula bar writes there and mirrors to the cell", () => {
@@ -478,6 +607,59 @@ describe("formula point mode", () => {
           )
         ).toBe(true);
         expect(cellInput.textContent).toBe("=SUM(A1");
+      });
+
+      test.each(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"])(
+        "%s declines when the edited cell is not a real index",
+        (key) => {
+          const ctx = getContext();
+          // Type-legal and reachable: luckysheetCellUpdate is any[] and both
+          // of its writers assign [row_focus, column_focus] with row_focus
+          // optional on the Selection type and no nil check. canEnterPointMode
+          // only asks that the array is non-empty, so this seed gets through to
+          // the step. Arithmetic on it is NaN, and NaN fails *both* of
+          // stepToVisibleIndex's bounds tests -- NaN < 0 and NaN >= limit are
+          // each false -- so without an explicit finite test it came back as a
+          // valid target and went on to write a reference at row NaN and put
+          // the overlay there.
+          ctx.luckysheetCellUpdate = [undefined, undefined];
+          editFormula("=SUM(");
+          const before = cellInput.innerHTML;
+
+          expect(
+            resolvePointModeStep(ctx, new KeyboardEvent("keydown", { key }))
+          ).toBeNull();
+          expect(cellInput.innerHTML).toBe(before);
+          expect(ctx.formulaCache.rangestart).toBeFalsy();
+        }
+      );
+
+      test("applying the same step twice is idempotent", () => {
+        const ctx = getContext();
+        ctx.luckysheetCellUpdate = [2, 2];
+        editFormula("=SUM(");
+
+        // StrictMode invokes the producer twice, and applyPointModeStep writes
+        // to the DOM from inside it, so the second pass runs against the markup
+        // the first one left. It holds because rangeSetValue consults
+        // israngeseleciton itself: after pass one the caret is inside the
+        // reference just written, so pass two replaces that reference instead
+        // of appending another. Asserted rather than assumed, so a change to
+        // that branch fails here instead of doubling every picked reference.
+        const step = resolvePointModeStep(
+          ctx,
+          new KeyboardEvent("keydown", { key: "ArrowUp" })
+        );
+
+        applyPointModeStep(ctx, cellInput, fxInput, step);
+        const afterFirst = cellInput.textContent;
+        applyPointModeStep(ctx, cellInput, fxInput, step);
+
+        expect(afterFirst).toBe("=SUM(C2");
+        expect(cellInput.textContent).toBe("=SUM(C2");
+        expect(
+          cellInput.querySelectorAll("span.fortune-formula-functionrange-cell")
+        ).toHaveLength(1);
       });
 
       test("a resolved target is applied without deciding again", () => {
