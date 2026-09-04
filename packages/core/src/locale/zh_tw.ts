@@ -11849,6 +11849,7 @@ export default {
     searchInputTip: "請輸入查找內容",
 
     noReplceTip: "沒有可替換的內容",
+    lastMatchTip: "最後一次替換之後沒有更多相符項目",
     noMatchTip: "找不到匹配項",
 
     successTip: "已經幫您蒐索並進行了${xlength}處替換",

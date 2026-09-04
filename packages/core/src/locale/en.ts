@@ -11907,6 +11907,7 @@ export default {
     searchInputTip: "Please enter the search content",
 
     noReplceTip: "There is nothing to replace",
+    lastMatchTip: "No further matches after the last replacement",
     noMatchTip: "No match found",
 
     successTip: "${xlength} items found",

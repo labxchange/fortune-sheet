@@ -14425,6 +14425,7 @@ export default {
     searchTargetValue: "Значение",
     searchInputTip: "Введите содержимое для поиска",
     noReplceTip: "Нет данных для замены",
+    lastMatchTip: "После последней замены совпадений больше нет",
     noMatchTip: "Совпадений не найдено",
     successTip: "Найдено ${xlength} элементов",
     locationConstant: "Константа",
