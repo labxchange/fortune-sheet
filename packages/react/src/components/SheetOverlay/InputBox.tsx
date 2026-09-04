@@ -469,6 +469,44 @@ const InputBox: React.FC = () => {
     context.allowEdit === true
   );
 
+  /**
+   * Whether this cell can actually be typed into — which `edit` above does not
+   * answer, despite being the thing that sets `contenteditable`.
+   *
+   * `edit`'s `&& context.allowEdit === true` conjunction means a workbook
+   * rendered `allowEdit={false}` with no per-row/column config evaluates
+   * `(undefined || undefined) && false` → falsy → `edit === true`. It also
+   * never consults cell locking. So the read-only case with the clearest
+   * failure mode was the one it got wrong: `core/events/keyboard.ts` returns
+   * early on `!isAllowEdit(ctx)` for every text-entry key, and this element was
+   * meanwhile a focusable textbox reporting `aria-readonly={false}` — a field
+   * that swallows everything typed into it while announcing that it accepts it
+   * (WCAG 4.1.2), which is the exact mismatch the state was added to prevent.
+   *
+   * `isAllowEdit` is the predicate the commit path itself uses, and it folds in
+   * all four questions: row read-only, column read-only, `checkCellIsLocked`,
+   * and `ctx.allowEdit`. Scoped to the focus cell rather than the selection on
+   * both counts — this editor only ever edits that one cell, and `isAllowEdit`
+   * walks every cell of the range it is handed with a sheet lookup each, which
+   * on a select-all would be a million of them per render.
+   *
+   * `contentEditable` is deliberately left on `edit`. Changing what the DOM
+   * lets the user type is a behaviour change beyond this ticket, and the honest
+   * fix for the mismatch is the state that tells the truth about it rather than
+   * a promise quietly withdrawn; the residue is a read-only workbook whose
+   * editor is still `contenteditable`, which is pre-existing and now at least
+   * announced correctly.
+   */
+  const canEditCell = useMemo(
+    () =>
+      !isHidenRC &&
+      !!firstSelection &&
+      isAllowEdit(context, [
+        { row: [row_index, row_index], column: [col_index, col_index] },
+      ]),
+    [context, isHidenRC, firstSelection, row_index, col_index]
+  );
+
   return (
     <div
       className="luckysheet-input-box"
@@ -518,13 +556,16 @@ const InputBox: React.FC = () => {
           role="textbox"
           aria-multiline="true"
           // Declaring the role makes a promise the role-less div never made,
-          // so the state has to travel with it. `allowEdit` below is the thing
-          // that actually sets `contenteditable`, and it is conditional where
-          // the role is not: a read-only or hidden row/column left a focusable
-          // "text field" that silently swallowed every keystroke (WCAG 4.1.2).
-          // Written as the exact negation of that expression so the two cannot
-          // drift apart.
-          aria-readonly={edit ? isHidenRC : !edit}
+          // so the state has to travel with it: a cell that cannot be typed
+          // into is announced as a read-only field rather than as one that
+          // accepts input and drops it (WCAG 4.1.2). This was written as the
+          // exact negation of the `allowEdit` expression below, which turned
+          // out to be the wrong question — see `canEditCell` above. The role
+          // and the name stay unconditional, because a read-only textbox is
+          // still a textbox and still has to say which cell it is: dropping
+          // them would leave focus resting on an unnamed generic div, which is
+          // the defect this element was named to fix.
+          aria-readonly={!canEditCell}
           aria-label={cellInputLabel}
           style={{
             transform: `scale(${context.zoomRatio})`,

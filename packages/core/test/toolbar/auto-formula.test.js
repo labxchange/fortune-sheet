@@ -456,6 +456,105 @@ describe("auto formula", () => {
         autoSelectionFormula(ctx, cellInput, null, "AVERAGE");
         expect(getFlowdata(ctx)[3][0].v).toBe(35);
       });
+
+      // The trim writes the total inside the selection — a whole column leaves
+      // nowhere else — and nothing narrows the selection afterwards, so a
+      // second press scans the total the first one wrote. Counting it as data
+      // walked the total down the column: 70, then SUM(A1:A4) = 140, then 280.
+      test("a second press totals the data again, not the first total", () => {
+        const cellInput = document.createElement("div");
+        const ctx = getWholeColumnContext();
+        autoSelectionFormula(ctx, cellInput, null, "SUM");
+        autoSelectionFormula(ctx, cellInput, null, "SUM");
+        const flowdata = getFlowdata(ctx);
+
+        expect(flowdata[3][0].v).toBe(70);
+        // the same range, one row further down: a duplicate, never a cascade
+        expect(flowdata[4][0].f).toBe("=SUM(A1:A3)");
+        expect(flowdata[4][0].v).toBe(70);
+      });
+
+      // The likelier route, and the worse one: a wrong statistic rather than a
+      // repeated one. Average over A1:A4 would divide the sum back into the
+      // mean and answer 46.67.
+      test("Average after Sum averages the data, not the data and the sum", () => {
+        const cellInput = document.createElement("div");
+        const ctx = getWholeColumnContext();
+        autoSelectionFormula(ctx, cellInput, null, "SUM");
+        autoSelectionFormula(ctx, cellInput, null, "AVERAGE");
+        const flowdata = getFlowdata(ctx);
+
+        expect(flowdata[4][0].f).toBe("=AVERAGE(A1:A3)");
+        expect(flowdata[4][0].v).toBe(35);
+      });
+
+      // The counter-path for that exclusion, and the reason it is narrow: a
+      // formula the *user* wrote is data like any other value, and trimming
+      // must stop after it rather than skipping it as one of our own totals.
+      test("a formula of the user's own still counts as the line's data", () => {
+        const cellInput = document.createElement("div");
+        const ctx = contextFactory({
+          luckysheet_select_save: selectionFactory([0, 5], [0, 0], 0, 0),
+          luckysheetfile: [
+            {
+              id: "id_1",
+              data: [
+                [{ v: "Height", ct: { t: "s" }, m: "Height" }],
+                [{ v: "30", ct: { t: "n" }, m: "30" }],
+                [{ v: "40", ct: { t: "n" }, m: "40" }],
+                [{ v: 80, ct: { t: "n" }, m: "80", f: "=A3*2" }],
+                [null],
+                [null],
+              ],
+            },
+          ],
+        });
+        autoSelectionFormula(ctx, cellInput, null, "SUM");
+        const flowdata = getFlowdata(ctx);
+
+        expect(flowdata[4][0].f).toBe("=SUM(A1:A4)");
+        expect(flowdata[4][0].v).toBe(150);
+      });
+    });
+
+    // The room guard asks the extent of the line it is writing to. It used to
+    // ask row 0's width whichever direction it was going, which on a matrix
+    // whose rows are not all the same length is a different question — and the
+    // answer it gave let a row pass write into a column that row does not have.
+    describe("a row pass on a row shorter than the first", () => {
+      const n = (v) => ({ v: `${v}`, ct: { t: "n" }, m: `${v}` });
+      const getShortRowContext = () =>
+        contextFactory({
+          luckysheet_select_save: selectionFactory([1, 1], [0, 1], 1, 0),
+          luckysheetfile: [
+            {
+              id: "id_1",
+              data: [
+                [n(1), n(2), n(3)],
+                [n(4), n(5)],
+              ],
+            },
+          ],
+        });
+
+      test("refuses rather than writing past the end of that row", () => {
+        const cellInput = document.createElement("div");
+        const ctx = getShortRowContext();
+        autoSelectionFormula(ctx, cellInput, null, "SUM");
+        const flowdata = getFlowdata(ctx);
+
+        expect(flowdata[1].length).toBe(2);
+        expect(flowdata[1][2]).toBeUndefined();
+      });
+
+      test("says why it refused", () => {
+        const cellInput = document.createElement("div");
+        const ctx = getShortRowContext();
+        autoSelectionFormula(ctx, cellInput, null, "SUM");
+        expect(ctx.warnDialog).toBe(
+          locale(ctx).generalDialog.noRoomForResultError
+        );
+      });
     });
 
     // A 2D selection is two independent passes over the same cells: rows

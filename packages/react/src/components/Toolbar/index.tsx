@@ -39,7 +39,7 @@ import {
   OPEN_SHORTCUTS_KEYS,
   replaceHtml,
 } from "@fortune-sheet/core";
-import type { Context, MergeOutcome } from "@fortune-sheet/core";
+import type { Context, MergeOutcome, SortOutcome } from "@fortune-sheet/core";
 import _ from "lodash";
 import WorkbookContext from "../../context";
 import "./index.css";
@@ -51,6 +51,7 @@ import Select, { Option } from "./Select";
 import SVGIcon from "../SVGIcon";
 import { useAdjacentSubmenuPosition } from "../../hooks/useAdjacentSubmenuPosition";
 import { useDialog } from "../../hooks/useDialog";
+import { sortRefusalMessage } from "../../utils/sortRefusal";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
 import {
@@ -188,11 +189,19 @@ const Toolbar: React.FC<{
   // exclusion ArrowRight from the last option walked focus onto the next
   // toolbar button and left the dropdown open behind it. The other half of that
   // fix is the non-item guard in `useRovingFocus`.
+  //
+  // It does *not* exclude `aria-disabled` controls, unlike the hook's default.
+  // Undo and redo are disabled whenever their stack is empty, they keep their
+  // own tab stop (this pattern is additive, see above), and skipping them here
+  // made Tab and the arrow keys disagree about which controls the toolbar
+  // contains — the arrows jumping a button Tab stops on. Keeping a disabled
+  // control focusable and reachable is what the ARIA toolbar pattern
+  // recommends, precisely so its disabled state can be discovered rather than
+  // the control vanishing from the sequence.
   useRovingFocus({
     containerRef,
     orientation: "horizontal",
-    itemSelector:
-      '[role="button"]:not([aria-disabled="true"]):not(.fortune-toolbar-combo-popup *)',
+    itemSelector: '[role="button"]:not(.fortune-toolbar-combo-popup *)',
   });
   const [toolbarWrapIndex, setToolbarWrapIndex] = useState(-1); // -1 means pending for item location calculation
   const [itemLocations, setItemLocations] = useState<number[]>([]);
@@ -709,7 +718,14 @@ const Toolbar: React.FC<{
             // dialog is what it is for. The glyphs stay out of the locale
             // files on purpose (see ShortcutKeys) so a translation can never
             // drift from the binding the code listens for.
-            tooltip={`${tooltip} (${shortcutKeysForPlatform(
+            //
+            // Keys in the name, not in the tooltip: they are already on the
+            // button's face in the `<kbd>` below, and carrying them in the
+            // tooltip as well printed them twice to anyone hovering. The name
+            // still needs them — announcing the shortcut is the ticket — and
+            // stays a superset of the visible label either way.
+            tooltip={tooltip}
+            ariaLabel={`${tooltip} (${shortcutKeysForPlatform(
               OPEN_SHORTCUTS_KEYS
             )})`}
             key={name}
@@ -1237,6 +1253,17 @@ const Toolbar: React.FC<{
          * ending it reached; only the ones the user can act on get words.
          */
         const mergeAndAnnounce = (type: string) => {
+          /*
+           * Recording the recipe's own answer, which is not the side effect the
+           * rule against side effects in a producer is about. `setContext` takes
+           * an immer recipe and React may run it more than once, so a recipe
+           * must not do anything the outside world can observe twice — show a
+           * dialog, move focus, post a request. This assigns the value the
+           * recipe just computed to a box owned by this one call, so a replay
+           * recomputes and reassigns the same answer and nothing downstream can
+           * tell how many times it ran. `ContextMenu`'s sort takes the same
+           * shape for the same reason.
+           */
           const outcome = { result: "refused" as MergeOutcome };
           setContext((ctx) => {
             outcome.result = handleMerge(ctx, type);
@@ -1632,17 +1659,32 @@ const Toolbar: React.FC<{
          * The phrase is the funnel menu's, deliberately: two controls, one
          * concept, and a user who meets both should not have to learn that
          * they are different.
+         *
+         * **And a refusal is spoken, from the reason `sortSelection` gives.**
+         * This announced success and stayed silent otherwise, on the reasoning
+         * that the toolbar has no surface for a reason — but the surface is the
+         * region this work added, and without it the funnel menu was the one of
+         * three sort call sites that declines without a word: the right-click
+         * menu alerts (`ContextMenu/index.tsx`) and the Sort dialog alerts
+         * (`CustomSort/index.tsx`), both from this same `sortRefusalMessage`.
+         * Announced rather than alerted because that is this control's
+         * established channel, and because a dialog raised from a toolbar press
+         * would take focus off the toolbar as well.
          */
         const sortAndAnnounce = (asc: boolean) => {
-          const outcome = { sorted: false };
+          const outcome = {
+            result: { sorted: false, reason: "noSelection" } as SortOutcome,
+          };
           setContext((ctx) => {
-            outcome.sorted = handleSort(ctx, asc);
+            outcome.result = handleSort(ctx, asc);
           });
-          announceOutcome(() => {
-            if (!outcome.sorted) return "";
-            return asc
-              ? filter.filterSortAscAnnouncement
-              : filter.filterSortDescAnnouncement;
+          announceOutcome((ctx) => {
+            if (outcome.result.sorted) {
+              return asc
+                ? filter.filterSortAscAnnouncement
+                : filter.filterSortDescAnnouncement;
+            }
+            return sortRefusalMessage(ctx, outcome.result.reason);
           });
         };
         const items = [
@@ -1862,9 +1904,10 @@ const Toolbar: React.FC<{
           here is correct in the DOM, green in jest, and never spoken. The hint
           is boilerplate; the result of the press is not.
 
-          aria-atomic keeps the message whole rather than announcing only the
-          words that differ from the last one. */}
-      <div id="sr-toolbar" className="sr-only" role="alert" aria-atomic="true">
+          No explicit `aria-atomic`: `role="alert"` already implies
+          `aria-atomic="true"`, so spelling it out added nothing and made this
+          the odd one out among the sibling regions. */}
+      <div id="sr-toolbar" className="sr-only" role="alert">
         {announcement}
       </div>
     </header>
