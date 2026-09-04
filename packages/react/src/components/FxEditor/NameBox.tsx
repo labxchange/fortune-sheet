@@ -257,13 +257,14 @@ const LocationBox: React.FC = () => {
     // The target is the cell input, which is exactly where a plain click on a
     // cell leaves focus (`cellAreaMouseDown`), deferred through
     // `focusAfterCommit` so the input is in position first and a detached one
-    // is left alone rather than focused, which would drop focus on <body>. Focusing the grid *root* was the obvious
-    // choice and was wrong: it is an unnamed container with focusable
-    // descendants, so a screen reader landing there navigated into it and read
-    // the first thing it found — announcing "Select all cells" to a user who
-    // had just navigated somewhere else entirely. The cell input is carved out
-    // of `handleGlobalKeyDown`'s grid guard by name, so the arrows still work
-    // from it, and focusing it does not begin editing — a click proves both.
+    // is left alone rather than focused, which would drop focus on <body>.
+    // Focusing the grid *root* was the obvious choice and was wrong: it is an
+    // unnamed container with focusable descendants, so a screen reader landing
+    // there navigated into it and read the first thing it found — announcing
+    // "Select all cells" to a user who had just navigated somewhere else
+    // entirely. The cell input is carved out of `handleGlobalKeyDown`'s grid
+    // guard by name, so the arrows still work from it, and focusing it does
+    // not begin editing — a click proves both.
     focusAfterCommit(
       () =>
         refs.cellInput.current ??
