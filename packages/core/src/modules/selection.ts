@@ -925,7 +925,14 @@ export function moveHighlightCell(
     // Shift+F8 is the exception, and the reason this is conditional: that mode
     // exists so the arrow keys can carry the newly anchored range somewhere
     // else while the committed ones stay put. Escape ends it.
-    if (!ctx.selectionModeActive) {
+    //
+    // `index !== 0` keeps this to actual moves. Three callers pass 0 — the
+    // Escape-out-of-an-edit paths in `handleGlobalKeyDown`, `FxEditor` and
+    // `InputBox` — and land back on the cell they started from, so there is no
+    // move for the selection to follow. Escape there means "abandon what I was
+    // typing", and it leaves the selection as it found it, which is also what
+    // Excel does with a multi-range selection typed into and then cancelled.
+    if (!ctx.selectionModeActive && index !== 0) {
       ctx.luckysheet_select_save = [last];
     }
 

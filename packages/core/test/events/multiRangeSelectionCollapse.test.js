@@ -1,6 +1,7 @@
 import { contextFactory } from "../factories/context";
 import { handleArrowKey, handleGlobalKeyDown } from "../../src/events/keyboard";
 import { GRID_ROOT_CLASS } from "../../src/constants";
+import { moveHighlightCell } from "../../src/modules/selection";
 
 /**
  * Moving the highlight cell is how a keyboard user says "I am somewhere else
@@ -77,6 +78,26 @@ describe("multi-range selection collapses when the highlight cell moves", () => 
     expect(ctx.luckysheet_select_save).toHaveLength(2);
     expect(ctx.luckysheet_select_save[0].row).toEqual([0, 3]);
     expect(ctx.luckysheet_select_save[1].row).toEqual([1, 1]);
+  });
+
+  // `index: 0` is how the Escape-out-of-an-edit paths call this: they land back
+  // on the cell they started from, so nothing moves and there is nothing for
+  // the selection to follow. Escape there abandons the typing; it does not
+  // rearrange what was selected before the typing started. Asserted on
+  // `moveHighlightCell` itself because that is where the decision lives — the
+  // two callers that reach it are `FxEditor`'s and `InputBox`'s own Escape
+  // handlers (`handleGlobalKeyDown`'s copy is unreachable: its own
+  // `luckysheetCellUpdate.length > 0` filter returns on Escape first).
+  test("a no-move call (index 0) keeps every range", () => {
+    const ctx = getContext(twoRanges());
+
+    moveHighlightCell(ctx, "down", 0, "rangeOfSelect");
+
+    expect(ctx.luckysheet_select_save).toHaveLength(2);
+    expect(ctx.luckysheet_select_save[0].column).toEqual([0, 0]);
+    expect(ctx.luckysheet_select_save[1].column).toEqual([2, 2]);
+    // And the highlight really did stay put.
+    expect(ctx.luckysheet_select_save[1].row).toEqual([0, 0]);
   });
 
   test("Shift+Arrow extends instead of moving, so it keeps every range", () => {
