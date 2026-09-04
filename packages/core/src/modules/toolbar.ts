@@ -511,10 +511,20 @@ function singleFormulaInput(
   type: string,
   cache: GlobalCache,
   noNum?: boolean,
-  noNull?: boolean
+  noNull?: boolean,
+  /**
+   * Allow a range that overruns its own data to be trimmed back to it before
+   * the result is placed. Default true; the 2D caller turns it off — see the
+   * comment at the trim itself for why it corrupts that path.
+   */
+  trimToData?: boolean
 ) {
   if (type == null) {
     type = "r";
+  }
+
+  if (trimToData == null) {
+    trimToData = true;
   }
 
   if (noNum == null) {
@@ -665,8 +675,23 @@ function singleFormulaInput(
     // put the result immediately after that, which is where a spreadsheet is
     // expected to put it. Only a range filled right to the final row has
     // genuinely nowhere to go.
+    //
+    // Off for the 2D caller, which is the one case where the trim is not just
+    // unhelpful but wrong. That caller runs a row pass and then a column pass
+    // over the same cells, and `lastFilled` is per line — so with ragged rows
+    // reaching the last column (a row-header click, or Ctrl+A) each row's
+    // total lands at its own last filled column, *inside* the selection, and
+    // the column pass that follows reads those totals as if they were data.
+    // Every total needs to sit outside the range for the second pass to be
+    // meaningful, which one shared trim per direction could give but a
+    // per-line one cannot.
     let end = ed_m;
-    if (end + 1 >= limit && lastFilled >= st_m && lastFilled < ed_m) {
+    if (
+      trimToData &&
+      end + 1 >= limit &&
+      lastFilled >= st_m &&
+      lastFilled < ed_m
+    ) {
       end = lastFilled;
     }
 
@@ -928,6 +953,7 @@ export function autoSelectionFormula(
             "r",
             cache,
             true,
+            false,
             false
           ) && r_false;
       }
@@ -948,6 +974,7 @@ export function autoSelectionFormula(
             "c",
             cache,
             true,
+            false,
             false
           ) && c_false;
       }

@@ -1098,3 +1098,56 @@ describe("the toolbar palettes mark the colour that is actually applied", () => 
     expect(selected[0].style.backgroundColor).toBe("rgb(103, 78, 167)");
   });
 });
+
+describe("a picked border colour is the colour the next border gets", () => {
+  const flushTask = async () => {
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+  };
+
+  it("carries the announced colour into the border that follows", async () => {
+    // `onPick` stores the colour and `onColorPicked` announces it, with nothing
+    // tying the two together. `announceNow` is the right call for a pick that
+    // repaints nothing — there is no committed effect to fingerprint — but it
+    // is also what leaves an announcement that cannot notice the store failing:
+    // emptying `onPick` kept every other assertion in this file green while
+    // every subsequent border drew in the default colour, saying "Border color:
+    // Red." the whole time. Structurally the same shape as a Confirm announcing
+    // a sheet colour it never applied, which is the finding this closes.
+    const { container, getByRole, ref } = renderSheet({
+      toolbarItems: ["border"],
+    });
+    act(() => {
+      ref.current?.setSelection([{ row: [0, 0], column: [0, 0] }]);
+    });
+
+    fireEvent.mouseDown(getByRole("button", { name: "Border: Dropdown" }));
+    // The colour submenu is display-toggled rather than conditionally mounted,
+    // so its swatches are reachable without driving the hover open. Index 8 is
+    // the first swatch of the palette's second row, #f00f00.
+    const swatch = document.querySelectorAll<HTMLElement>(
+      '.fortune-border-select-menu #fortune-custom-color [role="option"]'
+    )[8];
+    expect(swatch).toBeTruthy();
+    act(() => {
+      fireEvent.click(swatch);
+    });
+    await flushTask();
+
+    expect(announcement(container)).toContain("Border color: Red.");
+
+    act(() => {
+      fireEvent.click(getByRole("button", { name: "Border" }));
+    });
+    await flushTask();
+
+    // The claim under test: what was announced is what the sheet stored.
+    const borderInfo = (ref.current?.getSheet() as any)?.config?.borderInfo;
+    expect(borderInfo).toHaveLength(1);
+    expect(borderInfo[0].color).toBe("#f00f00");
+    expect(borderInfo[0].borderType).toBe("border-all");
+  });
+});

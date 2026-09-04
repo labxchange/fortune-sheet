@@ -56,7 +56,12 @@ type Props = {
  * no outcome, no reason — which is exactly the defect this work exists to
  * remove, in the one control it adds. Failing that way is now spoken
  * (WCAG 3.3.1), from Enter and from a blur that carried an edit, and never
- * from typing.
+ * from typing. The refusal is dropped again on the way back in, so no visit
+ * ever finds the field marked invalid over a value it is not showing.
+ *
+ * Escape cancels, in both popups. That took saying out loud: the two hosts
+ * close differently, and only one of them happened to produce the right
+ * result — see `escapedRef` below.
  */
 const ColorHexInput: React.FC<Props> = ({
   value,
@@ -81,6 +86,36 @@ const ColorHexInput: React.FC<Props> = ({
   const onEditingChangeRef = useRef(onEditingChange);
   onEditingChangeRef.current = onEditingChange;
   useEffect(() => () => onEditingChangeRef.current?.(false), []);
+
+  // Escape is the cancel gesture, and it must not reach `commit` on the way
+  // out. `useEscapeToClose` restores focus to whatever opened the popup, which
+  // *blurs* this field — and a blur carrying an edit commits it. `ChangeColor`
+  // escaped that only by accident: Escape unmounts it, and a removed node
+  // fires no blur. `CustomBorder`'s popup is display-toggled instead, so the
+  // blur does fire, and Escape there applied the typed colour — the opposite
+  // of what the same key does one popup over. Recorded here so cancelling is a
+  // decision this field makes rather than a side effect of how its host
+  // happens to close.
+  const escapedRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // On `document` in the capture phase, because the popup's own Escape
+  // handler is there and calls `stopPropagation()` — so nothing bound to the
+  // input itself, React handler or otherwise, ever sees the key. Two capture
+  // listeners on the same node both run whatever the order: only
+  // `stopImmediatePropagation` would suppress a sibling, and that is not what
+  // is called. The close itself is a setState from a native listener, which
+  // React 18 flushes in a microtask, so the focus restore and its blur land
+  // strictly after this has run.
+  useEffect(() => {
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (e.target !== inputRef.current) return;
+      escapedRef.current = true;
+    };
+    document.addEventListener("keydown", onEscape, true);
+    return () => document.removeEventListener("keydown", onEscape, true);
+  }, []);
 
   // Follow the swatch and the palette while the user is not typing here; while
   // they are, their own text is the truth and must not be overwritten mid-entry.
@@ -109,6 +144,7 @@ const ColorHexInput: React.FC<Props> = ({
     <>
       <input
         type="text"
+        ref={inputRef}
         className="fortune-color-hex-input"
         aria-label={info.hexColorInput}
         aria-invalid={errorMessage ? true : undefined}
@@ -125,10 +161,27 @@ const ColorHexInput: React.FC<Props> = ({
         onFocus={() => {
           setEditing(true);
           onEditingChange?.(true);
+          escapedRef.current = false;
+          // A refusal is about text that is no longer here: leaving on the way
+          // out reverts the draft to the colour in force, so re-entering finds
+          // a valid value wearing an `aria-invalid` that nobody has earned —
+          // announced as an error on every visit. It matters most in the
+          // border popup, which is display-toggled rather than unmounted and
+          // so carries both this flag and the alert's text across a reopen.
+          setErrorMessage("");
         }}
         onBlur={(e) => {
           setEditing(false);
           onEditingChange?.(false);
+          // Escape asked for this edit to be dropped, and the blur it caused
+          // is the closing, not a decision — so nothing is applied and nothing
+          // is said.
+          if (escapedRef.current) {
+            escapedRef.current = false;
+            setErrorMessage("");
+            setDraft(value ?? "");
+            return;
+          }
           // Only a value the user actually changed is a request to apply one,
           // so that passing through the field is inert. `draft` is seeded from
           // `value`, which makes a pristine field already hold a valid colour;

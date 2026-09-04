@@ -517,6 +517,14 @@ const InputBox: React.FC = () => {
           // "commit" with no hint that a line break is available at all.
           role="textbox"
           aria-multiline="true"
+          // Declaring the role makes a promise the role-less div never made,
+          // so the state has to travel with it. `allowEdit` below is the thing
+          // that actually sets `contenteditable`, and it is conditional where
+          // the role is not: a read-only or hidden row/column left a focusable
+          // "text field" that silently swallowed every keystroke (WCAG 4.1.2).
+          // Written as the exact negation of that expression so the two cannot
+          // drift apart.
+          aria-readonly={edit ? isHidenRC : !edit}
           aria-label={cellInputLabel}
           style={{
             transform: `scale(${context.zoomRatio})`,
