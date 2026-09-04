@@ -11118,6 +11118,7 @@ export default {
     toolbarBorderSet: "सीमा: ${border}।",
     toolbarBorderCleared: "सीमाएँ हटाई गईं।",
     hexColorInput: "हेक्स रंग",
+    hexColorInvalid: "यह रंग नहीं है। #1a73e8 जैसा हेक्स मान लिखें।",
 
     sheetSrIntro: "कक्षों के बीच जाने के लिए तीर कुंजियों का उपयोग करें।",
     cellHasFilterDropdown: "फ़िल्टर ड्रॉपडाउन है।",

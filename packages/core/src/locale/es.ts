@@ -11090,6 +11090,8 @@ export default {
     toolbarBorderSet: "Borde: ${border}.",
     toolbarBorderCleared: "Bordes borrados.",
     hexColorInput: "Color hexadecimal",
+    hexColorInvalid:
+      "No es un color. Escriba un valor hexadecimal como #1a73e8.",
 
     sheetSrIntro: "Use las teclas de flecha para moverse entre celdas.",
     cellHasFilterDropdown: "Tiene menú de filtro.",

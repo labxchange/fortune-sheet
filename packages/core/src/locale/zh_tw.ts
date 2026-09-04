@@ -11064,6 +11064,7 @@ export default {
     toolbarBorderSet: "邊框：${border}。",
     toolbarBorderCleared: "已清除邊框。",
     hexColorInput: "十六進位顏色",
+    hexColorInvalid: "不是有效顏色。請輸入十六進位值，例如 #1a73e8。",
 
     sheetSrIntro: "使用方向鍵在儲存格之間移動。",
     cellHasFilterDropdown: "有篩選下拉選單。",

@@ -12994,6 +12994,8 @@ export default {
     toolbarBorderSet: "Граница: ${border}.",
     toolbarBorderCleared: "Границы удалены.",
     hexColorInput: "Цвет в HEX",
+    hexColorInvalid:
+      "Это не цвет. Введите шестнадцатеричное значение, например #1a73e8.",
 
     sheetSrIntro:
       "Используйте клавиши со стрелками для перемещения между ячейками.",

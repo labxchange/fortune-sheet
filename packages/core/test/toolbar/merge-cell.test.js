@@ -152,6 +152,24 @@ describe("handleMerge reports what came of the press", () => {
     expect(handleMerge(ctx, "merge-all")).toEqual("partMerge");
   });
 
+  it("reports two ranges that overlap each other", () => {
+    // Ctrl-drag a second range back across the first. `selectIsOverlap` runs
+    // ahead of every other check in `handleMerge`, so this is the one ending
+    // no other fixture here can reach.
+    const ctx = {
+      ...sheetWith(twoByOne()),
+      luckysheet_select_save: [
+        { row: [0, 1], column: [0, 0], row_focus: 0, column_focus: 0 },
+        { row: [1, 1], column: [0, 0], row_focus: 1, column_focus: 0 },
+      ],
+    };
+
+    expect(handleMerge(ctx, "merge-all")).toEqual("overlap");
+    // `mergeCells` writes `{ mc }` into every cell of a merge, so the
+    // fixture's empty cell still being null is the proof none ran.
+    expect(ctx.luckysheetfile[0].data[1][0]).toBeNull();
+  });
+
   it("reports a read-only sheet", () => {
     const ctx = {
       ...sheetWith(twoByOne()),

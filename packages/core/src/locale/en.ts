@@ -11144,6 +11144,7 @@ export default {
     // pointer-only, so this field is the keyboard route to an arbitrary colour
     // (WCAG 2.1.1) rather than a convenience.
     hexColorInput: "Hex color",
+    hexColorInvalid: "Not a color. Type a hex value such as #1a73e8.",
 
     sheetSrIntro: "Use the arrow keys to move between cells.",
     cellHasFilterDropdown: "Has filter dropdown.",
