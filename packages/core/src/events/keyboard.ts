@@ -744,15 +744,24 @@ export function handleGlobalKeyDown(
   if (typeof target?.closest === "function") {
     // Focusable controls the workbook renders around the grid: the toolbar's
     // buttons, the sheet tabs, the select-all corner, the column-header
-    // dropdown, the filter funnel, the add-row input, the search dialog. The
-    // cell input matches this selector too (`ContentEditable` gives it
-    // tabIndex={0}), but it *is* the grid, so it is carved out.
+    // dropdown, the filter funnel, the add-row input, the search dialog.
     const control = target.closest(
       'input, textarea, select, button, a[href], [tabindex]:not([tabindex="-1"])'
     );
+    const gridRoot = target.closest(`.${GRID_ROOT_CLASS}`);
+    // Two of the things that can match that selector *are* the grid rather
+    // than something rendered around it, so both are carved out:
+    //   - the cell input, which `ContentEditable` may give a tabIndex of 0;
+    //   - the grid root itself. It carries tabIndex -1 today (rendered in
+    //     SheetOverlay/index.tsx), so `control` never actually equals it in
+    //     production -- this clause is defensive, not currently reachable.
+    //     Without it, a future change that makes the root itself the tab stop
+    //     (tabIndex 0, so Tab enters the grid there instead of at the first
+    //     control inside it) would silently stop the arrow keys from moving
+    //     anything for anyone who landed on it.
     const inGrid =
-      !!target.closest(`.${GRID_ROOT_CLASS}`) &&
-      (!control || !!cellInput?.contains(control));
+      !!gridRoot &&
+      (!control || !!cellInput?.contains(control) || control === gridRoot);
 
     if (!inGrid) {
       // Text-entry targets own every key they receive, Ctrl/Meta combos
@@ -868,15 +877,34 @@ export function handleGlobalKeyDown(
     if (!allowEdit) return;
     handleGlobalEnter(ctx, cellInput, e, canvas);
   } else if (kstr === "Tab") {
+    // While a cell is being edited, Tab commits it first and then steps
+    // sideways -- the same sequence handleGlobalEnter runs for Enter, with a
+    // horizontal step instead of a vertical one. It used to return here
+    // instead, which left Tab doing nothing at all in edit mode.
     if (ctx.luckysheetCellUpdate.length > 0) {
-      return;
+      if (!allowEdit) return;
+      const lastCellUpdate = _.clone(ctx.luckysheetCellUpdate);
+      updateCell(
+        ctx,
+        lastCellUpdate[0],
+        lastCellUpdate[1],
+        cellInput,
+        undefined,
+        canvas
+      );
+      ctx.luckysheet_select_save = [
+        {
+          row: [lastCellUpdate[0], lastCellUpdate[0]],
+          column: [lastCellUpdate[1], lastCellUpdate[1]],
+          row_focus: lastCellUpdate[0],
+          column_focus: lastCellUpdate[1],
+        },
+      ];
     }
 
-    if (e.shiftKey) {
-      moveHighlightCell(ctx, "right", -1, "rangeOfSelect");
-    } else {
-      moveHighlightCell(ctx, "right", 1, "rangeOfSelect");
-    }
+    moveHighlightCell(ctx, "right", e.shiftKey ? -1 : 1, "rangeOfSelect");
+    // Without this the browser also advances focus, on top of the selection
+    // the grid has just moved.
     e.preventDefault();
   } else if (kstr === "F2") {
     if (!allowEdit) return;

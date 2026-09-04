@@ -1212,6 +1212,67 @@ export function getRangetxt(
   }:${indexToColumnChar(column1)}${row1 + 1}`;
 }
 
+/**
+ * The two raw values `#sr-selection` (SheetOverlay, @fortune-sheet/react)
+ * announces for the current selection: the cell/range reference (unformatted
+ * -- the caller applies its own screen-reader spacing, `formatRefForSr`, for
+ * display) and the focused cell's displayed value. Exposed from core, and
+ * consumed by SheetOverlay itself rather than duplicated there, so that a
+ * caller elsewhere in the workbook -- Toolbar's withFocusReturn -- can tell
+ * whether a command changed the very thing #sr-selection is built from
+ * without a second implementation the two could drift out of.
+ *
+ * Both fields are "" together when there is no addressable selection --
+ * matching rangeText's own null-focus guard rather than defaulting the
+ * cell lookup to row/column 0, which would otherwise pair an empty range
+ * with a non-empty value for the same "no selection" state.
+ */
+export function getSrSelectionCore(ctx: Context): {
+  rangeText: string;
+  cellValue: string;
+} {
+  const lastSelection = _.last(ctx.luckysheet_select_save);
+  if (
+    !(
+      lastSelection &&
+      lastSelection.row_focus != null &&
+      lastSelection.column_focus != null
+    )
+  )
+    return { rangeText: "", cellValue: "" };
+  const rf = lastSelection.row_focus;
+  const cf = lastSelection.column_focus;
+  // The merged-cell case narrows the ref to the single focus cell (a merge
+  // has one addressable range, but `lastSelection` may still span the whole
+  // merged block); either way this returns a raw ref, the same shape as the
+  // non-merge branch below. Before this was split out, this branch used to
+  // return early *without* the caller's formatRefForSr spacing applied,
+  // which reads as an oversight from before that spacing existed rather than
+  // a deliberate exemption -- a merged single-cell ref has no different
+  // screen-reading need than an unmerged one. Now both branches return the
+  // same raw shape and the caller formats either one identically.
+  const rangeText =
+    ctx.config.merge != null && `${rf}_${cf}` in ctx.config.merge
+      ? getRangetxt(ctx, ctx.currentSheetId, {
+          column: [cf, cf],
+          row: [rf, rf],
+        })
+      : getRangetxt(ctx, ctx.currentSheetId, lastSelection);
+
+  const sheetIndex = getSheetIndex(ctx, ctx.currentSheetId);
+  // `.m` can be a number (a cell displaying a plain numeric value stores it
+  // that way); both call sites only ever interpolate this into a string.
+  // `|| ""` first, same as before this was split out, so a literal 0 still
+  // collapses to "" rather than becoming the string "0".
+  const cellValue = String(
+    (sheetIndex == null
+      ? ""
+      : ctx.luckysheetfile[sheetIndex]?.data?.[rf]?.[cf]?.m) || ""
+  );
+
+  return { rangeText, cellValue };
+}
+
 // 把string A1:A2转为选区数组
 export function getRangeByTxt(ctx: Context, txt: string) {
   let range: (FormulaDependency | null)[] = [];

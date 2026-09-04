@@ -9,7 +9,6 @@ import React, {
 } from "react";
 import "./index.css";
 import {
-  getRangetxt,
   locale,
   drawArrow,
   handleCellAreaDoubleClick,
@@ -34,6 +33,7 @@ import {
   fixColumnStyleOverflowInFreeze,
   handleKeydownForZoom,
   formatRefForSr,
+  getSrSelectionCore,
   api,
   GRID_ROOT_CLASS,
 } from "@fortune-sheet/core";
@@ -56,6 +56,7 @@ import { useSelectionModeAnnouncement } from "../../hooks/useSelectionModeAnnoun
 import { useSelectAllAnnouncement } from "../../hooks/useSelectAllAnnouncement";
 import { useNameBoxClampAnnouncement } from "../../hooks/useNameBoxClampAnnouncement";
 import { useContextMenuAnnouncements } from "../../hooks/useContextMenuAnnouncements";
+import { useToolbarFocusReturnAnnouncement } from "../../hooks/useToolbarFocusReturnAnnouncement";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
@@ -534,34 +535,25 @@ const SheetOverlay: React.FC = () => {
     };
   }, [onKeyDownForZoom]);
 
-  const rangeText = useMemo(() => {
-    const lastSelection = _.last(context.luckysheet_select_save);
-    if (
-      !(
-        lastSelection &&
-        lastSelection.row_focus != null &&
-        lastSelection.column_focus != null
-      )
-    )
-      return "";
-    const rf = lastSelection.row_focus;
-    const cf = lastSelection.column_focus;
-    if (context.config.merge != null && `${rf}_${cf}` in context.config.merge) {
-      return getRangetxt(context, context.currentSheetId, {
-        column: [cf, cf],
-        row: [rf, rf],
-      });
-    }
-
-    const rawRangeTxt = getRangetxt(
-      context,
-      context.currentSheetId,
-      lastSelection
-    );
-    // Spaced for screen reading: "AA12" -> "AA. 12", "A1:BB100" -> "A. 1: BB. 100".
-    return formatRefForSr(rawRangeTxt);
+  // The single source #sr-selection's two pieces come from -- also what
+  // Toolbar's withFocusReturn reads to decide whether a command already made
+  // this region re-announce on its own. `rawRangeText` is unformatted; the
+  // screen-reader spacing below ("AA12" -> "AA. 12") is display-only and
+  // does not belong in the comparison Toolbar makes with it.
+  const { rangeText: rawRangeText, cellValue: computedCellValue } = useMemo(
+    () => getSrSelectionCore(context),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [context.currentSheetId, context.luckysheet_select_save]);
+    [
+      context.currentSheetId,
+      context.luckysheet_select_save,
+      context.luckysheetfile,
+      context.config.merge,
+    ]
+  );
+  const rangeText = useMemo(
+    () => (rawRangeText ? formatRefForSr(rawRangeText) : ""),
+    [rawRangeText]
+  );
 
   const selectionModeAnnouncement = useSelectionModeAnnouncement(context);
   const selectAllAnnouncement = useSelectAllAnnouncement(context);
@@ -578,26 +570,15 @@ const SheetOverlay: React.FC = () => {
   const { cellAnnouncement: filterCellAnnouncement, regionAnnouncement } =
     useFilterAnnouncements(context, info);
 
-  const cellValue = () => {
-    if ((context.luckysheet_select_save?.length ?? 0) > 0) {
-      const selection =
-        context.luckysheet_select_save?.[
-          context.luckysheet_select_save.length - 1
-        ];
-      if (!selection) return "";
-      const sheetIndex = getSheetIndex(context, context.currentSheetId);
-      if (sheetIndex === undefined || sheetIndex === null) return "";
-      const rowFocus = selection.row_focus ?? 0;
-      const columnFocus = selection.column_focus ?? 0;
-      const cellVal =
-        context.luckysheetfile[sheetIndex]?.data?.[rowFocus]?.[columnFocus]
-          ?.m || "";
-      return cellVal;
-    }
-    return "";
-  };
-
-  const computedCellValue = cellValue();
+  // Same text `#sr-selection` would show for this cell -- the toolbar-return
+  // announcement is meant to say what that region would have, had a
+  // formatting command touched the selection instead of leaving it alone.
+  const toolbarFocusReturnAnnouncement = useToolbarFocusReturnAnnouncement(
+    context.toolbarFocusReturnCount,
+    !rangeText.includes("NaN")
+      ? `${rangeText} ${computedCellValue}`
+      : `A1. ${info.sheetSrIntro}`
+  );
 
   return (
     <main
@@ -1094,6 +1075,27 @@ const SheetOverlay: React.FC = () => {
         aria-atomic="true"
       >
         {contextMenuAnnouncement}
+      </div>
+      {/* A toolbar command edits the cell in place rather than navigating to
+          it, so `#sr-selection` -- built from the selection -- repeats itself
+          and the focus return the command just made (WCAG 2.4.3) says
+          nothing on its own.
+
+          Assertive, not polite: `withFocusReturn` bumps the counter this
+          region watches and then moves focus to the cell input in the same
+          deferred callback (`focusAfterCommit`) -- the exact moment the
+          context-menu region above is assertive to survive. A polite
+          announcement queued there risks the same VoiceOver fate that
+          region's own comment describes: the newly-focused element's own
+          announcement discards a polite message queued in the same moment. */}
+      <div
+        id="sr-toolbarFocusReturn"
+        className="sr-only"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+      >
+        {toolbarFocusReturnAnnouncement}
       </div>
     </main>
   );

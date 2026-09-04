@@ -624,14 +624,48 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
         // workbook binds them itself and calls the matching imperative method;
         // because it can stop propagation before this handler runs, the two do
         // not double-fire.
-        const withPrimary = e.ctrlKey || e.metaKey;
 
         // AltGr is delivered as Ctrl+Alt on Windows and Linux, so on any layout
         // that composes characters with it — Polish ą/ń/ś, and German, Spanish,
         // Czech, Turkish and more — those keystrokes are indistinguishable from
-        // the region chords below by ctrlKey/altKey/code alone, and would be
-        // swallowed mid-cell. A genuine Ctrl+Alt reports AltGraph as false.
-        if (e.getModifierState("AltGraph")) return;
+        // a Ctrl(+Shift)-bound command by ctrlKey/altKey/code alone: e.code
+        // reflects the physical key regardless of what character was composed,
+        // so AltGr+Z (composing "ż" on Polish) still reports code "KeyZ" and
+        // would fire Undo below, and AltGr+X (composing "ź") would fire Cut and
+        // lose the selection's content. This has to sit ahead of everything in
+        // this handler and everything handleGlobalKeyDown does after it — not
+        // scoped to individual branches — because e.code collisions like these
+        // are exactly as reachable through undo/redo, the context-menu chords
+        // and core's own dispatch as through the two chords directly below. A
+        // genuine Ctrl+Alt reports AltGraph as false, so this costs the
+        // Windows/Linux protection nothing.
+        //
+        // `e.key.length === 1` is what keeps this from also swallowing plain
+        // navigation while AltGr happens to still be physically held (e.g. the
+        // instant after composing a character, before releasing it): the
+        // browser reports AltGraph as true for that arrow keydown too, but no
+        // AltGr chord composes a named key like "ArrowRight" into anything, so
+        // there is nothing to protect a command from there — only a
+        // single-character `key` can collide with a Ctrl+letter binding.
+        //
+        // `!e.metaKey` is what keeps this off macOS. MDN documents AltGraph as
+        // true whenever Option is held there, and every Mac binding gated by
+        // `withPrimary` below is Cmd+Option+letter — so an unqualified guard
+        // killed all of those. Two Mac bindings hold Option with no Cmd
+        // instead (previous/next sheet, Option+Up/Down — core's own
+        // keyboard.ts, not this file): `!e.metaKey` does not rescue them,
+        // since metaKey is genuinely false for that chord. They survive on
+        // `e.key.length === 1` alone, same as a plain arrow does — "ArrowUp"/
+        // "ArrowDown" is never what this guard is checking for.
+        if (
+          !e.metaKey &&
+          e.key.length === 1 &&
+          e.getModifierState("AltGraph")
+        ) {
+          return;
+        }
+
+        const withPrimary = e.ctrlKey || e.metaKey;
 
         // No `!e.shiftKey` here: `e.key` is the composed character, and `/` is
         // Shift+7 on German and Nordic layouts and Shift+: on AZERTY, so

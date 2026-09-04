@@ -144,6 +144,13 @@ export type Context = {
    *  Carried on the context so the grid's own cell announcement can report it,
    *  rather than a second region racing that one. */
   nameBoxClampCount?: number;
+  /** Bumped every time a toolbar command moves focus back to the cell it
+   *  changed (WCAG 2.4.3's focus-return, not a navigation). `#sr-selection` is
+   *  built from the selection, which a formatting command does not touch, so
+   *  it repeats itself and never re-announces the return on its own; this is
+   *  what tells `#sr-toolbarFocusReturn` a return just happened, the same
+   *  reasoning `selectAllCount` documents for its own counter. */
+  toolbarFocusReturnCount?: number;
   // Column index whose filter dropdown a keyboard shortcut asked to open.
   // Positioning the popup needs scroll offsets and element geometry that only
   // the React layer has, so core records the request and `FilterOption`
@@ -478,6 +485,7 @@ export function defaultContext(refs: RefValues): Context {
     // absent key behaves differently from an undefined one under immer's
     // structural sharing and under anything that clones a known key set.
     contextMenuAnnouncement: undefined,
+    toolbarFocusReturnCount: 0,
     openFilterMenuForColumn: null,
     luckysheet_select_save: undefined,
     luckysheet_selection_range: [],

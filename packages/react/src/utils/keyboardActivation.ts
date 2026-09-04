@@ -149,3 +149,103 @@ export function mouseDownToggleHandlers<T extends HTMLElement = HTMLElement>(
     }),
   };
 }
+
+/**
+ * Wrap a command so that focus returns to the cells it acted on.
+ *
+ * After an editing command run from the toolbar, focus belongs in the user's
+ * working context rather than on the control that ran it (WCAG 2.4.3): select
+ * B5, bold it, and the next arrow key should move from B5, not along the
+ * toolbar. `getTarget` names where that is — the cell input, which is where a
+ * mouse click already leaves focus and the only place the grid's own key
+ * handling runs.
+ *
+ * A command that declined to act must not relocate anyone, which is what
+ * `readStamp` is for: it samples some value that changes if and only if the
+ * command wrote something, before and after. In the workbook that is
+ * `luckysheetfile` — immer rebuilds the references along the path to whatever a
+ * command wrote, up to and including that array, and preserves them for a
+ * subtree nothing touched. So a command that changed no cell, format, merge or
+ * freeze leaves it identical and focus stays where the user put it. This
+ * generalises the rule `filterUnchanged` states for the two filter items.
+ *
+ * Both `readStamp` and `getTarget` are called late — after the commit — for the
+ * reasons `focusAfterCommit` documents; a caller holding a React ref must read
+ * through it rather than closing over a value from render.
+ *
+ * `onReturn`, if given, fires exactly once per actual return — the same branch
+ * that resolves `getTarget()`, never the declined one. It exists so a caller
+ * can announce the return to a screen reader for the common case: a
+ * formatting command that touches neither the selection nor the cell's
+ * displayed value, so `#sr-selection` stays silent (it only re-announces on
+ * its own text changing) and would otherwise leave the return unannounced.
+ *
+ * `readAnnounceStamp`, if given, gates that call: `onReturn` only fires when
+ * this reads the same before and after, same as `readStamp` gates the return
+ * itself. Without it, a command that *did* move the selection or the cell
+ * value (a merge, an undo that restores content) would fire `onReturn` too —
+ * `#sr-selection` has already re-announced that on its own by then, so the
+ * user hears the same cell spoken twice. Omit it for a caller with nothing
+ * meaningful to compare; `onReturn` then fires on every actual return, as
+ * before.
+ */
+const stampIds = new WeakMap<object, number>();
+let nextStampId = 1;
+
+/**
+ * Turn one `readStamp` sample into something joinable: primitives pass
+ * through unchanged, and an object/array gets a stable id from a WeakMap
+ * rather than being stringified (which would make two structurally-equal
+ * but distinct writes compare equal, and a large `luckysheetfile` slow to
+ * serialise on every command). Immer hands out a fresh top-level reference
+ * for anything a producer actually wrote, so a changed id here means
+ * exactly "this field changed" -- the same property `readStamp`'s own
+ * single-field callers already rely on, just made composable.
+ */
+function stampId(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  let id = stampIds.get(value);
+  if (id === undefined) {
+    id = nextStampId;
+    nextStampId += 1;
+    stampIds.set(value, id);
+  }
+  return id;
+}
+
+/**
+ * Combine several `readStamp`-shaped samples into one `===`-comparable
+ * stamp, for a command whose write doesn't reach the single field a caller
+ * is already tracking. Format Painter, for instance, arms itself by writing
+ * `luckysheet_copy_save` and `luckysheetPaintModelOn` -- both top-level
+ * siblings of `luckysheetfile` in the workbook context, so `luckysheetfile`
+ * identity alone never sees it change. `combineStamps(a, b, c)` used as
+ * `readStamp` catches a change to any one of them without weakening the
+ * single-field check for every other command sharing the same wrapper: a
+ * command that touches none of the combined fields still reads identical
+ * before and after, exactly as a single-field stamp would.
+ */
+export function combineStamps(...parts: unknown[]): string {
+  return parts.map(stampId).join("|");
+}
+
+export function withFocusReturn<A extends unknown[]>(
+  run: (...args: A) => void,
+  readStamp: () => unknown,
+  getTarget: () => HTMLElement | null | undefined,
+  onReturn?: () => void,
+  readAnnounceStamp?: () => unknown
+): (...args: A) => void {
+  return (...args: A) => {
+    const before = readStamp();
+    const beforeAnnounce = readAnnounceStamp?.();
+    run(...args);
+    focusAfterCommit(() => {
+      if (readStamp() === before) return null;
+      if (!readAnnounceStamp || readAnnounceStamp() === beforeAnnounce) {
+        onReturn?.();
+      }
+      return getTarget();
+    });
+  };
+}
