@@ -11029,6 +11029,7 @@ export default {
     enteredFilteredRegion: "已進入篩選區域：${start} 至 ${end}。",
     leftFilteredRegion: "已離開篩選區域。",
     currentCellInput: "目前儲存格輸入",
+    cellEditor: "儲存格編輯器",
     formulaReferenceSelected: "參照 ${range}。",
     newSheet: "新表",
     sheetOptions: "圖紙選項",

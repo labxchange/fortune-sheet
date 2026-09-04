@@ -11062,6 +11062,11 @@ export default {
     enteredFilteredRegion: "已进入筛选区域：${start} 至 ${end}。",
     leftFilteredRegion: "已离开筛选区域。",
     currentCellInput: "当前单元格输入",
+    // The in-cell editor's own name, deliberately different from
+    // `currentCellInput` above: both fields hold the same text and are both
+    // in the DOM at once, so sharing a name would announce two identical
+    // "Current cell input" text fields with nothing to tell them apart.
+    cellEditor: "单元格编辑器",
     formulaReferenceSelected: "引用 ${range}。",
     newSheet: "新表",
     sheetOptions: "图纸选项",

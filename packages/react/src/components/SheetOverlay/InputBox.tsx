@@ -16,6 +16,7 @@ import {
   escapeHTMLTag,
   isAllowEdit,
   getrangeseleciton,
+  locale,
 } from "@fortune-sheet/core";
 import React, {
   useContext,
@@ -35,6 +36,7 @@ import usePrevious from "../../hooks/usePrevious";
 
 const InputBox: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
+  const { info } = locale(context);
   const inputRef = useRef<HTMLDivElement>(null);
   const lastKeyDownEventRef = useRef<KeyboardEvent>(null);
   const prevCellUpdate = usePrevious<any[]>(context.luckysheetCellUpdate);
@@ -405,6 +407,29 @@ const InputBox: React.FC = () => {
     context.allowEdit === true
   );
 
+  /* Whether the editor is genuinely usable, which `edit` above does NOT say:
+   * its `&& context.allowEdit === true` conjunction means a workbook rendered
+   * with `allowEdit={false}` and no per-row/column config yields
+   * `undefined && false` -> falsy -> `edit === true`. It also never consults
+   * cell locking. `isAllowEdit` folds in all four — row read-only, column
+   * read-only, `checkCellIsLocked`, and `ctx.allowEdit` — and is the predicate
+   * the commit path itself uses further up this file.
+   *
+   * Scoped to the focus cell rather than the whole selection, on both counts:
+   * the in-cell editor only ever edits that one cell, and `isAllowEdit` walks
+   * every cell of the range it is given with a sheet lookup each — which on a
+   * select-all would be a million of them, per render. */
+  const canEditCell = useMemo(
+    () =>
+      !isHidenRC &&
+      !!firstSelection &&
+      isAllowEdit(context, [
+        { row: [row_index, row_index], column: [col_index, col_index] },
+      ]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [context, isHidenRC, firstSelection, row_index, col_index]
+  );
+
   return (
     <div
       className="luckysheet-input-box"
@@ -450,6 +475,32 @@ const InputBox: React.FC = () => {
           onChange={onChange}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
+          /* Named and typed only while the cell is genuinely editable (WCAG
+           * 4.1.2), the same rule the sheet-tab rename field follows — and
+           * gated on `canEditCell`, not on the `allowEdit` prop below, which
+           * stays true on a read-only workbook. The underlying
+           * `contenteditable="true"` is inconsistent there already; that is
+           * pre-existing and left alone, but it must not be promoted into an
+           * explicit promise of a typeable field to assistive tech.
+           *
+           * Without `role`, a contenteditable is exposed as a generic
+           * container rather than a field with a value, so the reader falls
+           * back to the container's hypertext — and a formula is a run of
+           * coloured `<span>`s (`fortune-formula-functionrange-cell`,
+           * `luckysheet-formula-text-color`), each of which is its own
+           * accessibility object and is therefore substituted with U+FFFC.
+           * VoiceOver reads that substitution aloud, so typing `=SUM(` and
+           * arrowing to a reference announced "object replacement character"
+           * instead of the formula. Naming and typing the editor makes the
+           * reader take the value — the concatenated text — instead.
+           *
+           * `aria-multiline` is deliberately left off rather than set to
+           * false: `textbox` already defaults to single-line, and the editor
+           * can display a pasted multi-line inline string, so asserting it
+           * would add a claim without adding information. The formula bar
+           * (`FxEditor`) omits it for the same reason. */
+          role={canEditCell ? "textbox" : undefined}
+          aria-label={canEditCell ? info.cellEditor : undefined}
           allowEdit={edit ? !isHidenRC : edit}
         />
       </div>

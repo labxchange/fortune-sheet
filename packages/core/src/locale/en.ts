@@ -11084,6 +11084,11 @@ export default {
     enteredFilteredRegion: "Entered filtered region: ${start} through ${end}.",
     leftFilteredRegion: "Left filtered region.",
     currentCellInput: "Current cell input",
+    // The in-cell editor's own name, deliberately different from
+    // `currentCellInput` above: both fields hold the same text and are both
+    // in the DOM at once, so sharing a name would announce two identical
+    // "Current cell input" text fields with nothing to tell them apart.
+    cellEditor: "Cell editor",
     formulaReferenceSelected: "Reference ${range}.",
     newSheet: "New sheet",
     sheetOptions: "Sheet options",

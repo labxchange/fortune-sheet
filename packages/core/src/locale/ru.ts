@@ -12959,6 +12959,7 @@ export default {
       "Вход в отфильтрованную область: с ${start} по ${end}.",
     leftFilteredRegion: "Выход из отфильтрованной области.",
     currentCellInput: "Ввод текущей ячейки",
+    cellEditor: "Редактор ячейки",
     formulaReferenceSelected: "Ссылка ${range}.",
     newSheet: "Новый лист",
     sheetOptions: "Параметры листа",
