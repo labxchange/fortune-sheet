@@ -49,6 +49,39 @@ export type Context = {
   presences?: Presence[];
   showSearch?: boolean;
   showReplace?: boolean;
+  /**
+   * Where Replace last wrote, and the terms it wrote it for.
+   *
+   * Replace parks the selection on the cell it just rewrote, so the next press
+   * finds that same cell again. Usually harmless — the replacement no longer
+   * matches, so the search moves on — but when the replacement still contains
+   * the search text ("8_10" -> "8_10_") the cell stays a match forever and
+   * every press appends again. No stateless rule can tell "the user wants this
+   * cell replaced" apart from "we just replaced it", because the text really is
+   * still there; this is that missing distinction.
+   *
+   * Only honoured on the sheet it was set on, while the selection is still the
+   * single cell Replace left it on and the terms are unchanged, so moving away
+   * — Find Next, a result row, another cell, another sheet, editing either
+   * field — invalidates it without needing to be cleared. `sheetId` is what
+   * stops the coordinates from matching a same-positioned cell on a different
+   * sheet, which would silently skip a match the user has selected.
+   *
+   * Selecting the *same* cell again does not, because nothing here can tell
+   * that apart from never having left. So a user who deliberately goes back to
+   * an already-replaced cell to append once more is refused until they change
+   * a field. That is the trade this ticket asks for — the reported bug is that
+   * very cell being rewritten on every press — and the alternative is clearing
+   * the cursor from every selection path in the app, which is far more surface
+   * for the same call.
+   */
+  replaceCursor?: {
+    sheetId: string;
+    r: number;
+    c: number;
+    searchText: string;
+    replaceText: string;
+  };
   showShortcutsDialog?: boolean;
   linkCard?: LinkCardProps;
   rangeDialog?: RangeDialogProps; // 坐标选区鼠标选择
