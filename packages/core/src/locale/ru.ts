@@ -12965,6 +12965,13 @@ export default {
     allSheets: "Все листы",
     scrollLeft: "Прокрутить вкладки влево",
     scrollRight: "Прокрутить вкладки вправо",
+    sheetAddedAnnouncement: "${name} добавлен и выбран.",
+    sheetAddedNotSelectedAnnouncement: "${name} добавлен.",
+    sheetSelectedAnnouncement: "${name} выбран.",
+    sheetMovedAnnouncement:
+      "${name} перемещён на позицию ${position} из ${total}.",
+    sheetColorChangedAnnouncement: "Цвет вкладки ${name} изменён на ${color}.",
+    sheetColorResetAnnouncement: "Цвет вкладки ${name} сброшен.",
     Dropdown: "Выпадающий список",
     selectAllCells: "Выделить все ячейки",
     columnOptions: "Параметры столбца",

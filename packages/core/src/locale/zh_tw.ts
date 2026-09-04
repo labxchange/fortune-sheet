@@ -11035,6 +11035,13 @@ export default {
     allSheets: "所有工作表",
     scrollLeft: "向左捲動標籤",
     scrollRight: "向右捲動標籤",
+    sheetAddedAnnouncement: "已新增並選取${name}。",
+    sheetAddedNotSelectedAnnouncement: "已新增${name}。",
+    sheetSelectedAnnouncement: "已選取${name}。",
+    sheetMovedAnnouncement:
+      "${name}已移動到第${position}個位置，共${total}個。",
+    sheetColorChangedAnnouncement: "${name}的標籤顏色已變更為${color}。",
+    sheetColorResetAnnouncement: "${name}的標籤顏色已重設。",
     Dropdown: "下拉式選單",
     selectAllCells: "選擇所有儲存格",
     columnOptions: "欄選項",

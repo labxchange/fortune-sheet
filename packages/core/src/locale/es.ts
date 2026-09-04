@@ -11060,6 +11060,14 @@ export default {
     allSheets: "Todas las hojas",
     scrollLeft: "Desplazar pestañas a la izquierda",
     scrollRight: "Desplazar pestañas a la derecha",
+    sheetAddedAnnouncement: "${name} añadida y seleccionada.",
+    sheetAddedNotSelectedAnnouncement: "${name} añadida.",
+    sheetSelectedAnnouncement: "${name} seleccionada.",
+    sheetMovedAnnouncement:
+      "${name} movida a la posición ${position} de ${total}.",
+    sheetColorChangedAnnouncement:
+      "Color de pestaña de ${name} cambiado a ${color}.",
+    sheetColorResetAnnouncement: "Color de pestaña de ${name} restablecido.",
     Dropdown: "Menú desplegable",
     selectAllCells: "Seleccionar todas las celdas",
     columnOptions: "Opciones de columna",

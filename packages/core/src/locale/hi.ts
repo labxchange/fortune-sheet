@@ -11088,6 +11088,14 @@ export default {
     allSheets: "सभी शीट",
     scrollLeft: "टैब बाईं ओर स्क्रॉल करें",
     scrollRight: "टैब दाईं ओर स्क्रॉल करें",
+    sheetAddedAnnouncement: "${name} जोड़ी गई और चयनित की गई।",
+    sheetAddedNotSelectedAnnouncement: "${name} जोड़ी गई।",
+    sheetSelectedAnnouncement: "${name} चयनित।",
+    sheetMovedAnnouncement:
+      "${name} को स्थिति ${position} में ले जाया गया, कुल ${total} में से।",
+    sheetColorChangedAnnouncement:
+      "${name} टैब का रंग बदलकर ${color} किया गया।",
+    sheetColorResetAnnouncement: "${name} टैब का रंग रीसेट किया गया।",
     Dropdown: "ड्रॉप डाउन",
     selectAllCells: "सभी कक्ष चुनें",
     columnOptions: "कॉलम विकल्प",

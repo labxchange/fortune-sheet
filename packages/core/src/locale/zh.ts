@@ -11068,6 +11068,13 @@ export default {
     allSheets: "所有工作表",
     scrollLeft: "向左滚动标签",
     scrollRight: "向右滚动标签",
+    sheetAddedAnnouncement: "已添加并选中${name}。",
+    sheetAddedNotSelectedAnnouncement: "已添加${name}。",
+    sheetSelectedAnnouncement: "已选中${name}。",
+    sheetMovedAnnouncement:
+      "${name}已移动到第${position}个位置，共${total}个。",
+    sheetColorChangedAnnouncement: "${name}的标签颜色已更改为${color}。",
+    sheetColorResetAnnouncement: "${name}的标签颜色已重置。",
     Dropdown: "下拉菜单",
     selectAllCells: "选择所有单元格",
     columnOptions: "列选项",

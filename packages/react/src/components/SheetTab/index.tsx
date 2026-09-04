@@ -15,6 +15,9 @@ import SheetItem from "./SheetItem";
 import ZoomControl from "../ZoomControl";
 import { SHEET_LIST_ID } from "../SheetList";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
+import { useSheetSwitchAnnouncement } from "../../hooks/useSheetSwitchAnnouncement";
+import { useSheetTabMoveAnnouncement } from "../../hooks/useSheetTabMoveAnnouncement";
+import { useSheetTabColorAnnouncement } from "../../hooks/useSheetTabColorAnnouncement";
 import {
   activateOnEnterOrSpace,
   mouseDownToggleHandlers,
@@ -29,6 +32,9 @@ const SheetTab: React.FC = () => {
   const [isShowScrollBtn, setIsShowScrollBtn] = useState<boolean>(false);
   const [isShowBoundary, setIsShowBoundary] = useState<boolean>(true);
   const { info } = locale(context);
+  const sheetSwitchAnnouncement = useSheetSwitchAnnouncement(context, info);
+  const sheetMoveAnnouncement = useSheetTabMoveAnnouncement(context, info);
+  const sheetColorAnnouncement = useSheetTabColorAnnouncement(context, info);
 
   useRovingFocus({
     containerRef: tabContainerRef,
@@ -222,6 +228,29 @@ const SheetTab: React.FC = () => {
             <SVGIcon name="arrow-doubleright" width={12} height={12} />
           </div>
         )}
+      </div>
+      {/* Sheet tab actions have no other feedback a screen reader picks up:
+          the dropdown and Alt+Arrow shortcut switch sheets without moving
+          focus onto the new tab, and Move left/right and tab colour are
+          silent, visual-only changes. Polite, since none of these compete
+          with an in-progress alert the way the grid's own selection does.
+
+          These live with the controls they describe, which means they ride on
+          `showSheetTabs` along with the rest of this bar. Move and colour are
+          only reachable from the tabs, so that is right for them; the Alt+Arrow
+          switch shortcut also works from the grid, so with the bar hidden a
+          switch is unannounced again. Hoisting a region into `Workbook` for
+          that one case would put it outside the component that owns the state
+          it reports, so it stays here until a workbook that hides its tabs and
+          still switches sheets by shortcut is a case someone has. */}
+      <div id="sr-sheetSwitch" className="sr-only" role="status">
+        {sheetSwitchAnnouncement}
+      </div>
+      <div id="sr-sheetMove" className="sr-only" role="status">
+        {sheetMoveAnnouncement}
+      </div>
+      <div id="sr-sheetColor" className="sr-only" role="status">
+        {sheetColorAnnouncement}
       </div>
       <div className="fortune-sheet-area-right">
         <ZoomControl />
