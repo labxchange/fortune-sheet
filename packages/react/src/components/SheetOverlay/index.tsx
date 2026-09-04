@@ -36,6 +36,7 @@ import {
   formatRefForSr,
   api,
   GRID_ROOT_CLASS,
+  endSelectionModeOnFocusLeave,
   normalizeSelection,
 } from "@fortune-sheet/core";
 import _ from "lodash";
@@ -654,6 +655,54 @@ const SheetOverlay: React.FC = () => {
 
   const computedCellValue = cellValue();
 
+  /**
+   * Focus leaving the grid ends Shift+F8 mode, keeping its ranges painted.
+   * See `endSelectionModeOnFocusLeave` for why the flag has to go and why this
+   * is not the same thing as Escape.
+   *
+   * Guarded on the flag first, so the common case — every ordinary focus move
+   * out of a grid nobody is building a selection in — costs a comparison, not a
+   * context write and the re-render behind it.
+   */
+  const onGridBlur = useCallback(
+    (e: React.FocusEvent<HTMLElement>) => {
+      if (!context.selectionModeActive) return;
+      const next = e.relatedTarget as Node | null;
+      if (next) {
+        // React's `onBlur` is the delegated focusout, so it fires for
+        // descendants too, and a hand-off within the grid is not a departure:
+        // a cell to the hidden input as an edit starts, the select-all corner
+        // to a filter funnel. The whole editing surface lives under this
+        // element, so containment is the test.
+        if (e.currentTarget.contains(next)) return;
+      } else if (!document.hasFocus()) {
+        // A null `relatedTarget` covers two unrelated things, and only one of
+        // them is a departure. The window itself going away is not — an
+        // alt-tab should come back to the mode still running — and
+        // `document.hasFocus()` is what says so. Focus merely falling to
+        // `body` is: a click on non-focusable page chrome, or the focused
+        // element being removed from the DOM, which is how the reported flow
+        // ends when the graph card unmounts. Treating every null as a window
+        // blur would leave the flag set in exactly the case this handler
+        // exists to clear.
+        //
+        // Checked only on the null branch, deliberately. jsdom clears its
+        // `_lastFocusedElement` *before* dispatching focusout, so under test
+        // `hasFocus()` reads false during any ordinary focus move; browsers
+        // keep it true. Only the null branch needs the answer, and there the
+        // two agree.
+        return;
+      }
+      setContext(
+        (draftCtx) => {
+          endSelectionModeOnFocusLeave(draftCtx);
+        },
+        { noHistory: true }
+      );
+    },
+    [context.selectionModeActive, setContext]
+  );
+
   return (
     <main
       className={GRID_ROOT_CLASS}
@@ -661,6 +710,7 @@ const SheetOverlay: React.FC = () => {
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
+      onBlur={onGridBlur}
       tabIndex={-1}
       style={{
         width: context.luckysheetTableContentHW[0],
