@@ -90,6 +90,40 @@ const insertColumnRow = (container: HTMLElement) => {
   };
 };
 
+/**
+ * Everything the Paste row reads before it commits.
+ *
+ * `handlePasteByClick` does not use the string the row passes it — that only
+ * seeds `#fortune-copy-content`, which is what it actually reads — so the node
+ * has to exist or the row declines and the case proves nothing.
+ *
+ * Pass `readText` to install a fake `navigator.clipboard`; omit it and the row
+ * falls through to the `sessionStorage` path, which is what bare jsdom does.
+ * Always undo with `resetPasteClipboard` from a `finally`: both live on globals
+ * shared by every test in this file, so a mid-test failure would otherwise
+ * leak a clipboard into unrelated cases.
+ */
+const givePasteSomethingToRead = (opts?: { readText: jest.Mock }) => {
+  if (opts) {
+    Object.defineProperty(navigator, "clipboard", {
+      value: { readText: opts.readText },
+      configurable: true,
+    });
+  } else {
+    sessionStorage.setItem("localClipboard", "pasted");
+  }
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    '<div id="fortune-copy-content">pasted</div>'
+  );
+};
+
+const resetPasteClipboard = () => {
+  delete (navigator as any).clipboard;
+  sessionStorage.removeItem("localClipboard");
+  document.getElementById("fortune-copy-content")?.remove();
+};
+
 const runAction = async (
   container: HTMLElement,
   ref: React.RefObject<WorkbookInstance>,
@@ -141,21 +175,18 @@ describe("focus after a context-menu action", () => {
    */
   it("lands focus on the grid, not the body, after Paste", async () => {
     const { container, ref } = renderSheet();
-    sessionStorage.setItem("localClipboard", "pasted");
-    document.body.insertAdjacentHTML(
-      "beforeend",
-      '<div id="fortune-copy-content">pasted</div>'
-    );
+    givePasteSomethingToRead();
 
-    await runAction(container, ref, "Paste");
-    await flush();
+    try {
+      await runAction(container, ref, "Paste");
+      await flush();
 
-    expect(statusRegion(container)!.textContent).toMatch(/paste/i);
-    expect(document.activeElement).not.toBe(document.body);
-    expect(document.activeElement).toBe(cellInput(container));
-
-    sessionStorage.removeItem("localClipboard");
-    document.getElementById("fortune-copy-content")?.remove();
+      expect(statusRegion(container)!.textContent).toMatch(/paste/i);
+      expect(document.activeElement).not.toBe(document.body);
+      expect(document.activeElement).toBe(cellInput(container));
+    } finally {
+      resetPasteClipboard();
+    }
   });
 
   /**
@@ -172,25 +203,71 @@ describe("focus after a context-menu action", () => {
           setTimeout(() => resolve("pasted"), 0);
         })
     );
-    Object.defineProperty(navigator, "clipboard", {
-      value: { readText },
-      configurable: true,
+    givePasteSomethingToRead({ readText });
+
+    try {
+      const { container, ref } = renderSheet();
+      await runAction(container, ref, "Paste");
+      await flush();
+      await flush();
+
+      expect(readText).toHaveBeenCalled();
+      expect(document.activeElement).toBe(cellInput(container));
+    } finally {
+      resetPasteClipboard();
+    }
+  });
+
+  /**
+   * Escape, which `focusOutTarget` deliberately does not cover — it falls to
+   * `useEscapeToClose`'s own restore, aimed at whatever held focus when the
+   * menu opened. So the destination depends on how the menu was opened, and
+   * these two cases pin both halves rather than asserting the one that works.
+   *
+   * Here because the `focusOutTarget` comment in `ContextMenu/index.tsx` cites
+   * them: the Tab fix makes Escape the documented way out of the spreadsheet,
+   * so what Escape actually does had better be written down. The right-click
+   * half is a **pre-existing gap, asserted as-is rather than as it should be** —
+   * `SheetOverlay`'s `cellAreaMouseDown` skips `e.button === 2`, so that path
+   * never focuses the cell input and the restore has nothing to aim at. Fixing
+   * it is a separate change; this is the assertion it will have to turn over.
+   */
+  describe("escapeRestoresFocus", () => {
+    it("returns to the cell when the menu was opened from the keyboard", async () => {
+      const { container, ref } = renderSheet();
+      act(() => {
+        ref.current?.setSelection([{ row: [0, 0], column: [0, 0] }]);
+      });
+      // What a keyboard open leaves behind: focus already in the grid, which is
+      // what the hook captures as the place to restore to.
+      act(() => {
+        cellInput(container)!.focus();
+      });
+      openContextMenu(container);
+
+      act(() => {
+        fireEvent.keyDown(screen.getByText("Copy"), { key: "Escape" });
+      });
+      await flush();
+
+      expect(document.activeElement).toBe(cellInput(container));
     });
-    document.body.insertAdjacentHTML(
-      "beforeend",
-      '<div id="fortune-copy-content">pasted</div>'
-    );
 
-    const { container, ref } = renderSheet();
-    await runAction(container, ref, "Paste");
-    await flush();
-    await flush();
+    it("falls to the body when the menu was opened by right-click", async () => {
+      const { container, ref } = renderSheet();
+      act(() => {
+        ref.current?.setSelection([{ row: [0, 0], column: [0, 0] }]);
+      });
+      // No prior left-click, so nothing focused the cell input first.
+      openContextMenu(container);
 
-    expect(readText).toHaveBeenCalled();
-    expect(document.activeElement).toBe(cellInput(container));
+      act(() => {
+        fireEvent.keyDown(screen.getByText("Copy"), { key: "Escape" });
+      });
+      await flush();
 
-    delete (navigator as any).clipboard;
-    document.getElementById("fortune-copy-content")?.remove();
+      expect(document.activeElement).toBe(document.body);
+    });
   });
 
   it("leaves focus alone when the action declines to act", async () => {

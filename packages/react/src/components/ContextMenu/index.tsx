@@ -199,8 +199,20 @@ const ContextMenu: React.FC = () => {
      * grid (WCAG 2.4.3). This menu is opened from a cell by a gesture the tab
      * order knows nothing about, so the element "after" it is an accident of
      * DOM order — the sheet-tab strip, the zoom control, the embedding page's
-     * own navigation — and every other route out already settles on the cell.
-     * Escape then Tab is how a user leaves the spreadsheet from here.
+     * own navigation. The action rows already settle there via
+     * `commitAndSettle` and `focusGridBeforeHandoff`; this covers the one route
+     * that did not.
+     *
+     * Escape is the way out of the spreadsheet from here, and it is *not*
+     * routed through this option — it falls to the hook's own restore, which
+     * aims at whatever held focus when the menu opened. Which is the cell when
+     * the menu was opened from the keyboard, and `<body>` when it was opened by
+     * right-click, because `SheetOverlay`'s `cellAreaMouseDown` skips
+     * `e.button === 2` and so never focuses the cell input on that path (the
+     * same gap the docblock at the top of this file describes). Pre-existing,
+     * unticketed and deliberately not changed here; `escapeRestoresFocus` in
+     * `contextMenuFocusAndStatus.test.tsx` pins both halves so a fix has a
+     * failing assertion to turn over.
      */
     focusOutTarget: () => refs.cellInput.current,
   });

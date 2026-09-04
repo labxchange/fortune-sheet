@@ -297,7 +297,10 @@ const FilterMenu: React.FC = () => {
    * exists once the DOM has settled — so the question is deferred and asked
    * once: focus is rescued only if nothing else claimed it.
    *
-   * The keyboard route does *not* use this; see `closeFromFocusOut`.
+   * The keyboard route does *not* use this. A Tab out is handled by
+   * `useEscapeToClose`'s `focusOutTarget` below, which returns to the cell
+   * unconditionally — focus has already landed on the next control by then, so
+   * "was it lost?" is always false on that route and this would decline.
    */
   const restoreFocusIfLost = useCallback(() => {
     focusAfterCommit(() => {
