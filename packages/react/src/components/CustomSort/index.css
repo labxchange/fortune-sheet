@@ -8,8 +8,34 @@
   margin: 0 0 16px;
 }
 
-.fortune-sort-title-range {
-  margin: 0 4px;
+/*
+ * `.fortune-sort-title-range` used to live here with `margin: 0 4px`, spacing the
+ * cell references apart visually. That rule is gone: this heading is the Sort
+ * dialog's accessible name, name computation ignores CSS, and a margin-only gap
+ * made VoiceOver read "Sort range fromF4toH6" as one word. The gaps are real
+ * spaces in the markup now, so keeping the margin would have doubled them.
+ */
+
+/*
+ * Restores the `display: inline` these labels got for free as bare `<span>`s.
+ *
+ * This fork renders inside host pages that ship their own unscoped element
+ * selectors, and the spreadsheet sim's bundle carries a global
+ * `label { display: block }` (leaked out of a legacy sim's stylesheet, loaded
+ * after this package's CSS). A bare `label` and this dialog's former `span`s
+ * never collided, so turning the text into real `<label>`s for WCAG 4.1.2 handed
+ * every one of them `display: block` — the checkbox and both radios dropped onto
+ * the line above their own text, doubling each row's height.
+ *
+ * Storybook loads only this package's CSS, so the dialog looks correct there and
+ * breaks only once embedded; the class selector here outranks the host's bare
+ * one regardless of source order, which is what makes the fix hold either way.
+ *
+ * `.fortune-sort-by-select`'s `margin-left` below is the standing evidence that
+ * inline is the intended layout: it spaces the select from a label beside it.
+ */
+.fortune-sort label {
+  display: inline;
 }
 
 .fortune-sort-modal > div {
@@ -28,4 +54,22 @@
 .fortune-sort-button {
   margin-top: 10px;
   margin-bottom: 25px;
+}
+
+/*
+ * The global `.button-basic:focus-visible` (Toolbar/index.css) draws the ring at
+ * `outline-offset: 0`, so here it lands flush on the button's own
+ * `.button-primary` fill: #0063c3 on #0188fb is 1.66:1 and fails WCAG 1.4.11.
+ * 2px out puts it on the white dialog panel instead, at 5.88:1 — same value and
+ * reasoning as the filter menu's buttons in ContextMenu/index.css.
+ *
+ * Scoped to this dialog rather than fixed globally: `.button-basic` is shared
+ * with the Toolbar, ChangeColor, DataVerification and four others, several of
+ * which sit in containers that clip an outset ring. An inset ring is not an
+ * option here — at `padding: 6px 12px` a 3px inset sits back on the blue fill.
+ */
+.fortune-sort-button .button-basic:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+  outline-offset: 2px;
 }

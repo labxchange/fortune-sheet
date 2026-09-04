@@ -60,7 +60,14 @@ const SheetTabContextMenu: React.FC = () => {
 
   useOutsideClick(containerRef, close, [close]);
   const isOpen = sheet != null && x != null && y != null;
-  useEscapeToClose({ open: isOpen, onClose: close, containerRef });
+  useEscapeToClose({
+    open: isOpen,
+    onClose: close,
+    containerRef,
+    // WCAG 2.4.11. No withinRefs: unlike FilterMenu's, this menu's Change-color
+    // submenu renders *inside* containerRef, so contains() already covers it.
+    closeOnFocusOut: true,
+  });
   useRovingFocus({ containerRef, orientation: "vertical", enabled: isOpen });
   useEscapeToClose({
     open: isShowChangeColor,

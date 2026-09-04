@@ -11585,6 +11585,7 @@ export default {
       "Cannot perform this operation on multiple selection areas, please select a single range and try again",
     mergeError:
       "There are merged cells in the selection, this operation cannot be performed!",
+    nothingToSort: "There is nothing to sort in the selected range.",
   },
   filter: {
     filter: "create filter",
@@ -11645,6 +11646,12 @@ export default {
     valueBlank: "(Null)",
     mergeError:
       "There are merged cells in the filter selection, this operation cannot be performed!",
+    // Results of the filter dropdown's own actions. They go to
+    // `#sr-contextMenuRegion` in SheetOverlay, not this menu's own region, which
+    // unmounts the moment an action closes the menu (WCAG 4.1.3). Sorting and
+    // clearing reuse the `rightclick.*` results.
+    announceFilterApplied: "Filter applied.",
+    announceFilteredByColor: "Filtered by color.",
   },
   rightclick: {
     copy: "Copy",
@@ -11719,6 +11726,54 @@ export default {
     cannotInsertOnColumnReadOnly: "Cannot insert into read-only column",
     rowOverLimit: "10000 row limit exceeded",
     columnOverLimit: "1000 column limit exceeded",
+    // The filter row toggles — creates a filter when none exists, removes the
+    // existing one when it does. A static "Filter" left the user unable to tell
+    // which would happen (WCAG 4.1.2).
+    createFilter: "Create filter",
+    removeFilter: "Remove filter",
+
+    // Accessible names for the numeric inputs in context-menu rows, which used
+    // to carry only a `placeholder` — a last-resort fallback for the accessible
+    // name, and reported by axe (WCAG 3.3.2, 4.1.2).
+    insertColumnCountLabel: "Number of columns to insert",
+    insertRowCountLabel: "Number of rows to insert",
+    rowHeightLabel: "Row height in pixels",
+    columnWidthLabel: "Column width in pixels",
+
+    // Status messages announced after an action completes. Each states the
+    // RESULT rather than repeating the triggering control's label, which is what
+    // WCAG 4.1.3 asks for. Singular and plural are separate keys so no reader
+    // ever hears "1 rows inserted".
+    announceCopied: "Selection copied.",
+    announcePasted: "Selection pasted.",
+    // Insert results name the direction, since both rows render at once. One key
+    // per direction rather than a "${dir}" placeholder, so a translation can put
+    // the preposition where its grammar needs it.
+    announceColumnInsertedLeft: "1 column inserted to the left.",
+    announceColumnsInsertedLeft: "${count} columns inserted to the left.",
+    announceColumnInsertedRight: "1 column inserted to the right.",
+    announceColumnsInsertedRight: "${count} columns inserted to the right.",
+    announceRowInsertedAbove: "1 row inserted above.",
+    announceRowsInsertedAbove: "${count} rows inserted above.",
+    announceRowInsertedBelow: "1 row inserted below.",
+    announceRowsInsertedBelow: "${count} rows inserted below.",
+    announceColumnDeleted: "1 column deleted.",
+    announceColumnsDeleted: "${count} columns deleted.",
+    announceRowDeleted: "1 row deleted.",
+    announceRowsDeleted: "${count} rows deleted.",
+    announceRowHidden: "1 row hidden.",
+    announceRowsHidden: "${count} rows hidden.",
+    announceColumnHidden: "1 column hidden.",
+    announceColumnsHidden: "${count} columns hidden.",
+    announceCleared: "Contents cleared.",
+    announceRowsShown: "Hidden rows shown.",
+    announceColumnsShown: "Hidden columns shown.",
+    announceRowHeightSet: "Row height set to ${value} pixels.",
+    announceColumnWidthSet: "Column width set to ${value} pixels.",
+    announceSortedAsc: "Sorted in ascending order.",
+    announceSortedDesc: "Sorted in descending order.",
+    announceFilterCreated: "Filter created.",
+    announceFilterRemoved: "Filter removed.",
   },
   comment: {
     insert: "Insert",
@@ -11877,6 +11932,14 @@ export default {
     cancelText: "Cancel",
     chooseText: "Confirm color",
     focus: "Focus",
+
+    // Names the tab's editable name while it is being renamed. Deliberately not
+    // the sheet's own name, which is already the tab's accessible name — a
+    // screen reader would otherwise announce the same words twice and give no
+    // indication that the thing now has an edit field in it.
+    sheetNameInputLabel: "Sheet name",
+    announceSheetRenamed: "Sheet renamed to ${name}.",
+    announceSheetRenameCancelled: "Rename cancelled.",
 
     tipNameRepeat: "The name of the tab page cannot be repeated! Please revise",
     noMoreSheet:

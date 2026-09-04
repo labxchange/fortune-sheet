@@ -31,7 +31,12 @@ describe("Dialog focus on close", () => {
     // Without a restore, focus falls to <body> when the dialog's DOM goes, and
     // a keyboard user has to tab in from the top of the page again (WCAG
     // 2.4.3).
-    expect(document.activeElement).toBe(trigger);
+    //
+    // Awaited rather than asserted outright: `Dialog` passes `deferRestore`, so
+    // the restore runs a task later, behind whatever announcement rides the
+    // focus utterance of the element focus lands on. Focus is on <body> for
+    // that one task.
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 
   it("still returns focus when the dialog is dismissed with Escape", async () => {
@@ -49,6 +54,6 @@ describe("Dialog focus on close", () => {
     fireEvent.keyDown(dialog, { key: "Escape" });
 
     await waitFor(() => expect(queryByRole("dialog")).toBeNull());
-    expect(document.activeElement).toBe(trigger);
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 });
