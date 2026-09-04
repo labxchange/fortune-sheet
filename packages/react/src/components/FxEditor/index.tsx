@@ -166,7 +166,7 @@ const FxEditor: React.FC = () => {
             }
             case "Escape": {
               cancelNormalSelected(draftCtx);
-              moveHighlightCell(draftCtx, "down", 0, "rangeOfSelect");
+              moveHighlightCell(draftCtx, "down", 0, "rangeOfSelect", true);
               // $("#luckysheet-functionbox-cell").blur();
               // $("#luckysheet-rich-text-editor").focus();
               e.preventDefault();

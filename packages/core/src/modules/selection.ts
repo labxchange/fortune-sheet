@@ -775,11 +775,21 @@ export function getColMerge(
   return [str, end];
 }
 
+/**
+ * Move the highlight cell, and with it the selection.
+ *
+ * `keepSelection` is for the Escape-out-of-an-edit callers only. Escape there
+ * means "abandon what I was typing"; it lands back on the cell the edit started
+ * from and leaves the selection exactly as it found it, which is also what
+ * Excel does with a multi-range selection typed into and then cancelled. Every
+ * other caller is a deliberate landing on a single cell.
+ */
 export function moveHighlightCell(
   ctx: Context,
   postion: "down" | "right",
   index: number,
-  type: "rangeOfSelect" | "rangeOfFormula"
+  type: "rangeOfSelect" | "rangeOfFormula",
+  keepSelection = false
 ) {
   const flowdata = getFlowdata(ctx);
   if (!flowdata) return;
@@ -922,17 +932,24 @@ export function moveHighlightCell(
     // otherwise stay painted on the sheet while the focus cell walks away from
     // them, leaving a selection no key could clear (WCAG 2.4.3).
     //
-    // Shift+F8 is the exception, and the reason this is conditional: that mode
-    // exists so the arrow keys can carry the newly anchored range somewhere
-    // else while the committed ones stay put. Escape ends it.
+    // Two exemptions, both about the caller's intent rather than about how far
+    // the highlight travelled:
     //
-    // `index !== 0` keeps this to actual moves. Three callers pass 0 — the
-    // Escape-out-of-an-edit paths in `handleGlobalKeyDown`, `FxEditor` and
-    // `InputBox` — and land back on the cell they started from, so there is no
-    // move for the selection to follow. Escape there means "abandon what I was
-    // typing", and it leaves the selection as it found it, which is also what
-    // Excel does with a multi-range selection typed into and then cancelled.
-    if (!ctx.selectionModeActive && index !== 0) {
+    // - Shift+F8 mode exists so the arrow keys can carry the newly anchored
+    //   range somewhere else while the committed ones stay put. Escape ends it,
+    //   and so does focus leaving the grid — see
+    //   `endSelectionModeOnFocusLeave`.
+    // - `keepSelection`, which the Escape-out-of-an-edit callers pass.
+    //
+    // Deliberately not keyed on `index`. A zero `index` is not a synonym for
+    // "nothing moved" in either direction: Ctrl+Arrow computes its own index as
+    // `selectedLimit - curr`, which is exactly 0 once the focus cell sits on
+    // the sheet's last row or column, and an arrow into the edge of the grid
+    // passes a non-zero index that then clamps back onto the cell it started
+    // from. Both are ordinary keyboard moves and both have to clear the
+    // selection, or the key the user reaches for stops working precisely at the
+    // edges.
+    if (!ctx.selectionModeActive && !keepSelection) {
       ctx.luckysheet_select_save = [last];
     }
 
@@ -2309,6 +2326,27 @@ export function exitSelectionMode(ctx: Context) {
   if (save && save.length > 1) {
     ctx.luckysheet_select_save = [save[save.length - 1]];
   }
+}
+
+/**
+ * End Shift+F8 mode when focus leaves the grid, keeping the ranges it built.
+ *
+ * The mode had only two exits, Escape and a sheet change, so any route that
+ * takes focus out of the grid and brings it back left the flag set — the
+ * toolbar, the formula bar, or, as reported, building a graph from the
+ * selection and then removing it. A stale flag is not cosmetic: it suppresses
+ * the collapse in `moveHighlightCell`, so the ranges could no longer be cleared
+ * by any arrow key or Tab, only by an Escape the user has no reason to guess at
+ * (WCAG 2.4.3).
+ *
+ * Deliberately not `exitSelectionMode`. Escape means "cancel", and collapses to
+ * the range in focus. Leaving the grid means neither: the selection stays
+ * exactly as painted — a graph built from it may still be on screen, and the
+ * ticket asks for it to survive the round trip — and it is the *next* move
+ * within the grid that clears it, which is what dropping the flag restores.
+ */
+export function endSelectionModeOnFocusLeave(ctx: Context) {
+  ctx.selectionModeActive = false;
 }
 
 export function selectColumn(

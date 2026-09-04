@@ -233,7 +233,7 @@ const InputBox: React.FC = () => {
       if (e.key === "Escape" && context.luckysheetCellUpdate.length > 0) {
         setContext((draftCtx) => {
           cancelNormalSelected(draftCtx);
-          moveHighlightCell(draftCtx, "down", 0, "rangeOfSelect");
+          moveHighlightCell(draftCtx, "down", 0, "rangeOfSelect", true);
         });
         e.preventDefault();
       } else if (e.key === "Enter" && context.luckysheetCellUpdate.length > 0) {

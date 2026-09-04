@@ -898,7 +898,7 @@ export function handleGlobalKeyDown(
     e.preventDefault();
   } else if (kstr === "Escape" && ctx.luckysheetCellUpdate.length > 0) {
     cancelNormalSelected(ctx);
-    moveHighlightCell(ctx, "down", 0, "rangeOfSelect");
+    moveHighlightCell(ctx, "down", 0, "rangeOfSelect", true);
     e.preventDefault();
   } else {
     if (e.ctrlKey || e.metaKey) {
