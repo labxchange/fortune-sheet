@@ -6,6 +6,7 @@ import {
   act,
 } from "@testing-library/react";
 import React from "react";
+import { GRID_ROOT_CLASS } from "@fortune-sheet/core";
 import Workbook, { WorkbookInstance } from "../src/components/Workbook";
 
 const openWithShortcut = (container: HTMLElement) => {
@@ -251,6 +252,45 @@ describe("Keyboard shortcuts dialog", () => {
       expect(searchBox(getByRole).value).toBe("");
       expect(queryByText("Copy")).toBeTruthy();
     });
+  });
+
+  it("closes itself and moves focus when a Go To region shortcut fires from inside it", async () => {
+    // Activating "Go to Spreadsheet" (Ctrl+Alt+S) while this dialog was open
+    // used to move focus to the grid but leave the dialog open behind it,
+    // still painted on top with its Tab trap covering only its own subtree, so
+    // focus walked the page underneath (WCAG 2.4.3 focus order).
+    const { container, getByRole, queryByRole } = render(
+      <Workbook
+        data={[{ name: "Sheet1" }]}
+        toolbarItems={["keyboard-shortcuts"]}
+      />
+    );
+    // Opened from the toolbar rather than with openWithShortcut: the shortcut
+    // leaves <body> as the previously-focused element, and body.focus() is
+    // inert, so Dialog's restore has nothing to yank focus back to and this
+    // assertion holds even with the restore left unconditional. The toolbar
+    // trigger is a real focusable element, so it does not.
+    const trigger = getByRole("button", { name: "Keyboard shortcuts" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    await waitFor(() => getByRole("dialog"));
+
+    // Fired on the actually-focused element — the search box, which
+    // ShortcutsDialog passes as initialFocusRef — rather than on the dialog:
+    // that matches the reported repro, and firing on the dialog only works
+    // today because the input adds no onKeyDown of its own. The day one calls
+    // stopPropagation the real shortcut breaks while a dialog-level fire keeps
+    // passing.
+    fireEvent.keyDown(document.activeElement!, {
+      code: "KeyS",
+      ctrlKey: true,
+      altKey: true,
+    });
+
+    await waitFor(() => expect(queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(
+      container.querySelector(`.${GRID_ROOT_CLASS}`)
+    );
   });
 
   it("closes on Escape", async () => {
