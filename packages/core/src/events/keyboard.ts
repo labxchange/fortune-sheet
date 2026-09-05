@@ -2,8 +2,13 @@ import _ from "lodash";
 import { hideCRCount, removeActiveImage } from "..";
 import { GRID_ROOT_CLASS } from "../constants";
 import { Context, getFlowdata } from "../context";
-import { updateCell, cancelNormalSelected } from "../modules/cell";
-import { handleFormulaInput } from "../modules/formula";
+import { updateCell, cancelNormalSelected, mergeBorder } from "../modules/cell";
+import {
+  enterPointModeAt,
+  handleFormulaInput,
+  israngeseleciton,
+} from "../modules/formula";
+import { colLocationByIndex, rowLocationByIndex } from "../modules/location";
 import {
   addSelectionRange,
   copy,
@@ -11,6 +16,7 @@ import {
   exitSelectionMode,
   moveHighlightCell,
   moveHighlightRange,
+  scrollToHighlightCell,
   selectAll,
   selectColumn,
   selectionCache,
@@ -724,6 +730,327 @@ export function handleArrowKey(ctx: Context, e: KeyboardEvent) {
   }
 }
 
+/**
+ * The next visible index one step from `from`, or null if the step runs out of
+ * the sheet. Hidden rows and columns are skipped rather than landed on, the way
+ * the grid's own arrow-key movement skips them.
+ *
+ * The finite test is not redundant with the range test: `NaN < 0` and
+ * `NaN >= limit` are both false, so a non-finite `from` would otherwise be
+ * returned as a valid index and travel on as a target — a reference written
+ * from `getRangetxt` at row `NaN` and an overlay positioned there. Both bounds
+ * being false for the one value they exist to exclude is the trap, so the
+ * predicate says what it means instead of relying on the comparisons.
+ */
+function stepToVisibleIndex(
+  from: number,
+  delta: number,
+  limit: number,
+  hidden: Record<string, any>
+) {
+  let index = from + delta;
+  while (index >= 0 && index < limit && !_.isNil(hidden[index])) {
+    index += delta;
+  }
+  if (!Number.isFinite(index) || index < 0 || index >= limit) return null;
+  return index;
+}
+
+/**
+ * Whether an arrow key should pick a cell reference rather than move the caret.
+ *
+ * Exported because the two drivers reach point mode by different routes and
+ * must agree. handleGlobalKeyDown filters modifiers long before its arrow
+ * branch — Ctrl/Meta leave through handleWithCtrlOrMetaKey, Shift+Arrow through
+ * handleShiftWithArrowKey, Alt+Up/Down through the sheet switch — so the grid
+ * only ever offers a plain arrow. The formula bar has no such filter: its
+ * onKeyDown switches on `key` alone. Putting the modifier test here rather than
+ * at either call site is what stops Shift+Left selecting text in the cell and
+ * writing a reference in the formula bar.
+ *
+ * This answers only "may a reference go here", not "is there a cell to step
+ * to": resolvePointModeStep asks the second question, and a caller that has to
+ * cancel the key before applying anything must go through that rather than
+ * through this, or it cancels arrows point mode will decline.
+ */
+export function canEnterPointMode(ctx: Context, e: KeyboardEvent) {
+  if (e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return false;
+  if (ctx.luckysheetCellUpdate.length === 0) return false;
+  // Point mode may only *start* where a reference is allowed to go: directly
+  // after "(", ",", "=", "&" or an operator. Anywhere else the arrows keep
+  // moving the caret, which is what leaves ordinary formula editing alone.
+  // Once it is running the caret sits inside the reference just written, where
+  // that no longer holds — so rangestart short-circuits the test rather than
+  // letting it be re-asked.
+  // israngeseleciton is called for its side effect as well: it records
+  // rangeSetValueTo, the node rangeSetValue inserts after.
+  return !!ctx.formulaCache.rangestart || israngeseleciton(ctx);
+}
+
+/**
+ * What point mode will do with an arrow key.
+ *
+ * `target` names the cell to pick. A null `target` means the key belongs to
+ * point mode but the step ran off the sheet, so the reference stays where it
+ * is. A null *resolution*, as opposed to a null `target`, means point mode
+ * declines the key altogether and the arrow keeps its ordinary meaning.
+ */
+export type PointModeStep = {
+  target: { row: number; column: number } | null;
+};
+
+/**
+ * Resolve an arrow key against point mode without applying anything.
+ *
+ * Split from applyPointModeStep because a caller has to know whether the key is
+ * consumed *before* it can decide to cancel it, and must then act on that same
+ * answer rather than asking a second time. Asking twice is how an arrow pressed
+ * in the formula bar at the edge of the sheet came to be swallowed: the gate
+ * admitted the key, the step then found nowhere to go and declined, and a
+ * cancelled arrow moved no caret. One resolution, read once, leaves the two
+ * drivers unable to disagree.
+ *
+ * Resolving this early is also what makes the formula-bar path correct at all.
+ * israngeseleciton, reached through canEnterPointMode, reads the live DOM caret
+ * through window.getSelection() and records the rangeSetValueTo that
+ * rangeSetValue inserts after. setContext takes a functional updater, which
+ * React only evaluates eagerly while the fiber has no pending update; deferred,
+ * that read would happen after the browser had already moved the caret.
+ * Resolving before preventDefault and applying inside the producer is safe
+ * because formulaCache is a class instance: immer passes it through undrafted,
+ * so the producer reads back the same object this call primed.
+ */
+export function resolvePointModeStep(
+  ctx: Context,
+  e: KeyboardEvent
+): PointModeStep | null {
+  if (!canEnterPointMode(ctx, e)) return null;
+
+  const flowdata = getFlowdata(ctx);
+  if (!flowdata) return null;
+  const rowCount = flowdata.length;
+  const colCount = flowdata[0]?.length ?? 0;
+  if (rowCount === 0 || colCount === 0) return null;
+
+  const inPointMode = !!ctx.formulaCache.rangestart;
+
+  // Where the step starts from: the reference already written, or — for the
+  // first arrow — the cell being edited.
+  //
+  // On that first arrow, stepping off the edited cell rather than landing on it
+  // is deliberate: seeding at it would open every formula with a reference to
+  // itself. That is the only step this claim covers. Once point mode is
+  // running the step starts from `picked`, so arrowing away and back does land
+  // on the edited cell — Down then Up while editing C3 gives `=SUM(C3` — and
+  // nothing here prevents it. That is intentional too, and matches Excel,
+  // which lets the mouse and the arrows both point at the editing cell; the
+  // circularity surfaces as a calculation error on commit, which is where a
+  // spreadsheet user expects to meet it, rather than as an arrow key that
+  // silently refuses to move. Pinned by "arrowing back onto the edited cell is
+  // allowed" in pointMode.test.js so the two claims stay told apart.
+  let startRow;
+  let endRow;
+  let startCol;
+  let endCol;
+  const picked = ctx.formulaCache.func_selectedrange;
+  if (inPointMode && picked) {
+    [startRow, endRow] = picked.row;
+    [startCol, endCol] = picked.column;
+    // Defensive, and currently unreachable: nulls on one axis mean a whole-row
+    // or whole-column reference, which only the row/column-header mousedown
+    // handlers produce — and both of those end in rangedrag_row_start /
+    // rangedrag_column_start with rangestart false, so they never satisfy the
+    // check above. Every writer of rangestart = true (applyPointModeSelection,
+    // and AutoSum's activeFormulaInput) writes both axes. Kept because the
+    // Selection type says number[] while those handlers write null at runtime,
+    // so the guarantee is a convention rather than something the compiler
+    // holds.
+    if (
+      _.isNil(startRow) ||
+      _.isNil(endRow) ||
+      _.isNil(startCol) ||
+      _.isNil(endCol)
+    ) {
+      return null;
+    }
+  } else {
+    // The seed for the first arrow, and the one place a non-finite index can
+    // enter. `luckysheetCellUpdate` is `any[]` and is written as
+    // `[row_focus, column_focus]` by both of its writers — this file's F2
+    // branch and FxEditor's onFocus — with `row_focus` optional on the
+    // Selection type and neither writer checking for nil. `canEnterPointMode`
+    // above only asserts the array is non-empty, so `[undefined, undefined]`
+    // reaches here type-legally and arithmetic on it yields NaN.
+    const [editRow, editCol] = ctx.luckysheetCellUpdate;
+    if (!Number.isFinite(editRow) || !Number.isFinite(editCol)) return null;
+    const merged = mergeBorder(ctx, flowdata, editRow, editCol);
+    [, , startRow, endRow] = merged ? merged.row : [0, 0, editRow, editRow];
+    [, , startCol, endCol] = merged ? merged.column : [0, 0, editCol, editCol];
+  }
+
+  // Step off the edge the arrow points away from, so a merged reference is
+  // stepped over instead of re-entered.
+  let axis: "row" | "column";
+  let next: number | null;
+  switch (e.key) {
+    case "ArrowUp":
+      axis = "row";
+      next = stepToVisibleIndex(
+        startRow,
+        -1,
+        rowCount,
+        ctx.config.rowhidden ?? {}
+      );
+      break;
+    case "ArrowDown":
+      axis = "row";
+      next = stepToVisibleIndex(
+        endRow,
+        1,
+        rowCount,
+        ctx.config.rowhidden ?? {}
+      );
+      break;
+    case "ArrowLeft":
+      axis = "column";
+      next = stepToVisibleIndex(
+        startCol,
+        -1,
+        colCount,
+        ctx.config.colhidden ?? {}
+      );
+      break;
+    case "ArrowRight":
+      axis = "column";
+      next = stepToVisibleIndex(
+        endCol,
+        1,
+        colCount,
+        ctx.config.colhidden ?? {}
+      );
+      break;
+    default:
+      // Both in-repo call sites pre-filter to the four arrows, but this is
+      // re-exported from the core barrel, so any other key must decline rather
+      // than fall through to "right".
+      return null;
+  }
+
+  if (next == null) {
+    // Nowhere to go. Once point mode is running the key still belongs to it —
+    // the reference simply stops at the edge of the sheet. Before it starts
+    // there is nothing to show for the keypress, so it is declined and both
+    // callers leave the arrow its ordinary meaning: the grid falls through to
+    // handleArrowKey, and the formula bar never cancels the event.
+    return inPointMode ? { target: null } : null;
+  }
+
+  return {
+    target:
+      axis === "row"
+        ? { row: next, column: startCol }
+        : { row: startRow, column: next },
+  };
+}
+
+/**
+ * Pick the cell a resolved step names: write its reference at the caret and
+ * move the highlight onto it, through the same entry point the mouse uses, so
+ * the reference is inserted, replaced and highlighted identically.
+ *
+ * A null `target` is a deliberate no-op. The key was point mode's, but the
+ * reference had nowhere left to go.
+ *
+ * This writes to the DOM (`cellInput.innerHTML`, the caret) from inside an
+ * immer producer, on both the grid and the formula-bar path, because the entry
+ * point it shares with the mouse driver has always done so — `rangeSetValue`
+ * rewrites the editor's markup in place. Two consequences worth stating rather
+ * than discovering:
+ *
+ * - It must be idempotent, because StrictMode invokes the producer twice. It
+ *   is, and not by accident: `rangeSetValue` asks `israngeseleciton` itself
+ *   whether the caret sits after a reference, and after the first pass the
+ *   caret is inside the reference just written, so the second pass takes the
+ *   replace branch and rewrites the same reference rather than appending a
+ *   second one. Pinned by "applying the same step twice is idempotent" in
+ *   pointMode.test.js, so a future change to that branch fails a test instead
+ *   of doubling every keyboard-picked reference under StrictMode.
+ * - The step it is handed must be resolved before the producer runs, never
+ *   inside it, so that the same decision drives the cancel and the write. See
+ *   the note in FxEditor's onKeyDown.
+ */
+export function applyPointModeStep(
+  ctx: Context,
+  cellInput: HTMLDivElement,
+  fxInput: HTMLDivElement | null | undefined,
+  step: PointModeStep
+) {
+  if (!step.target) return;
+  const flowdata = getFlowdata(ctx);
+  if (!flowdata) return;
+  const { row: targetRow, column: targetCol } = step.target;
+
+  // A merged target is referenced as the whole merge, and mergeBorder hands back
+  // the span and the pixel rectangle together, exactly as the mouse driver uses
+  // it. Everything else is the single cell.
+  const merged = mergeBorder(ctx, flowdata, targetRow, targetCol);
+  const [top, bottom] = merged
+    ? merged.row
+    : rowLocationByIndex(targetRow, ctx.visibledatarow);
+  const [left, right] = merged
+    ? merged.column
+    : colLocationByIndex(targetCol, ctx.visibledatacolumn);
+  const rowStart = merged ? merged.row[2] : targetRow;
+  const rowEnd = merged ? merged.row[3] : targetRow;
+  const colStart = merged ? merged.column[2] : targetCol;
+  const colEnd = merged ? merged.column[3] : targetCol;
+
+  enterPointModeAt(
+    ctx,
+    cellInput,
+    fxInput,
+    {
+      row: [rowStart, rowEnd],
+      column: [colStart, colEnd],
+      row_focus: rowStart,
+      column_focus: colStart,
+    },
+    {
+      left,
+      top,
+      width: right - left - 1,
+      height: bottom - top - 1,
+    }
+  );
+
+  scrollToHighlightCell(ctx, rowStart, colStart);
+}
+
+/**
+ * Point mode: while a formula is being edited, the arrow keys pick a cell
+ * reference instead of walking the caret through the text. It is the keyboard's
+ * half of the gesture that already exists for the pointer — clicking a cell
+ * mid-formula.
+ *
+ * Resolve and apply in one call, for a caller that can decide what to do with
+ * the key from the return value. Returns true when the key was consumed; false
+ * leaves the arrow its ordinary meaning, and handleGlobalKeyDown then falls
+ * through to handleArrowKey. A caller that has to cancel the event before it
+ * can apply anything — the formula bar, which cannot write until its producer
+ * runs — uses resolvePointModeStep and applyPointModeStep instead.
+ */
+export function handleFormulaArrowKey(
+  ctx: Context,
+  cellInput: HTMLDivElement,
+  fxInput: HTMLDivElement | null | undefined,
+  e: KeyboardEvent
+) {
+  const step = resolvePointModeStep(ctx, e);
+  if (!step) return false;
+  applyPointModeStep(ctx, cellInput, fxInput, step);
+  return true;
+}
+
 export function handleGlobalKeyDown(
   ctx: Context,
   cellInput: HTMLDivElement,
@@ -982,6 +1309,15 @@ export function handleGlobalKeyDown(
       kstr === "ArrowLeft" ||
       kstr === "ArrowRight"
     ) {
+      // Returning here rather than falling through is deliberate: the tail of
+      // this handler pulls focus back to the in-cell editor, which would yank
+      // it out of the formula bar on the first arrow pressed there. The mouse
+      // driver does not touch focus either.
+      if (handleFormulaArrowKey(ctx, cellInput, fxInput, e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       handleArrowKey(ctx, e);
     } else if (
       !(

@@ -8,6 +8,8 @@ import {
   isInlineStringCell,
   escapeScriptTag,
   moveHighlightCell,
+  resolvePointModeStep,
+  applyPointModeStep,
   handleFormulaInput,
   rangeHightlightselected,
   valueShowEs,
@@ -161,6 +163,55 @@ const FxEditor: React.FC = () => {
       if (key === "ArrowLeft" || key === "ArrowRight") {
         e.stopPropagation();
       }
+
+      // Resolved here rather than inside the producer below, and resolved
+      // exactly once, for two reasons -- neither of which is "reading the caret
+      // inside a producer is unsafe". An earlier version of this comment said
+      // that, and it does not survive being applied to the grid: Workbook's
+      // onKeyDown calls handleGlobalKeyDown *inside* setContextWithProduce's
+      // recipe, so the grid runs canEnterPointMode -> israngeseleciton ->
+      // window.getSelection() from within a functional updater already. If that
+      // were unsafe in itself, the mouse-era grid driver would have been broken
+      // since long before point mode, and it is not.
+      //
+      // The first reason is preventDefault, which genuinely cannot be deferred:
+      // it has to be issued while the event is still being dispatched, so the
+      // decision that governs it has to be made here too. That is a fact about
+      // the DOM rather than about React, so it holds whatever React does with
+      // the updater. (handleGlobalKeyDown issues its own preventDefault from
+      // inside the recipe and so does lean on React evaluating the updater
+      // during the dispatch -- eagerly, which it does while the fiber has no
+      // pending update. That is pre-existing, applies to every preventDefault
+      // in that function rather than to point mode, and is not this PR's to
+      // fix; the point here is that the formula bar does not add a second
+      // instance of it.)
+      //
+      // The second is the one the tests pin: resolve once, so the cancel and
+      // the apply cannot disagree. Cancelling the key on "a reference may go
+      // here" alone swallowed arrows the driver went on to decline -- at the
+      // edge of the sheet, Left in column A or Up in row 1, the key was
+      // cancelled and nothing replaced it, so the caret sat still. Asking twice
+      // is what allowed the two answers to differ; there is now one answer,
+      // read here and handed to the producer as a value.
+      //
+      // Resolving now also primes rangeSetValueTo from the caret as it stood at
+      // keydown, which the producer needs and which is safe to carry across:
+      // formulaCache is a class instance with no [immerable], so immer passes
+      // it through undrafted and the producer reads back the same object this
+      // call primed.
+      const pointModeStep =
+        (key === "ArrowUp" ||
+          key === "ArrowDown" ||
+          key === "ArrowLeft" ||
+          key === "ArrowRight") &&
+        refs.cellInput.current
+          ? resolvePointModeStep(context, e.nativeEvent)
+          : null;
+      if (pointModeStep) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+
       setContext((draftCtx) => {
         if (context.luckysheetCellUpdate.length > 0) {
           switch (key) {
@@ -252,12 +303,33 @@ const FxEditor: React.FC = () => {
                 break;
               }
               */
-            case "ArrowLeft": {
-              rangeHightlightselected(draftCtx, refs.fxInput.current!);
-              break;
-            }
+            case "ArrowUp":
+            case "ArrowDown":
+            case "ArrowLeft":
             case "ArrowRight": {
-              rangeHightlightselected(draftCtx, refs.fxInput.current!);
+              // Point mode -- picking a cell reference with the arrows instead
+              // of typing it. The grid's own key handler never sees these: it
+              // hands every key straight back to a text-entry target sitting
+              // outside the grid, and Left/Right are stopPropagation()ed above
+              // in any case. So the formula bar drives point mode itself,
+              // applying the step resolved above rather than resolving one
+              // here -- and through the same canEnterPointMode modifier filter
+              // the grid applies upstream, which this switch on `key` alone
+              // would not.
+              if (pointModeStep) {
+                applyPointModeStep(
+                  draftCtx,
+                  refs.cellInput.current!,
+                  refs.fxInput.current,
+                  pointModeStep
+                );
+                break;
+              }
+              // Declined: the arrows keep moving the caret, and Left/Right go
+              // on refreshing the highlight the way they always have.
+              if (key === "ArrowLeft" || key === "ArrowRight") {
+                rangeHightlightselected(draftCtx, refs.fxInput.current!);
+              }
               break;
             }
             default:
@@ -266,12 +338,7 @@ const FxEditor: React.FC = () => {
         }
       });
     },
-    [
-      context.allowEdit,
-      context.luckysheetCellUpdate.length,
-      refs.fxInput,
-      setContext,
-    ]
+    [context, refs.cellInput, refs.fxInput, setContext]
   );
 
   const onChange = useCallback(() => {
