@@ -787,12 +787,15 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             });
             // Nothing focuses anything synchronously here, so unlike the
             // region branch above, focus is still inside the dialog when it
-            // unmounts and its restore *does* fire, to whatever opened it.
-            // Focus then lands in the menu regardless, because `ContextMenu`
-            // autofocuses itself through `useEscapeToClose` on mount and React
-            // flushes passive unmounts before passive mounts — so the menu's
-            // claim is the last one. Same destination as the region branch,
-            // reached the other way round.
+            // unmounts: its restore is scheduled rather than declined at the
+            // gate. What keeps it off the menu is the re-check inside
+            // `useDialogFocus`'s deferred restore. `ContextMenu` autofocuses
+            // its first row through `useEscapeToClose` in a mount effect, and
+            // React runs mount effects after the unmounting dialog's cleanup
+            // but before the deferred task, so the restore finds focus already
+            // claimed and stands down. Same destination as the region branch,
+            // reached the other way round — there the gate settles it at
+            // unmount, here the re-check settles it a task later.
             leaveShortcutsDialog();
             setContextWithProduce((draftCtx) => {
               handleContextMenu(
