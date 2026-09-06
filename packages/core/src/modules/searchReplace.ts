@@ -381,6 +381,7 @@ export function onSearchDialogMoveEnd(globalCache: GlobalCache) {
 
 export function replace(
   ctx: Context,
+  globalCache: GlobalCache,
   searchText: string,
   replaceText: string,
   checkModes: {
@@ -452,17 +453,19 @@ export function replace(
     count = 0;
   }
 
-  // Resume after the cell the previous press wrote, rather than on it. Only
-  // when the cursor belongs to this sheet, the selection is still sitting
-  // exactly where Replace left it, and the terms have not changed — see
-  // `replaceCursor` — so a user who has moved on by any means gets the
-  // selection-driven `count` above instead.
-  const cursor = ctx.replaceCursor;
+  // Resume after the cell the previous press wrote, rather than on it: the
+  // cell picked above is the one we just wrote, for the same terms and modes
+  // on the same sheet, so move to the next one. Anything that changes which
+  // cell gets picked, or changes that identity — Find Next, a result row,
+  // another sheet, editing a field or toggling a mode — leaves the
+  // selection-driven `count` alone. See `replaceCursor`.
+  const cursor = globalCache.replaceCursor;
   if (
     cursor != null &&
     cursor.sheetId === ctx.currentSheetId &&
     cursor.searchText === searchText &&
     cursor.replaceText === replaceText &&
+    _.isEqual(cursor.checkModes, checkModes) &&
     searchIndexArr[count].r === cursor.r &&
     searchIndexArr[count].c === cursor.c
   ) {
@@ -518,12 +521,13 @@ export function replace(
   ctx.luckysheet_select_save = normalizeSelection(ctx, [
     { row: [r, r], column: [c, c] },
   ]);
-  ctx.replaceCursor = {
+  globalCache.replaceCursor = {
     sheetId: ctx.currentSheetId,
     r,
     c,
     searchText,
     replaceText,
+    checkModes: { ...checkModes },
   };
 
   // jfrefreshgrid(d, ctx.luckysheet_select_save);
@@ -535,6 +539,7 @@ export function replace(
 
 export function replaceAll(
   ctx: Context,
+  globalCache: GlobalCache,
   searchText: string,
   replaceText: string,
   checkModes: {
@@ -554,15 +559,20 @@ export function replaceAll(
     return findAndReplace.searchInputTip;
   }
 
-  let range;
-  if (
+  // No selection, or a single cell, reads as "no scope of their own" and the
+  // run covers the whole sheet. Which of the two it was decides what selection
+  // to leave behind below: a scope this function picked is ours to collapse, a
+  // range the user drew is not.
+  const searchedWholeSheet =
     _.size(ctx.luckysheet_select_save) === 0 ||
     (ctx.luckysheet_select_save?.length === 1 &&
       ctx.luckysheet_select_save[0].row[0] ===
         ctx.luckysheet_select_save[0].row[1] &&
       ctx.luckysheet_select_save[0].column[0] ===
-        ctx.luckysheet_select_save[0].column[1])
-  ) {
+        ctx.luckysheet_select_save[0].column[1]);
+
+  let range;
+  if (searchedWholeSheet) {
     range = [
       {
         row: [0, flowdata.length - 1],
@@ -627,20 +637,40 @@ export function replaceAll(
 
   // jfrefreshgrid(d, range);
 
-  // Not `range`. It is every cell this run rewrote, and — when the user had no
-  // selection of their own — the whole sheet it defaulted to as well, so
-  // selecting it left the sheet blanketed in a selection the user never made
-  // and arrow keys cycling inside it instead of navigating. Collapse onto the
-  // first cell replaced — first in search order, which is the top-left-most
-  // match of the first selected range: one predictable place to resume from,
-  // and it is something this run actually changed.
   const first = searchIndexArr[0];
-  ctx.luckysheet_select_save = normalizeSelection(ctx, [
-    { row: [first.r, first.r], column: [first.c, first.c] },
-  ]);
-  // Replace All has consumed every match, so there is nothing for a following
-  // Replace to resume after.
-  ctx.replaceCursor = undefined;
+  if (searchedWholeSheet) {
+    // Not `range`. It is every cell this run rewrote plus the whole sheet it
+    // defaulted to, so selecting it left the sheet blanketed in a selection
+    // the user never made and arrow keys cycling inside it instead of
+    // navigating. Collapse onto the first cell replaced — first in search
+    // order, which is the top-left-most match: one predictable place to
+    // resume from, and something this run actually changed.
+    ctx.luckysheet_select_save = normalizeSelection(ctx, [
+      { row: [first.r, first.r], column: [first.c, first.c] },
+    ]);
+    // The selection is now parked on a cell we wrote, which is what
+    // `replaceCursor` exists to record. Not cleared: "Replace All consumed
+    // every match" is false for exactly the replacement this ticket is about —
+    // "beta" -> "beta_" leaves every cell still a match — and with no cursor
+    // the very next Replace appends again to the cell Replace All left
+    // selected. Setting it makes that press behave like any other: resume
+    // after this cell, or report that there is nothing after it.
+    globalCache.replaceCursor = {
+      sheetId: ctx.currentSheetId,
+      r: first.r,
+      c: first.c,
+      searchText,
+      replaceText,
+      checkModes: { ...checkModes },
+    };
+  } else {
+    // The user drew this selection before opening the dialog, so it is not a
+    // blanket we left behind, and collapsing it would silently widen the next
+    // Replace All: a single cell reads as "no scope of their own" above and
+    // would send that run across the whole sheet. Leave it, and leave no
+    // cursor — nothing is parked on a cell we wrote.
+    globalCache.replaceCursor = undefined;
+  }
   scrollToHighlightCell(ctx, first.r, first.c);
 
   // `successTip` is "${xlength} items found" — the wrong sentence for an
