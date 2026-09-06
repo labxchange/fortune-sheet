@@ -144,6 +144,21 @@ export type Context = {
    *  Carried on the context so the grid's own cell announcement can report it,
    *  rather than a second region racing that one. */
   nameBoxClampCount?: number;
+  /** Bumped by the sheet-tab options menu's Move left/right actions, but only
+   *  when the sheet's position among the *visible* sheets actually changed —
+   *  a move past either end, or a hop over a hidden neighbour, leaves the tab
+   *  strip looking the same and must not be announced. The check belongs at
+   *  the mutation site, the only place that sees both the before and after
+   *  order. The menu only ever opens for the current sheet (it switches to the
+   *  owning sheet before opening), so the announcement hook can read the new
+   *  position straight off `currentSheetId` rather than this counter carrying
+   *  a value of its own — it only marks that a move happened. */
+  sheetTabMoveCount?: number;
+  /** Bumped when a sheet tab's colour is applied or reset from the options
+   *  menu. Same one-sheet-at-a-time reasoning as `sheetTabMoveCount`: the
+   *  colour picker only ever edits the current sheet, so the hook re-reads
+   *  `currentSheetId` for the name and resulting colour. */
+  sheetTabColorChangeCount?: number;
   // Column index whose filter dropdown a keyboard shortcut asked to open.
   // Positioning the popup needs scroll offsets and element geometry that only
   // the React layer has, so core records the request and `FilterOption`
@@ -474,6 +489,8 @@ export function defaultContext(refs: RefValues): Context {
     selectionModeActive: false,
     selectAllCount: 0,
     nameBoxClampCount: 0,
+    sheetTabMoveCount: 0,
+    sheetTabColorChangeCount: 0,
     // Initialised as well as declared, like every other optional field here: an
     // absent key behaves differently from an undefined one under immer's
     // structural sharing and under anything that clones a known key set.

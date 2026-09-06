@@ -90,6 +90,40 @@ const insertColumnRow = (container: HTMLElement) => {
   };
 };
 
+/**
+ * Everything the Paste row reads before it commits.
+ *
+ * `handlePasteByClick` does not use the string the row passes it — that only
+ * seeds `#fortune-copy-content`, which is what it actually reads — so the node
+ * has to exist or the row declines and the case proves nothing.
+ *
+ * Pass `readText` to install a fake `navigator.clipboard`; omit it and the row
+ * falls through to the `sessionStorage` path, which is what bare jsdom does.
+ * Always undo with `resetPasteClipboard` from a `finally`: both live on globals
+ * shared by every test in this file, so a mid-test failure would otherwise
+ * leak a clipboard into unrelated cases.
+ */
+const givePasteSomethingToRead = (opts?: { readText: jest.Mock }) => {
+  if (opts) {
+    Object.defineProperty(navigator, "clipboard", {
+      value: { readText: opts.readText },
+      configurable: true,
+    });
+  } else {
+    sessionStorage.setItem("localClipboard", "pasted");
+  }
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    '<div id="fortune-copy-content">pasted</div>'
+  );
+};
+
+const resetPasteClipboard = () => {
+  delete (navigator as any).clipboard;
+  sessionStorage.removeItem("localClipboard");
+  document.getElementById("fortune-copy-content")?.remove();
+};
+
 const runAction = async (
   container: HTMLElement,
   ref: React.RefObject<WorkbookInstance>,
@@ -125,6 +159,116 @@ describe("focus after a context-menu action", () => {
       expect(document.activeElement).toBe(cellInput(container));
     }
   );
+
+  /**
+   * Paste is the one row whose handler is `async` — it awaits
+   * `navigator.clipboard.readText()` before committing — and it was the one row
+   * missing from the matrix above. Reported from the stage review app: the
+   * paste lands, the menu closes and focus falls out of the spreadsheet
+   * entirely (Asana 1217709848562420, WCAG 2.4.3).
+   *
+   * Two flushes, and that is the whole point. `runAction`'s single flush covers
+   * a synchronous row: commit, then `focusAfterCommit`'s task. Paste spends the
+   * first flush resolving the clipboard promise, so the commit and its focus
+   * task both land in the second. A test that flushed once would report focus
+   * on `<body>` for a reason that is a test artefact rather than the bug.
+   */
+  it("lands focus on the grid, not the body, after Paste", async () => {
+    const { container, ref } = renderSheet();
+    givePasteSomethingToRead();
+
+    try {
+      await runAction(container, ref, "Paste");
+      await flush();
+
+      expect(statusRegion(container)!.textContent).toMatch(/paste/i);
+      expect(document.activeElement).not.toBe(document.body);
+      expect(document.activeElement).toBe(cellInput(container));
+    } finally {
+      resetPasteClipboard();
+    }
+  });
+
+  /**
+   * The same row with a clipboard that actually resolves, which is what a real
+   * browser has and jsdom does not: above, `navigator.clipboard` is absent, so
+   * the `await` rejects immediately and the commit stays in the click's own
+   * microtask chain. Here the read resolves a macrotask later, so the commit
+   * happens well after the click — the shape the review app runs.
+   */
+  it("lands focus on the grid after Paste when the clipboard read resolves late", async () => {
+    const readText = jest.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          setTimeout(() => resolve("pasted"), 0);
+        })
+    );
+    givePasteSomethingToRead({ readText });
+
+    try {
+      const { container, ref } = renderSheet();
+      await runAction(container, ref, "Paste");
+      await flush();
+      await flush();
+
+      expect(readText).toHaveBeenCalled();
+      expect(document.activeElement).toBe(cellInput(container));
+    } finally {
+      resetPasteClipboard();
+    }
+  });
+
+  /**
+   * Escape, which `focusOutTarget` deliberately does not cover — it falls to
+   * `useEscapeToClose`'s own restore, aimed at whatever held focus when the
+   * menu opened. So the destination depends on how the menu was opened, and
+   * these two cases pin both halves rather than asserting the one that works.
+   *
+   * Here because the `focusOutTarget` comment in `ContextMenu/index.tsx` cites
+   * them: the Tab fix makes Escape the documented way out of the spreadsheet,
+   * so what Escape actually does had better be written down. The right-click
+   * half is a **pre-existing gap, asserted as-is rather than as it should be** —
+   * `SheetOverlay`'s `cellAreaMouseDown` skips `e.button === 2`, so that path
+   * never focuses the cell input and the restore has nothing to aim at. Fixing
+   * it is a separate change; this is the assertion it will have to turn over.
+   */
+  describe("escapeRestoresFocus", () => {
+    it("returns to the cell when the menu was opened from the keyboard", async () => {
+      const { container, ref } = renderSheet();
+      act(() => {
+        ref.current?.setSelection([{ row: [0, 0], column: [0, 0] }]);
+      });
+      // What a keyboard open leaves behind: focus already in the grid, which is
+      // what the hook captures as the place to restore to.
+      act(() => {
+        cellInput(container)!.focus();
+      });
+      openContextMenu(container);
+
+      act(() => {
+        fireEvent.keyDown(screen.getByText("Copy"), { key: "Escape" });
+      });
+      await flush();
+
+      expect(document.activeElement).toBe(cellInput(container));
+    });
+
+    it("falls to the body when the menu was opened by right-click", async () => {
+      const { container, ref } = renderSheet();
+      act(() => {
+        ref.current?.setSelection([{ row: [0, 0], column: [0, 0] }]);
+      });
+      // No prior left-click, so nothing focused the cell input first.
+      openContextMenu(container);
+
+      act(() => {
+        fireEvent.keyDown(screen.getByText("Copy"), { key: "Escape" });
+      });
+      await flush();
+
+      expect(document.activeElement).toBe(document.body);
+    });
+  });
 
   it("leaves focus alone when the action declines to act", async () => {
     const { container, ref } = renderSheet();

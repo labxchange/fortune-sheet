@@ -68,6 +68,13 @@ const flushFocus = async () => {
   });
 };
 
+/**
+ * The grid's focus proxy, and so "the cell the popup was opened from" — it
+ * tracks the active cell rather than approximating it.
+ */
+const cellInput = (container: HTMLElement) =>
+  container.querySelector<HTMLElement>(".luckysheet-cell-input");
+
 const cellMenu = () =>
   document.querySelector<HTMLElement>(
     ".fortune-context-menu.luckysheet-cols-menu"
@@ -136,11 +143,12 @@ describe("popup dismissal on focus out", () => {
       moveFocus(row, outside);
 
       expect(cellMenu()).toBeNull();
-      // Focus stays where the user sent it; the menu's own restore stands down
-      // once focus has deliberately left. Flushed, so a deferred restore that
-      // reached back for it would fail here rather than go unnoticed.
+      // ...and focus comes back to the cell rather than riding the Tab out of
+      // the grid. Flushed because the restore is deferred a task; without it
+      // this reads pre-timeout state and cannot fail.
       await flushFocus();
-      expect(document.activeElement).toBe(outside);
+      expect(document.activeElement).toBe(cellInput(container));
+      expect(document.activeElement).not.toBe(outside);
     });
 
     it("stays open while focus moves between its own rows", () => {
@@ -189,11 +197,12 @@ describe("popup dismissal on focus out", () => {
       moveFocus(row, outside);
 
       expect(filterMenu()).toBeNull();
-      // This popup routes every dismissal through `close`, which restores focus
-      // to the cell — so without the flush the assertion passes on pre-timeout
-      // state and the "Tab is swallowed" regression is invisible.
+      // The focus-out route restores to the cell unconditionally, so the user
+      // stays in the grid instead of being carried off to the next funnel, the
+      // sheet tabs or the page beyond. Flushed: the restore is deferred a task.
       await flushFocus();
-      expect(document.activeElement).toBe(outside);
+      expect(document.activeElement).toBe(cellInput(container));
+      expect(document.activeElement).not.toBe(outside);
     });
 
     it("stays open when focus moves to its own funnel trigger", async () => {
@@ -262,6 +271,61 @@ describe("popup dismissal on focus out", () => {
         fireEvent.click(rows[0]);
       });
       expect(rows[0].getAttribute("aria-checked")).toBe("false");
+    });
+  });
+
+  /**
+   * The scope of "focus returns to the cell": the keyboard route out of the two
+   * grid-anchored popups, and nothing else. Both cases below would be the
+   * mirror-image bug — focus dragged off a destination the user deliberately
+   * chose — so they pin the boundary rather than restating the fix.
+   */
+  describe("routes that must keep the destination the user chose", () => {
+    it("leaves focus on an outside control the filter popup was clicked away from", async () => {
+      const { container } = await openFilterMenu();
+      const outside = container.querySelector<HTMLElement>(
+        ".fortune-toolbar [role='button']"
+      )!;
+
+      // Real ordering: mousedown runs (and `useOutsideClick` closes the popup)
+      // before the press moves focus. Doing it the other way round would fire a
+      // focusout out of a still-mounted popup and exercise the keyboard route.
+      act(() => {
+        fireEvent.mouseDown(outside);
+      });
+      act(() => {
+        outside.focus();
+      });
+
+      expect(filterMenu()).toBeNull();
+      await flushFocus();
+      expect(document.activeElement).toBe(outside);
+    });
+
+    it("lets Tab out of a popup that is not anchored to a cell carry on", () => {
+      const { container } = render(<Workbook lang="en" data={plainSheet} />);
+      const caret = container.querySelector<HTMLElement>(
+        ".luckysheet-sheets-item-function"
+      )!;
+      act(() => {
+        caret.focus();
+        fireEvent.keyDown(caret, { key: "Enter" });
+      });
+      const menu = () =>
+        document.getElementById("fortune-sheet-tab-options-menu");
+      const row = menu()!.querySelector<HTMLElement>('[role="button"]')!;
+      const outside = container.querySelector<HTMLElement>(
+        ".fortune-toolbar [role='button']"
+      )!;
+
+      moveFocus(row, outside);
+
+      // The sheet-tab menu is reached *through* the tab sequence, so Tab
+      // continuing along it is the correct behaviour and the cell is not
+      // "where the user came from". Only the cell menu and the filter popup
+      // change.
+      expect(menu()).toBeNull();
+      expect(document.activeElement).toBe(outside);
     });
   });
 

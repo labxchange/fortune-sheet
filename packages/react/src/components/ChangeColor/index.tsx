@@ -1,5 +1,11 @@
 import { Context, getSheetIndex, locale } from "@fortune-sheet/core";
-import React, { useCallback, useContext, useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import WorkbookContext from "../../context";
 import ColorPicker from "../Toolbar/ColorPicker";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
@@ -24,12 +30,27 @@ export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
     setSelectColor(inputColor);
   }, [inputColor]);
 
+  // Baseline for the counter bump below: the sheet's colour when this
+  // instance first mounted, so the mount run (which just re-writes that same
+  // colour) doesn't count as a change. A previous-*value* ref rather than a
+  // "have I run before" boolean, specifically so it survives React
+  // StrictMode's double-invoke of a mount effect — a boolean flip inside the
+  // producer still leaves the *second* invocation of that same mount seeing
+  // itself as a real change; comparing against the last color actually
+  // written does not, because both invocations write the same value.
+  const previousColor = useRef(selectColor);
+
   // 把用户选择的颜色记录在ctx中
   useEffect(() => {
+    const isRealChange = previousColor.current !== selectColor;
+    previousColor.current = selectColor;
     setContext((ctx: Context) => {
       if (ctx.allowEdit === false) return;
       const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
       ctx.luckysheetfile[index].color = selectColor;
+      if (isRealChange) {
+        ctx.sheetTabColorChangeCount = (ctx.sheetTabColorChangeCount ?? 0) + 1;
+      }
     });
   }, [selectColor, setContext]);
 
