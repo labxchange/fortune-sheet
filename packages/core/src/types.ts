@@ -265,6 +265,51 @@ export type GlobalCache = {
   visibleRowsUnique?: number[];
   undoList: History[];
   redoList: History[];
+  /**
+   * Which cell Replace last wrote, and what it wrote it for.
+   *
+   * Replace parks the selection on the cell it just rewrote, so the next press
+   * finds that same cell again. Usually harmless — the replacement no longer
+   * matches, so the search moves on — but when the replacement still contains
+   * the search text ("8_10" -> "8_10_") the cell stays a match forever and
+   * every press appends again. No stateless rule can tell "the user wants this
+   * cell replaced" apart from "we just replaced it", because the text really is
+   * still there; this is that missing distinction.
+   *
+   * The rule it implements is exactly: *if the cell we are about to replace is
+   * the one we just replaced, under the same terms and modes on the same
+   * sheet, move to the next one instead.* It is a test of the cell Replace has
+   * picked, not of the selection — a range anchored on the just-replaced cell
+   * satisfies it too, and so does landing back on that cell because the
+   * selection sits somewhere that does not match at all. Find Next, clicking a
+   * result row, another sheet, and editing either field or any of the three
+   * modes all change what that cell or that identity is, so they invalidate
+   * the cursor without anything having to clear it.
+   *
+   * The consequence is that reselecting the very cell Replace left the
+   * selection on is refused: nothing here can tell that apart from never
+   * having left it. A user who deliberately goes back to append once more has
+   * to change a field first. That is the trade this ticket asks for — the
+   * reported bug is that very cell being rewritten on every press.
+   *
+   * It lives here rather than in `Context` because it is not document state:
+   * `filterPatch` keeps only `luckysheetfile` patches, so a cursor held in
+   * context would be invisible to undo and would survive it, and the next
+   * press would skip the cell the user had just restored. Undo and redo clear
+   * it (`Workbook`), because they move the document out from under it.
+   */
+  replaceCursor?: {
+    sheetId: string;
+    r: number;
+    c: number;
+    searchText: string;
+    replaceText: string;
+    checkModes: {
+      regCheck: boolean;
+      wordCheck: boolean;
+      caseCheck: boolean;
+    };
+  };
   editingCommentBoxEle?: HTMLDivElement;
   freezen?: Record<string, Freezen>;
   image?: {

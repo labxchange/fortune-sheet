@@ -67,13 +67,40 @@ const TWO_SHEETS = [
   },
 ];
 
+// A match inside the column the user selects and one outside it, so a run that
+// escapes their selection is visible in a cell they never targeted.
+const OUT_OF_RANGE = [
+  {
+    name: "Sheet1",
+    celldata: [
+      { r: 0, c: 0, v: { v: "cat", m: "cat", ct: { fa: "General", t: "s" } } },
+      { r: 1, c: 0, v: { v: "cat", m: "cat", ct: { fa: "General", t: "s" } } },
+      { r: 0, c: 2, v: { v: "cat", m: "cat", ct: { fa: "General", t: "s" } } },
+    ],
+  },
+];
+
+// Two spellings that differ only in case, so Match case changes what matches.
+const MIXED_CASE = [
+  {
+    name: "Sheet1",
+    celldata: [
+      { r: 0, c: 0, v: { v: "abc", m: "abc", ct: { fa: "General", t: "s" } } },
+      { r: 1, c: 0, v: { v: "ABC", m: "ABC", ct: { fa: "General", t: "s" } } },
+    ],
+  },
+];
+
 // Same reason as searchReplaceAnnouncements: the mount-time placeholder
 // selection is open-ended, and the search helpers walk `r1..r2` with `r2`
 // undefined. Selecting a cell is what a user does before searching.
-const renderWorkbook = (data: any = DATA) => {
+const renderWorkbook = (
+  data: any = DATA,
+  toolbarItems: string[] = ["search"]
+) => {
   const ref = React.createRef<WorkbookInstance>();
   const view = render(
-    <Workbook ref={ref} data={data as any} toolbarItems={["search"]} />
+    <Workbook ref={ref} data={data as any} toolbarItems={toolbarItems} />
   );
   act(() => {
     ref.current!.setSelection([{ row: [0, 0], column: [0, 0] }]);
@@ -217,10 +244,12 @@ describe("Replace leaves a usable selection", () => {
     expect(column).toEqual([0, 0]);
   });
 
-  it("lets Replace resume normally after Replace All", async () => {
-    // Replace All clears the cursor. If it did not, the cell it left selected
-    // would look like one Replace had just written, and the next press would
-    // skip it.
+  it("does not append again to the cell Replace All left selected", async () => {
+    // "Replace All consumed every match" is false when the replacement still
+    // matches: every cell it wrote is still a match, and it parks the
+    // selection on the first of them. So it leaves a cursor there like Replace
+    // does, and the next press resumes after that cell instead of appending to
+    // it — here there is nothing after it, so nothing is written.
     const { getByRole, ref } = renderWorkbook();
     const dialog = await openDialog(getByRole);
     fillFields(dialog, "beta", "beta_");
@@ -230,11 +259,31 @@ describe("Replace leaves a usable selection", () => {
     });
     expect(valueAt(ref, 2, 0)).toBe("beta_");
 
-    // The selection now sits on the only match; a stale cursor would refuse.
     act(() => {
       fireEvent.click(dialog.querySelector("#replaceBtn")!);
     });
-    expect(valueAt(ref, 2, 0)).toBe("beta__");
+    expect(valueAt(ref, 2, 0)).toBe("beta_");
+  });
+
+  it("lets Replace resume after Replace All once a term changes", async () => {
+    // The cursor Replace All leaves behind is bounded the same way Replace's
+    // is: change a field and the cell is free again.
+    const { getByRole, ref } = renderWorkbook();
+    const dialog = await openDialog(getByRole);
+    fillFields(dialog, "beta", "beta_");
+
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceAllBtn")!);
+    });
+    expect(valueAt(ref, 2, 0)).toBe("beta_");
+
+    fireEvent.change(dialog.querySelector("#replaceInput input")!, {
+      target: { value: "gamma" },
+    });
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceBtn")!);
+    });
+    expect(valueAt(ref, 2, 0)).toBe("gamma_");
   });
 
   it("replaces the same cell again once a term changes", async () => {
@@ -287,5 +336,83 @@ describe("Replace leaves a usable selection", () => {
     // the next match down.
     expect(valueAt(ref, 0, 0)).toBe("8_10_");
     expect(valueAt(ref, 5, 0)).toBe("8_10");
+  });
+
+  it("replaces the restored cell again after Undo", async () => {
+    // The cursor is not document state, so Undo does not revert it. If it
+    // survived, the press after Undo would treat the cell the user has just
+    // restored as one we had already written, skip it, and silently write the
+    // next match instead — a cell they never asked about.
+    const { getByRole, ref } = renderWorkbook(DATA, ["undo", "search"]);
+    const dialog = await openDialog(getByRole);
+    fillFields(dialog, "8_10", "8_10_");
+
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceBtn")!);
+    });
+    expect(valueAt(ref, 0, 0)).toBe("8_10_");
+
+    act(() => {
+      fireEvent.click(getByRole("button", { name: /^undo$/i }));
+    });
+    expect(valueAt(ref, 0, 0)).toBe("8_10");
+
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceBtn")!);
+    });
+    expect(valueAt(ref, 0, 0)).toBe("8_10_");
+    expect(valueAt(ref, 1, 0)).toBe("8_10");
+  });
+
+  it("keeps a second Replace All inside the user's selection", async () => {
+    // Collapsing onto one cell would widen the next run: a single-cell
+    // selection reads as "no selection" and defaults to the whole sheet. So a
+    // selection the user drew is left alone — C1 is outside it and must stay
+    // untouched however many times Replace All runs.
+    const { getByRole, ref } = renderWorkbook(OUT_OF_RANGE);
+    act(() => {
+      ref.current!.setSelection([{ row: [0, 1], column: [0, 0] }]);
+    });
+    const dialog = await openDialog(getByRole);
+    fillFields(dialog, "cat", "dog");
+
+    const replaceAllBtn = dialog.querySelector("#replaceAllBtn")!;
+    act(() => {
+      fireEvent.click(replaceAllBtn);
+    });
+    expect(valueAt(ref, 0, 0)).toBe("dog");
+    expect(valueAt(ref, 1, 0)).toBe("dog");
+    expect(valueAt(ref, 0, 2)).toBe("cat");
+
+    act(() => {
+      fireEvent.click(replaceAllBtn);
+    });
+    expect(valueAt(ref, 0, 2)).toBe("cat");
+  });
+
+  it("frees the cell again when a search mode changes", async () => {
+    // The modes are part of what the cursor was written for, like the terms:
+    // ticking Match case narrows the matches, and the press after it must act
+    // on the new first match rather than report there is nothing left.
+    const { getByRole, ref } = renderWorkbook(MIXED_CASE);
+    const dialog = await openDialog(getByRole);
+    fillFields(dialog, "abc", "abc_");
+
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceBtn")!);
+    });
+    expect(valueAt(ref, 0, 0)).toBe("abc_");
+
+    // With Match case on, row 1's "ABC" drops out and row 0 is the only match
+    // left — the cell the selection is already on.
+    act(() => {
+      fireEvent.click(dialog.querySelector("#caseCheck input")!);
+    });
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceBtn")!);
+    });
+
+    expect(valueAt(ref, 0, 0)).toBe("abc__");
+    expect(valueAt(ref, 1, 0)).toBe("ABC");
   });
 });
