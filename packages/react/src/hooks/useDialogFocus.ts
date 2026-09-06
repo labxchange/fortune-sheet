@@ -54,6 +54,12 @@ const DISABLED = '[disabled], [aria-disabled="true"]';
  * has already put focus where it belongs, and restoring would drag it back to
  * the opener.
  *
+ * The deferred restore asks that a second time when its task runs, because the
+ * answer can change in between: a caller that hands focus over by mounting
+ * something which focuses *itself* has not moved focus by the time this
+ * cleanup reads the gate, only by the time the restore would fire. See the
+ * cleanup.
+ *
  * That gate duplicates `useEscapeToClose`'s, deliberately. Handing the restore
  * to that hook instead — `Dialog` calls it, and did exactly this at one point —
  * is foreclosed twice over:
@@ -204,7 +210,30 @@ export function useDialogFocus(
        * focused as a detached node — and because `restore` runs in there too,
        * the fallback is chosen against the DOM as it stands then.
        */
-      focusAfterCommit(restore);
+      focusAfterCommit(() => {
+        /*
+         * The gate above was read at unmount, and deferring means the answer
+         * can change before the restore acts on it: an action that dismisses
+         * this dialog may also mount something that focuses itself, and React
+         * runs that passive *mount* effect after this cleanup and before the
+         * task. `Workbook`'s Ctrl/Cmd+Shift+M, +R and +L are the live case —
+         * they close the shortcuts dialog and open a context menu, which
+         * autofocuses its first row through `useEscapeToClose` — and without
+         * this re-check the restore then pulls focus straight back out of the
+         * menu. That is worse than a stranded menu: `ContextMenu` also sets
+         * `closeOnFocusOut`, so it reads the restore as the user tabbing away
+         * and dismisses itself. The shortcut opened a menu that vanished.
+         *
+         * So the same question the synchronous gate asks, asked again at the
+         * moment it matters. `<body>` is the whole of "focus was dropped":
+         * that is what a removed dialog leaves behind, and it is the only
+         * state this restore exists to rescue. Anything else holding focus put
+         * itself there on purpose and outranks a restore to the opener.
+         */
+        const active = document.activeElement;
+        if (active && active !== document.body) return null;
+        return restore();
+      });
     };
   }, [dialogRef, initialFocusRef, fallbackFocusRef, deferRestore]);
 }
