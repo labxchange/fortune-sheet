@@ -11913,8 +11913,6 @@ export default {
     resetColor: "Reiniciar color",
     cancelText: "Cancelar",
     chooseText: "Confirmar color",
-    sheetColorApplied: "Color de hoja: ${color}.",
-    sheetColorRemoved: "Color de hoja eliminado.",
     focus: "Enfocar",
 
     sheetNameInputLabel: "Nombre de la hoja",

@@ -11965,8 +11965,6 @@ export default {
     resetColor: "重置颜色",
     cancelText: "取消",
     chooseText: "确定颜色",
-    sheetColorApplied: "工作表颜色：${color}。",
-    sheetColorRemoved: "已移除工作表颜色。",
     focus: "聚焦",
 
     sheetNameInputLabel: "工作表名称",

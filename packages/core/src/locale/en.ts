@@ -12021,10 +12021,6 @@ export default {
     resetColor: "Reset color",
     cancelText: "Cancel",
     chooseText: "Confirm color",
-    // The sheet tab recolours and says nothing. Announced from a region that
-    // outlives the menu, since applying the colour also closes it.
-    sheetColorApplied: "Sheet color: ${color}.",
-    sheetColorRemoved: "Sheet color removed.",
     focus: "Focus",
 
     // Names the tab's editable name while it is being renamed. Deliberately not

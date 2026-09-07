@@ -11948,8 +11948,6 @@ export default {
     resetColor: "रंग रीसेट करें",
     cancelText: "रद्द करें",
     chooseText: "रंग की पुष्टि करें",
-    sheetColorApplied: "शीट का रंग: ${color}।",
-    sheetColorRemoved: "शीट का रंग हटाया गया।",
     focus: "फोकस करें",
 
     sheetNameInputLabel: "शीट का नाम",

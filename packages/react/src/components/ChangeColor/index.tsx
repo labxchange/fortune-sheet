@@ -15,23 +15,12 @@ import "./index.css";
 
 type Props = {
   triggerParentUpdate: (state: boolean) => void;
-  /**
-   * A colour was applied to the sheet — by a swatch, by the reset row, or by
-   * Confirm. `undefined` means the colour was removed.
-   *
-   * Raised rather than announced here because Confirm also closes this menu:
-   * a live region inside a subtree that unmounts in the same commit is gone
-   * before a screen reader can read it, so the region has to live in the
-   * component that outlives it.
-   */
-  onColorApplied?: (color: string | undefined) => void;
   /** Confirm was pressed: the caller closes the menu and moves focus. */
   onConfirm?: () => void;
 };
 
 export const ChangeColor: React.FC<Props> = ({
   triggerParentUpdate,
-  onColorApplied,
   onConfirm,
 }) => {
   const { context, setContext } = useContext(WorkbookContext);
@@ -55,7 +44,7 @@ export const ChangeColor: React.FC<Props> = ({
   useEffect(() => () => triggerParentUpdateRef.current(false), []);
 
   /**
-   * Write the colour to the sheet, then report it.
+   * Write the colour to the sheet, and mark it as announceable.
    *
    * Imperative rather than through an effect on `selectColor`. It was an
    * effect, and Confirm is the one path that also closes this menu: the state
@@ -84,9 +73,8 @@ export const ChangeColor: React.FC<Props> = ({
         // keeps a live region from swallowing the identical text.
         ctx.sheetTabColorChangeCount = (ctx.sheetTabColorChangeCount ?? 0) + 1;
       });
-      onColorApplied?.(color);
     },
-    [setContext, onColorApplied]
+    [setContext]
   );
 
   // 确定按钮

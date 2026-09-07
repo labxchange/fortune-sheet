@@ -14504,8 +14504,6 @@ export default {
     resetColor: "Сбросить цвет",
     cancelText: "Отмена",
     chooseText: "Подтвердить цвет",
-    sheetColorApplied: "Цвет листа: ${color}.",
-    sheetColorRemoved: "Цвет листа удалён.",
     focus: "Фокус",
 
     sheetNameInputLabel: "Имя листа",

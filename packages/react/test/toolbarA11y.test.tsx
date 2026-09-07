@@ -1005,8 +1005,8 @@ describe("removing a colour is an outcome too", () => {
 
   it("says a text colour was removed rather than saying nothing", async () => {
     // Reset color guarded with `if (!color) return ""`, which made clearing the
-    // one colour action with nothing to say — while the sheet tab beside it has
-    // announced its own removal since this branch added `sheetColorRemoved`.
+    // one colour action with nothing to say — while the sheet tab beside it
+    // announces its own removal through `sheetColorResetAnnouncement`.
     const { container, getByRole, ref } = renderColoured();
     act(() => {
       ref.current?.setSelection([

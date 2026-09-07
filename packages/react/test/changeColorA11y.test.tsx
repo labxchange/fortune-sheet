@@ -41,7 +41,11 @@ const openChangeColor = (getByRole: any, getByText: any) => {
 };
 
 /** Non-optional for the same reason as `announcement` in toolbarA11y: an
- *  optional read cannot tell a silent region from an absent one. */
+ *  optional read cannot tell a silent region from an absent one.
+ *
+ *  The region belongs to `SheetTab/index.tsx` — the tab strip, not this
+ *  submenu — and is fed by `useSheetTabColorAnnouncement` off the
+ *  `sheetTabColorChangeCount` that `applyColor` bumps. */
 const status = () => {
   const region = document.querySelector("#sr-sheetColor");
   if (!region) throw new Error("#sr-sheetColor is not in the document");
@@ -92,7 +96,7 @@ describe("Change Color accessibility", () => {
       fireEvent.click(confirm);
 
       // The default custom value is #000000, which the palette does name.
-      expect(status()).toContain("Sheet color:");
+      expect(status()).toContain("tab color changed to");
       expect(menuIsOpen()).toBe(false);
       // The outcome, not just the report of one. Without this the suite was
       // green while Confirm announced a colour it had not applied: the write
@@ -151,20 +155,25 @@ describe("Change Color accessibility", () => {
       const region = document.querySelector("#sr-sheetColor");
       expect(menuIsOpen()).toBe(false);
       expect(region).toBeTruthy();
-      // Assertive, like `#sr-toolbar`: both report the result of a deliberate
-      // press, and a polite update is dropped rather than queued while
-      // VoiceOver is still reading the control's own hint.
-      expect(region!.getAttribute("role")).toBe("alert");
-      expect(region!.textContent).toContain("Sheet color:");
+      // Polite, as the sibling sheet-tab regions are. `#sr-toolbar` argues
+      // the opposite for itself — that a polite update is dropped rather than
+      // queued while VoiceOver is still reading a control's hint — and that
+      // flip is verified by ear. Whether this region wants the same treatment
+      // is still an open question nobody has listened to, so it keeps the
+      // politeness it was reviewed and merged with rather than acquiring an
+      // unverified one here. Flipping it is this line plus the `polite:`
+      // expectations in `sheetTabAnnouncements.test.tsx`.
+      expect(region!.getAttribute("role")).toBe("status");
+      expect(region!.textContent).toContain("tab color changed to");
     });
 
     it("keeps the same live-region node across the close, not a fresh one", () => {
-      // The assertion above passes either way, and the guarantee is subtle
-      // enough to lose by accident: the open and closed branches return
-      // different shapes, and it is only React unwrapping an unkeyed top-level
-      // fragment that makes both reconcile a bare div at index 0 with the same
-      // key and type. Give the region a key, or wrap it in an element, and the
-      // node is replaced — a screen reader then reads nothing, silently.
+      // The assertion above passes either way, and the guarantee is worth
+      // pinning on its own: a live region that is replaced rather than
+      // rewritten is read as nothing at all, silently. It holds here because
+      // the region lives in the tab strip, which the submenu closing does not
+      // unmount — this test is what would notice it being moved back inside
+      // a conditionally-rendered subtree.
       const { getByRole, getByText } = render(
         <Workbook data={[{ name: "Sheet1" }]} />
       );
@@ -210,7 +219,7 @@ describe("Change Color accessibility", () => {
       const reset = submenu.querySelector<HTMLElement>(".color-reset")!;
       fireEvent.click(reset);
 
-      expect(status()).toContain("Sheet color removed.");
+      expect(status()).toContain("tab color reset.");
     });
 
     it("re-announces the same colour picked twice running", () => {

@@ -351,8 +351,8 @@ const Toolbar: React.FC<{
               | undefined;
             // Reset color arrives here as `undefined`. This used to return ""
             // for it, which made *clearing* a colour the one colour action
-            // that said nothing, while the sheet tab beside it has announced
-            // its removal since this branch added `sheetColorRemoved`.
+            // that said nothing, while the sheet tab beside it announces its
+            // removal through `sheetColorResetAnnouncement`.
             if (!color) {
               return name === "font-color"
                 ? info.toolbarFontColorRemoved
