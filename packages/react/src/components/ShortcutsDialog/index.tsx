@@ -57,6 +57,51 @@ const ShortcutsDialog: React.FC<{
     });
   }, [setContext]);
 
+  /*
+   * The other three focus-moving shortcuts: Ctrl/Cmd+F, Ctrl/Cmd+H and
+   * Ctrl+Alt+R (Ctrl+Cmd+R on Mac).
+   *
+   * `Workbook`'s `onKeyDown` closes this dialog for the six chords it handles,
+   * but these three never reach it — core's `handleGlobalKeyDown` owns all
+   * three, setting `showSearch`, `showReplace` and `openFilterMenuForColumn`,
+   * which `SearchReplace` and `FilterOption` then turn into a mounted dialog or
+   * a focused funnel. Leaving this one open behind them is the same WCAG 2.4.3
+   * failure the other six were fixed for, and it lands worse than the region
+   * case did: `SearchReplace` is z-index 1004 against this dialog's wrapper at
+   * 1006, so focus would sit in a dialog painted *behind* the modal covering
+   * it.
+   *
+   * Keyed on the resulting context flags rather than on the chords, because the
+   * chords are not evidence that anything opened. Core ignores all three while
+   * a text entry has focus, and this dialog's own search box is one — so a
+   * chord-shaped check would dismiss the dialog on a Ctrl+F that opened
+   * nothing, a worse bug than the one being fixed. The flags turn on only when
+   * something really took over, and they cover any future route that sets them
+   * without needing a fourth call site to remember.
+   *
+   * One rough edge, kept deliberately: core sets `openFilterMenuForColumn`
+   * whenever a column has focus, even on a sheet with no filter, where no
+   * funnel exists and nothing opens — so that no-op chord dismisses this
+   * dialog too. Focus goes back to whatever opened it rather than anywhere
+   * stranded, and knowing whether a funnel will be found is `FilterOption`'s
+   * business, not this component's. The alternative shape traded a rarer wart
+   * for a common one: Ctrl+F while typing in the search box below.
+   */
+  const takenOver =
+    !!context.showSearch ||
+    !!context.showReplace ||
+    context.openFilterMenuForColumn != null;
+  const takenOverRef = useRef(takenOver);
+  useEffect(() => {
+    const wasTakenOver = takenOverRef.current;
+    takenOverRef.current = takenOver;
+    // Only a *fresh* takeover closes this. Find and Replace can already be open
+    // when the user asks for the shortcuts list — from the toolbar, or Ctrl+/
+    // — and reacting to the standing flag rather than to the transition would
+    // make this dialog impossible to open at all in that state.
+    if (open && takenOver && !wasTakenOver) close();
+  }, [open, takenOver, close]);
+
   // Read through a ref rather than closing over `query`, so this keeps one
   // identity for the life of the dialog. Dialog no longer re-runs its setup
   // when a handler changes, but a handler that changed on every keystroke would
