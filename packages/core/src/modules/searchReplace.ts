@@ -379,8 +379,18 @@ export function onSearchDialogMoveEnd(globalCache: GlobalCache) {
   _.set(globalCache, "searchDialog.moveProps", undefined);
 }
 
+// The text a cell reads as, for the cursor's identity. Read back from the
+// cell after the write rather than taken from the string we passed in, so it
+// is whatever `setCellValue` actually stored, and empty rather than nullish
+// for a replacement that cleared the cell.
+function cellText(r: number, c: number, d: CellMatrix) {
+  const v = valueShowEs(r, c, d);
+  return v == null ? "" : v.toString();
+}
+
 export function replace(
   ctx: Context,
+  globalCache: GlobalCache,
   searchText: string,
   replaceText: string,
   checkModes: {
@@ -430,7 +440,7 @@ export function replace(
     return findAndReplace.noReplceTip;
   }
 
-  let count = null;
+  let count: number | null = null;
 
   const last =
     ctx.luckysheet_select_save?.[ctx.luckysheet_select_save.length - 1];
@@ -450,6 +460,40 @@ export function replace(
     }
 
     count = 0;
+  }
+
+  // Resume after the cell the previous press wrote, rather than on it: the
+  // cell picked above still holds what we wrote there, for the same terms and
+  // modes on the same sheet, so move to the next one. Anything that changes
+  // which cell gets picked, or changes that identity — Find Next, a result
+  // row, another sheet, editing a field or toggling a mode — leaves the
+  // selection-driven `count` alone, and anything that changes the cell's value
+  // — undo, redo, a hand edit, a row or column shift, a paste — fails the
+  // `wrote` check and hands the cell back. See `replaceCursor`.
+  const cursor = globalCache.replaceCursor;
+  if (
+    cursor != null &&
+    cursor.sheetId === ctx.currentSheetId &&
+    cursor.searchText === searchText &&
+    cursor.replaceText === replaceText &&
+    _.isEqual(cursor.checkModes, checkModes) &&
+    searchIndexArr[count].r === cursor.r &&
+    searchIndexArr[count].c === cursor.c &&
+    cellText(searchIndexArr[count].r, searchIndexArr[count].c, flowdata) ===
+      cursor.wrote
+  ) {
+    // `searchIndexArr` is row-major within each range and deduplicated by
+    // cell, so "after" is simply the next entry. Deliberately no wrap:
+    // wrapping walks back onto cells this run already rewrote, which is the
+    // same bug one lap later.
+    if (count + 1 >= searchIndexArr.length) {
+      // Distinct from `noReplceTip`: matches may well remain *before* the
+      // cursor, and this string is announced, so saying there is nothing to
+      // replace would be untrue to a screen reader as much as on screen.
+      return findAndReplace.lastMatchTip;
+    }
+
+    count += 1;
   }
 
   const d = flowdata;
@@ -490,6 +534,15 @@ export function replace(
   ctx.luckysheet_select_save = normalizeSelection(ctx, [
     { row: [r, r], column: [c, c] },
   ]);
+  globalCache.replaceCursor = {
+    sheetId: ctx.currentSheetId,
+    r,
+    c,
+    wrote: cellText(r, c, d),
+    searchText,
+    replaceText,
+    checkModes: { ...checkModes },
+  };
 
   // jfrefreshgrid(d, ctx.luckysheet_select_save);
   // selectHightlightShow();
@@ -500,6 +553,7 @@ export function replace(
 
 export function replaceAll(
   ctx: Context,
+  globalCache: GlobalCache,
   searchText: string,
   replaceText: string,
   checkModes: {
@@ -519,15 +573,20 @@ export function replaceAll(
     return findAndReplace.searchInputTip;
   }
 
-  let range;
-  if (
+  // No selection, or a single cell, reads as "no scope of their own" and the
+  // run covers the whole sheet. Which of the two it was decides what selection
+  // to leave behind below: a scope this function picked is ours to collapse, a
+  // range the user drew is not.
+  const searchedWholeSheet =
     _.size(ctx.luckysheet_select_save) === 0 ||
     (ctx.luckysheet_select_save?.length === 1 &&
       ctx.luckysheet_select_save[0].row[0] ===
         ctx.luckysheet_select_save[0].row[1] &&
       ctx.luckysheet_select_save[0].column[0] ===
-        ctx.luckysheet_select_save[0].column[1])
-  ) {
+        ctx.luckysheet_select_save[0].column[1]);
+
+  let range;
+  if (searchedWholeSheet) {
     range = [
       {
         row: [0, flowdata.length - 1],
@@ -564,7 +623,6 @@ export function replaceAll(
 
       setCellValue(ctx, r, c, d, v);
 
-      range.push({ row: [r, r], column: [c, c] });
       replaceCount += 1;
     }
   } else {
@@ -587,14 +645,79 @@ export function replaceAll(
 
       setCellValue(ctx, r, c, d, v);
 
-      range.push({ row: [r, r], column: [c, c] });
       replaceCount += 1;
     }
   }
 
   // jfrefreshgrid(d, range);
 
-  ctx.luckysheet_select_save = normalizeSelection(ctx, range);
+  const first = searchIndexArr[0];
+  if (searchedWholeSheet) {
+    // Not `range`. It is every cell this run rewrote plus the whole sheet it
+    // defaulted to, so selecting it left the sheet blanketed in a selection
+    // the user never made and arrow keys cycling inside it instead of
+    // navigating. Collapse onto the first cell replaced — first in search
+    // order, which is the top-left-most match: one predictable place to
+    // resume from, and something this run actually changed.
+    //
+    // Only when the scope was ours to pick. A range the user drew before
+    // opening the dialog is not a blanket we left behind, and collapsing it
+    // would silently widen their next Replace All: a single cell reads as "no
+    // scope of their own" where `range` is derived above, which would send
+    // that run across the whole sheet.
+    ctx.luckysheet_select_save = normalizeSelection(ctx, [
+      { row: [first.r, first.r], column: [first.c, first.c] },
+    ]);
+  }
+  // Which cell the next press will actually pick, resolved exactly as `replace`
+  // resolves it: the focus of the last selection range, falling back to the
+  // first match when that focus is not itself a match. Not `first`.
+  // `normalizeSelection` only defaults a nil focus, and a drag always sets one
+  // — dragging A2 up to A1 leaves `row: [0, 1]` with `row_focus: 1` — while a
+  // multi-range selection resolves from its *last* range, which need not hold
+  // the first match at all. On the collapsing branch above the two coincide;
+  // on the branch that keeps the user's range they do not, and recording
+  // `first` there would leave the real anchor unprotected.
+  //
+  // After the collapse above, deliberately: the next press reads the selection
+  // this run leaves, not the one it was given. Resolving it beforehand would
+  // read a focus the collapse is about to discard — a single matching cell the
+  // user had selected somewhere below the first match reads as "no scope of
+  // their own", so it defaults to the whole sheet, and the cursor has to name
+  // the cell we collapsed onto rather than the one they had clicked.
+  const selection = ctx.luckysheet_select_save;
+  const anchored = selection?.[selection.length - 1];
+  let anchorIndex = _.findIndex(
+    searchIndexArr,
+    (entry) =>
+      entry.r === anchored?.row_focus && entry.c === anchored?.column_focus
+  );
+  if (anchorIndex < 0) {
+    anchorIndex = 0;
+  }
+  const anchor = searchIndexArr[anchorIndex];
+
+  // That anchor is a cell this run wrote, so both branches need the cursor —
+  // it is what stops the next press appending to the anchored cell again.
+  //
+  // Not cleared, on either branch: "Replace All consumed every match" is false
+  // for exactly the replacement this ticket is about — "beta" -> "beta_"
+  // leaves every cell it wrote still a match — so with no cursor the very next
+  // Replace re-hits the anchor. Setting it makes that press behave like any
+  // other: resume after the anchored cell, or report there is nothing after
+  // it.
+  globalCache.replaceCursor = {
+    sheetId: ctx.currentSheetId,
+    r: anchor.r,
+    c: anchor.c,
+    wrote: cellText(anchor.r, anchor.c, d),
+    searchText,
+    replaceText,
+    checkModes: { ...checkModes },
+  };
+  // The anchor, not `first`: on the branch that keeps the user's range those
+  // differ, and scrolling to `first` would scroll away from the selection.
+  scrollToHighlightCell(ctx, anchor.r, anchor.c);
 
   // `successTip` is "${xlength} items found" — the wrong sentence for an
   // action that just rewrote them, and the text the user is shown as well as

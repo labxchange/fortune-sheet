@@ -303,6 +303,7 @@ const SearchReplace: React.FC<{
                     setContext((draftCtx) => {
                       const alertMsg = replaceAll(
                         draftCtx,
+                        refs.globalCache,
                         searchText,
                         replaceText,
                         checkMode
@@ -323,6 +324,7 @@ const SearchReplace: React.FC<{
                     setContext((draftCtx) => {
                       const alertMsg = replace(
                         draftCtx,
+                        refs.globalCache,
                         searchText,
                         replaceText,
                         checkMode
