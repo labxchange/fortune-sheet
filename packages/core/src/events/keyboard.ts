@@ -793,6 +793,16 @@ export function handleGlobalKeyDown(
     ctx.luckysheet_selection_range = [];
   }
 
+  // Format Painter has no keyboard path to *apply* itself (that still needs
+  // a follow-up -- see PR #27's author's notes), but arming it from the
+  // keyboard must not be a dead end: without this, Escape only cleared the
+  // visual marching-ants above and left luckysheetPaintModelOn true, so a
+  // keyboard-only user who activated the toolbar button had no way back out
+  // of a mode they could not use either.
+  if (kstr === "Escape" && ctx.luckysheetPaintModelOn) {
+    cancelPaintModel(ctx);
+  }
+
   const allowEdit = isAllowEdit(ctx);
 
   if (

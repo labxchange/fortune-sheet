@@ -194,6 +194,11 @@ describe("keyboard", () => {
 
     // handleControlPlusArrowKey reads the sheet's declared extent and bails
     // without it, which the shared fixture does not carry.
+    //
+    // Row 0 needs >=3 contiguous columns, not 2: a 2-column row makes the
+    // edge of the data region (B1) land on the same cell a plain ArrowRight
+    // would reach in a single step, so a test using it cannot tell a jump
+    // from a step -- it would pass unchanged with the Ctrl modifier dropped.
     const getSizedContext = () =>
       contextFactory({
         luckysheet_select_save: selectionFactory([0, 0], [0, 0], 0, 0),
@@ -203,8 +208,8 @@ describe("keyboard", () => {
             row: 10,
             column: 8,
             data: [
-              [{ v: "abc" }, { v: "abc" }],
-              [{ v: "abc" }, { v: "abc" }],
+              [{ v: "abc" }, { v: "abc" }, { v: "abc" }],
+              [{ v: "abc" }, { v: "abc" }, { v: "abc" }],
             ],
           },
         ],
@@ -232,10 +237,11 @@ describe("keyboard", () => {
       );
 
       const last = ctx.luckysheet_select_save[0];
-      // The fixture is a 2x2 block of values starting at A1, so the edge to the
-      // right of A1 is B1 — a jump, not a single step, is what distinguishes
-      // this from a plain arrow key.
-      expect(last.column_focus).toBe(1);
+      // The fixture's row 0 runs A1:C1, so the edge to the right of A1 is C1
+      // -- two columns away. A plain ArrowRight only reaches B1, so landing
+      // on C1 is what a single step could not produce; that is what proves
+      // the Ctrl modifier's jump-to-edge behaviour actually ran.
+      expect(last.column_focus).toBe(2);
       expect(last.row_focus).toBe(0);
     });
 
@@ -250,8 +256,10 @@ describe("keyboard", () => {
       );
 
       const last = ctx.luckysheet_select_save[0];
-      // Extending, so the anchor stays put and the range grows to the edge.
-      expect(last.column).toEqual([0, 1]);
+      // Extending, so the anchor stays put and the range grows to the edge --
+      // [0, 2] (A1:C1), same reasoning as the jump test above: a plain
+      // Shift+ArrowRight would only reach [0, 1].
+      expect(last.column).toEqual([0, 2]);
       expect(last.column_focus).toBe(0);
     });
 
@@ -690,6 +698,41 @@ describe("keyboard", () => {
       expect(event.defaultPrevented).toBe(false);
       expect(ctx.luckysheet_select_save[0].column_focus).toBe(0);
       expect(document.activeElement).toBe(toolbarButton);
+    });
+
+    // Arming Format Painter from the toolbar now returns focus to the cell
+    // input (combineStamps, this same round), so Escape pressed there reaches
+    // this handler in-grid -- without this, it cleared only the visual
+    // marching-ants (luckysheet_selection_range) and left
+    // luckysheetPaintModelOn true, an armed mode a keyboard-only user had no
+    // way to leave.
+    test("escape from the grid cancels an armed format painter", () => {
+      const { cellInput } = buildDom();
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [];
+      ctx.luckysheetPaintModelOn = true;
+      ctx.luckysheet_copy_save = {
+        dataSheetId: ctx.currentSheetId,
+        copyRange: [{ row: [0, 0], column: [0, 0] }],
+        RowlChange: false,
+        HasMC: false,
+      };
+
+      pressFrom(ctx, cellInput, cellInput, { key: "Escape" });
+
+      expect(ctx.luckysheetPaintModelOn).toBe(false);
+    });
+
+    // Escape must stay a no-op for the common case, not a blanket reset.
+    test("escape from the grid leaves format painter alone when it was never armed", () => {
+      const { cellInput } = buildDom();
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [];
+      ctx.luckysheetPaintModelOn = false;
+
+      pressFrom(ctx, cellInput, cellInput, { key: "Escape" });
+
+      expect(ctx.luckysheetPaintModelOn).toBe(false);
     });
   });
 

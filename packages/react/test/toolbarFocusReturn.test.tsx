@@ -88,4 +88,18 @@ describe("Toolbar commands return focus to the cells they act on", () => {
     });
     expect(document.activeElement).not.toBe(document.body);
   });
+
+  // Assertive, not polite: `withFocusReturn` bumps the counter this region
+  // watches and moves focus to the cell input in the same deferred callback
+  // (`focusAfterCommit`), the same moment the context-menu region is
+  // assertive to survive -- a polite announcement queued there risks
+  // VoiceOver discarding it under the focus move that lands right beside it.
+  // Nothing else pinned this: a future edit could flip it back to
+  // role="status" with every other test in this file still green.
+  it("announces the focus return assertively, not politely", () => {
+    const { container } = setup();
+    const region = container.querySelector("#sr-toolbarFocusReturn")!;
+    expect(region.getAttribute("role")).toBe("alert");
+    expect(region.getAttribute("aria-live")).toBe("assertive");
+  });
 });

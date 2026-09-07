@@ -205,6 +205,27 @@ export function mouseDownToggleHandlers<T extends HTMLElement = HTMLElement>(
  * meaningful to compare; `onReturn` then fires on every actual return, as
  * before.
  */
+export function withFocusReturn<A extends unknown[]>(
+  run: (...args: A) => void,
+  readStamp: () => unknown,
+  getTarget: () => HTMLElement | null | undefined,
+  onReturn?: () => void,
+  readAnnounceStamp?: () => unknown
+): (...args: A) => void {
+  return (...args: A) => {
+    const before = readStamp();
+    const beforeAnnounce = readAnnounceStamp?.();
+    run(...args);
+    focusAfterCommit(() => {
+      if (readStamp() === before) return null;
+      if (!readAnnounceStamp || readAnnounceStamp() === beforeAnnounce) {
+        onReturn?.();
+      }
+      return getTarget();
+    });
+  };
+}
+
 const stampIds = new WeakMap<object, number>();
 let nextStampId = 1;
 
@@ -243,27 +264,6 @@ function stampId(value: unknown): unknown {
  */
 export function combineStamps(...parts: unknown[]): string {
   return parts.map(stampId).join("|");
-}
-
-export function withFocusReturn<A extends unknown[]>(
-  run: (...args: A) => void,
-  readStamp: () => unknown,
-  getTarget: () => HTMLElement | null | undefined,
-  onReturn?: () => void,
-  readAnnounceStamp?: () => unknown
-): (...args: A) => void {
-  return (...args: A) => {
-    const before = readStamp();
-    const beforeAnnounce = readAnnounceStamp?.();
-    run(...args);
-    focusAfterCommit(() => {
-      if (readStamp() === before) return null;
-      if (!readAnnounceStamp || readAnnounceStamp() === beforeAnnounce) {
-        onReturn?.();
-      }
-      return getTarget();
-    });
-  };
 }
 
 /**
