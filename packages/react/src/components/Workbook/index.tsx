@@ -701,13 +701,15 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               workbookContainer.current?.querySelector<HTMLElement>(region);
             if (container) {
               e.preventDefault();
-              // Only queues the close; `target.focus()` below then runs
-              // synchronously, while the dialog is still mounted, so
-              // `useDialogFocus`'s focusin listener sees focus leave and its
-              // cleanup skips the restore. That depends on this order — focus
-              // after the close, not before — or the restore drags focus back
-              // to whatever opened the dialog. The context-menu branch below
-              // gets to the same place by the opposite route.
+              // `target.focus()` below runs while the dialog is still mounted,
+              // so `useDialogFocus`'s focusin listener sees focus leave and the
+              // cleanup's gate declines the restore. Not order-dependent:
+              // `setContextWithProduce` only queues a batched setState, so the
+              // dialog survives this whole handler whichever of these two
+              // statements runs first. The context-menu branch below reaches the
+              // same place by the opposite route — nothing there focuses
+              // synchronously, so the gate passes and the deferred re-check
+              // declines instead.
               leaveShortcutsDialog();
               // The grid is entered at its root, which holds tabIndex -1 for
               // the purpose: landing on one of the controls inside it (the

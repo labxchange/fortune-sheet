@@ -299,6 +299,167 @@ describe("Keyboard shortcuts dialog", () => {
     );
   });
 
+  /*
+   * The three chords `Workbook`'s onKeyDown never sees. Core's
+   * `handleGlobalKeyDown` owns them, so the dialog closes itself off the
+   * resulting context flag instead of off the keystroke.
+   *
+   * Focus is moved off the search box first, deliberately: core ignores these
+   * chords while a text entry holds focus, and the search box is the dialog's
+   * last focusable, so one Tab wraps to the close button — which is exactly the
+   * two-keystroke route a user takes to reach the defect.
+   */
+  const openAndLeaveTheSearchBox = async (
+    getByRole: ReturnType<typeof render>["getByRole"]
+  ) => {
+    const trigger = getByRole("button", { name: /Keyboard shortcuts/ });
+    trigger.focus();
+    fireEvent.click(trigger);
+    await waitFor(() => getByRole("dialog", { name: "Keyboard Shortcuts" }));
+    fireEvent.keyDown(document.activeElement!, { key: "Tab", code: "Tab" });
+    return trigger;
+  };
+
+  const shortcutsHeading = (container: HTMLElement) =>
+    container.querySelector(".fortune-shortcuts-title");
+
+  it.each([
+    ["Ctrl+F", "KeyF", "f"],
+    ["Ctrl+H", "KeyH", "h"],
+  ])(
+    "closes itself when %s opens Find and Replace from inside it",
+    async (_label, code, key) => {
+      const { container, getByRole } = render(
+        <Workbook
+          data={[{ name: "Sheet1" }]}
+          toolbarItems={["keyboard-shortcuts"]}
+        />
+      );
+      await openAndLeaveTheSearchBox(getByRole);
+
+      fireEvent.keyDown(document.activeElement!, { code, key, ctrlKey: true });
+
+      // Find and Replace is z-index 1004 against this dialog's wrapper at 1006,
+      // so leaving both open puts focus in a dialog painted behind the modal
+      // covering it (WCAG 2.4.3).
+      await waitFor(() => expect(shortcutsHeading(container)).toBeNull());
+    }
+  );
+
+  it("closes itself when Ctrl+Alt+R opens the filter menu from inside it", async () => {
+    // The third chord, and the one the review could only read rather than run:
+    // it needs a funnel, which needs a filter on the sheet. Declaring one in
+    // the sheet data gets there without driving the toolbar.
+    const cell = (v: string) => ({
+      v: { v, m: v, ct: { fa: "General", t: "g" } },
+    });
+    const { container, getByRole } = render(
+      <Workbook
+        lang="en"
+        data={[
+          {
+            name: "Sheet1",
+            id: "s1",
+            celldata: ["Fruit", "Apple", "Banana"].map((v, r) => ({
+              r,
+              c: 0,
+              ...cell(v),
+            })),
+            row: 10,
+            column: 6,
+            filter_select: { row: [0, 2], column: [0, 0] },
+            filter: {},
+          },
+        ]}
+        toolbarItems={["keyboard-shortcuts"]}
+      />
+    );
+    expect(
+      container.querySelectorAll(".luckysheet-filter-options").length
+    ).toBe(1);
+    await openAndLeaveTheSearchBox(getByRole);
+
+    fireEvent.keyDown(document.activeElement!, {
+      code: "KeyR",
+      key: "r",
+      ctrlKey: true,
+      altKey: true,
+    });
+
+    await waitFor(() => expect(shortcutsHeading(container)).toBeNull());
+    // And the menu it opened is what holds focus, rather than the dialog's
+    // restore dragging it back to the toolbar.
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+    expect((document.activeElement as HTMLElement).className).toContain(
+      "luckysheet-cols-menuitem"
+    );
+  });
+
+  it("stays open when a chord core ignores fires in its own search box", async () => {
+    // Core bails on Ctrl+F while a text entry holds focus, and the search box
+    // is one — nothing opens. Closing here would dismiss the dialog on a
+    // keystroke that did nothing, which is why the close keys on the context
+    // flag rather than on the chord.
+    const { container, getByRole } = render(
+      <Workbook
+        data={[{ name: "Sheet1" }]}
+        toolbarItems={["keyboard-shortcuts"]}
+      />
+    );
+    const trigger = getByRole("button", { name: /Keyboard shortcuts/ });
+    trigger.focus();
+    fireEvent.click(trigger);
+    await waitFor(() => getByRole("dialog", { name: "Keyboard Shortcuts" }));
+    expect((document.activeElement as HTMLElement).tagName).toBe("INPUT");
+
+    fireEvent.keyDown(document.activeElement!, {
+      code: "KeyF",
+      key: "f",
+      ctrlKey: true,
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+    expect(shortcutsHeading(container)).not.toBeNull();
+  });
+
+  it("still opens when Find and Replace is already up", async () => {
+    // The flag is already standing at open time, so only a *transition* may
+    // close this dialog. Reacting to the standing flag would make the
+    // shortcuts list unopenable whenever Find and Replace happened to be open.
+    const { container, getByRole } = render(
+      <Workbook
+        data={[{ name: "Sheet1" }]}
+        toolbarItems={["keyboard-shortcuts"]}
+      />
+    );
+    const workbook =
+      container.querySelector<HTMLElement>(".fortune-container")!;
+    fireEvent.keyDown(workbook, { code: "KeyF", key: "f", ctrlKey: true });
+    await waitFor(() =>
+      expect(container.querySelector(".fortune-search-replace")).not.toBeNull()
+    );
+
+    const trigger = getByRole("button", { name: /Keyboard shortcuts/ });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    await waitFor(() => expect(shortcutsHeading(container)).not.toBeNull());
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+    expect(shortcutsHeading(container)).not.toBeNull();
+  });
+
   it("closes on Escape", async () => {
     const { container, getByRole, queryByRole } = render(
       <Workbook data={[{ name: "Sheet1" }]} />
