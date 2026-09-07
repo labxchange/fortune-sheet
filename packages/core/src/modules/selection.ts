@@ -2125,6 +2125,13 @@ export function selectIsOverlap(ctx: Context, range?: any) {
   if (range == null) {
     range = ctx.luckysheet_select_save;
   }
+  // No ranges cannot overlap. Without this the loop below dereferences
+  // `range.length` on a nil selection and throws, and `handleMerge` calls this
+  // *before* its own selection guard — so pressing merge on a sheet that has
+  // no selection yet crashed the commit rather than declining. `Workbook` only
+  // seeds a default selection when the value is an empty array, so `undefined`
+  // survives mount for any sheet whose data omits one.
+  if (range == null || range.length === 0) return false;
   range = _.cloneDeep(range);
 
   let overlap = false;

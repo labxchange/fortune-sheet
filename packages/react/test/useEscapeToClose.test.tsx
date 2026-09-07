@@ -1,4 +1,4 @@
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, act } from "@testing-library/react";
 import React, { useRef, useState } from "react";
 import { useEscapeToClose } from "../src/hooks/useEscapeToClose";
 import { useOutsideClick } from "../src/hooks/useOutsideClick";
@@ -116,17 +116,25 @@ const HarnessWithOutsideClick: React.FC = () => {
 const FocusOutHarness: React.FC<{
   withSatellite?: boolean;
   closeOnFocusOut?: boolean;
-}> = ({ withSatellite = false, closeOnFocusOut = true }) => {
+  /** Opts into the `focusOutTarget` override, aimed at the "Anchor" button. */
+  withAnchor?: boolean;
+}> = ({
+  withSatellite = false,
+  closeOnFocusOut = true,
+  withAnchor = false,
+}) => {
   const [open, setOpen] = useState(false);
   const [rowVisible, setRowVisible] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const satelliteRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLButtonElement>(null);
   useEscapeToClose({
     open,
     onClose: () => setOpen(false),
     containerRef,
     autoFocus: false,
     closeOnFocusOut,
+    focusOutTarget: withAnchor ? () => anchorRef.current : undefined,
     withinRefs: withSatellite ? [satelliteRef] : undefined,
   });
   return (
@@ -141,6 +149,11 @@ const FocusOutHarness: React.FC<{
         Trigger
       </button>
       <button type="button">Outside</button>
+      {/* Stands in for the grid's cell input: where a cell-anchored popup wants
+          focus after a Tab, rather than wherever the Tab was heading. */}
+      <button type="button" ref={anchorRef}>
+        Anchor
+      </button>
       {open && (
         <>
           <div id="focusout-harness-popup" ref={containerRef}>
@@ -429,6 +442,63 @@ describe("useEscapeToClose", () => {
       moveFocus(getByText("First"), getByText("Outside"));
 
       expect(queryByText("First")).toBeTruthy();
+    });
+  });
+
+  /**
+   * The override a cell-anchored popup uses so Tab does not carry the user out
+   * of the grid. Its destination is deferred a task, so every assertion here
+   * flushes first — otherwise it reads pre-timeout state and cannot fail.
+   */
+  describe("focusOutTarget", () => {
+    const flush = async () => {
+      await act(async () => {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 0);
+        });
+      });
+    };
+
+    it("sends focus to the target instead of where the Tab was heading", async () => {
+      const { getByText } = render(<FocusOutHarness withAnchor />);
+      fireEvent.click(getByText("Trigger"));
+
+      moveFocus(getByText("First"), getByText("Outside"));
+      await flush();
+
+      expect(document.activeElement).toBe(getByText("Anchor"));
+    });
+
+    it("leaves the Tab alone when no target is given", async () => {
+      const { getByText } = render(<FocusOutHarness />);
+      fireEvent.click(getByText("Trigger"));
+
+      moveFocus(getByText("First"), getByText("Outside"));
+      await flush();
+
+      expect(document.activeElement).toBe(getByText("Outside"));
+    });
+
+    /**
+     * The case that makes this an override rather than an unconditional pull.
+     *
+     * `ContextMenu`'s Sort, Insert image and Link rows focus the grid
+     * *synchronously* and then open a dialog — so the focusout that reaches
+     * this hook is the app's own handoff, already landing on the target. Aiming
+     * at it again a task later would fire after the dialog had claimed focus
+     * and yank the user straight back out of it.
+     */
+    it("stands down when focus has already reached the target", async () => {
+      const { getByText } = render(<FocusOutHarness withAnchor />);
+      fireEvent.click(getByText("Trigger"));
+
+      moveFocus(getByText("First"), getByText("Anchor"));
+      // Whatever the handoff opens next claims focus before the deferred
+      // re-aim would have run.
+      getByText("Outside").focus();
+      await flush();
+
+      expect(document.activeElement).toBe(getByText("Outside"));
     });
   });
 });

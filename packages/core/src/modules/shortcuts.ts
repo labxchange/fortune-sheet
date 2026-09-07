@@ -37,6 +37,16 @@ const ARROWS = "↑ ↓ ← →";
 /** Same keys on both platforms. */
 const both = (keys: string): ShortcutKeys => ({ mac: keys, windows: keys });
 
+/**
+ * The binding that opens this dialog. Named because it is the one shortcut a
+ * user cannot learn from the dialog itself — they have to already be in it —
+ * so the toolbar button advertises it too, and both must quote the same keys.
+ */
+export const OPEN_SHORTCUTS_KEYS: ShortcutKeys = {
+  mac: "⌘ /",
+  windows: "Ctrl + /",
+};
+
 export function isMacPlatform(): boolean {
   if (typeof navigator === "undefined") return false;
   // `navigator.platform` is deprecated but is the only field available
@@ -264,7 +274,7 @@ export function getDefaultShortcutSections(ctx: Context): ShortcutSection[] {
         },
         {
           id: "openShortcuts",
-          keys: { mac: "⌘ /", windows: "Ctrl + /" },
+          keys: OPEN_SHORTCUTS_KEYS,
           description: d.openShortcuts,
         },
       ],

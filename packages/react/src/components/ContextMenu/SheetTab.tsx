@@ -1,4 +1,4 @@
-import { locale, deleteSheet, api } from "@fortune-sheet/core";
+import { locale, deleteSheet, api, Context } from "@fortune-sheet/core";
 import _ from "lodash";
 import React, {
   useContext,
@@ -14,7 +14,7 @@ import { useAlert } from "../../hooks/useAlert";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
-import { onActivate } from "../../utils/keyboardActivation";
+import { onActivate, returnFocusToCell } from "../../utils/keyboardActivation";
 import { ChangeColor } from "../ChangeColor";
 import SVGIcon from "../SVGIcon";
 import Divider from "./Divider";
@@ -51,6 +51,21 @@ const SheetTabContextMenu: React.FC = () => {
     });
   }, [setContext]);
 
+  /**
+   * Confirm applied the colour, so the menu has done its job: collapse it and
+   * put the user back on the sheet.
+   *
+   * Deferred through `returnFocusToCell` because closing unmounts the control
+   * that currently holds focus — setting focus inline would be undone by
+   * `useEscapeToClose`'s own restore as the submenu tears down, and a focus
+   * left on a detached node silently falls back to `<body>`.
+   */
+  const confirmColor = useCallback(() => {
+    setIsShowChangeColor(false);
+    close();
+    returnFocusToCell(refs.cellInput.current);
+  }, [close, refs.cellInput]);
+
   useLayoutEffect(() => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (rect && x != null && y != null) {
@@ -84,6 +99,20 @@ const SheetTabContextMenu: React.FC = () => {
     boundaryRef: refs.workbookContainer,
   });
 
+  /**
+   * Where the sheet sits among the *visible* sheets — the position the tab
+   * strip shows and the announcement reports. Used to tell a real move from
+   * a no-op one (see moveSheet).
+   */
+  const visibleIndexOf = useCallback(
+    (ctx: Context) =>
+      _.sortBy(
+        ctx.luckysheetfile.filter((oneSheet) => oneSheet.hide !== 1),
+        (oneSheet) => Number(oneSheet.order)
+      ).findIndex((oneSheet) => oneSheet.id === sheet?.id),
+    [sheet?.id]
+  );
+
   const moveSheet = useCallback(
     (delta: number) => {
       if (context.allowEdit === false) return;
@@ -96,10 +125,21 @@ const SheetTabContextMenu: React.FC = () => {
             currentOrder = i;
           }
         });
+        const positionBefore = visibleIndexOf(ctx);
         api.setSheetOrder(ctx, { [sheet.id!]: currentOrder + delta });
+        // Only announce when the sheet actually changed visible position:
+        // setSheetOrder re-normalises orders from 0, so a move past either
+        // end is a no-op, and a ±1.5 hop over a hidden neighbour changes the
+        // all-sheets order without moving the sheet in the tab strip.
+        // The menu only opens for the current sheet, so the announcement
+        // hook can read the new position off currentSheetId — this counter
+        // just marks that a move happened at all.
+        if (visibleIndexOf(ctx) !== positionBefore) {
+          ctx.sheetTabMoveCount = (ctx.sheetTabMoveCount ?? 0) + 1;
+        }
       });
     },
-    [context.allowEdit, setContext, sheet]
+    [context.allowEdit, setContext, sheet, visibleIndexOf]
   );
 
   const hideSheet = useCallback(() => {
@@ -275,7 +315,11 @@ const SheetTabContextMenu: React.FC = () => {
               <Menu
                 role="button"
                 expanded={isShowChangeColor}
-                hasPopup="menu"
+                // No `hasPopup`: what this discloses is a panel of colours,
+                // not a menu — see the container below. `aria-expanded` plus
+                // `aria-controls` is already the whole disclosure
+                // relationship, which is the argument `Combo` makes for the
+                // same shape.
                 controls={changeColorMenuId}
                 onClick={() => {
                   setChangeColorOpenedBy("pointer");
@@ -294,11 +338,22 @@ const SheetTabContextMenu: React.FC = () => {
               {isShowChangeColor && context.allowEdit && (
                 <div
                   id={changeColorMenuId}
-                  role="menu"
+                  // A group, not a menu. `role="menu"` may only own
+                  // `menuitem`/`menuitemradio`/`menuitemcheckbox`/`group`,
+                  // and this owns the shared `ColorPicker` — a `listbox` of
+                  // 64 options since this work gave the palette the role its
+                  // interaction model already had — plus a text field and
+                  // Confirm. axe reports `aria-required-children` for it. The
+                  // filter-by-colour submenu answers the same question the
+                  // same way (`ContextMenu/Menu.tsx`).
+                  role="group"
                   ref={changeColorMenuRef}
                   style={{ position: "absolute" }}
                 >
-                  <ChangeColor triggerParentUpdate={updateShowInputColor} />
+                  <ChangeColor
+                    triggerParentUpdate={updateShowInputColor}
+                    onConfirm={confirmColor}
+                  />
                 </div>
               )}
             </div>

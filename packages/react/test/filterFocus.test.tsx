@@ -50,19 +50,22 @@ const funnels = (container: HTMLElement) =>
   container.querySelectorAll(".luckysheet-filter-options");
 
 describe("focus after creating a filter from the toolbar", () => {
-  const sortAndFilterArrow = (container: HTMLElement) =>
+  // The main button, not the arrow: Sort and filter has no onClick of its own,
+  // so the main button *is* the popup's toggle and the arrow beside it is
+  // decoration, hidden from AT and out of the tab order.
+  const sortAndFilterTrigger = (container: HTMLElement) =>
     Array.from(
-      container.querySelectorAll<HTMLElement>(".fortune-toolbar-combo-arrow")
+      container.querySelectorAll<HTMLElement>(".fortune-toolbar-combo-button")
     ).find((c) =>
       (c.getAttribute("aria-label") || "").startsWith("Sort and filter")
     )!;
 
   /** Opens the Sort and filter dropdown by keyboard and activates one option. */
   const activateOption = (container: HTMLElement, text: string) => {
-    const arrow = sortAndFilterArrow(container);
+    const trigger = sortAndFilterTrigger(container);
     act(() => {
-      arrow.focus();
-      fireEvent.keyDown(arrow, { key: "Enter" });
+      trigger.focus();
+      fireEvent.keyDown(trigger, { key: "Enter" });
     });
     const option = within(
       container.querySelector<HTMLElement>(".fortune-toolbar-combo-popup")!
@@ -101,12 +104,12 @@ describe("focus after creating a filter from the toolbar", () => {
       ]);
     });
 
-    const arrow = sortAndFilterArrow(container);
+    const trigger = sortAndFilterTrigger(container);
     activateOption(container, "create filter");
     await flushFocus();
 
     expect(funnels(container)).toHaveLength(0);
-    expect(document.activeElement).toBe(arrow);
+    expect(document.activeElement).toBe(trigger);
   });
 
   it("puts focus on the active cell after clearing the filter", async () => {
