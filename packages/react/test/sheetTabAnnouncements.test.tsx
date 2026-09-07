@@ -142,9 +142,12 @@ describe("sheet tab announcements", () => {
     });
     await virtual.start({ container });
     // Scoped to the sheet-tab's own colour submenu — the toolbar has its own
-    // font/fill colour pickers with matching swatch aria-labels.
+    // font/fill colour pickers with matching swatch aria-labels. The swatches
+    // are options of a listbox, not gridcells: ColorPicker dropped grid/row/
+    // gridcell on this branch because role="row" is named from its contents
+    // and read all eight colour names of the row being entered.
     const swatch = container.querySelector<HTMLElement>(
-      `#fortune-sheet-tab-options-menu [role='gridcell'][aria-label='Black']`
+      `#fortune-sheet-tab-options-menu [role='option'][aria-label='Black']`
     )!;
     await act(async () => {
       fireEvent.click(swatch);
