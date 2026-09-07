@@ -35,6 +35,7 @@ import {
   createFilter,
   clearFilter,
   applyLocation,
+  getSrSelectionCore,
   shortcutKeysForPlatform,
   OPEN_SHORTCUTS_KEYS,
   replaceHtml,
@@ -62,7 +63,9 @@ import {
 } from "../../hooks/useToolbarAnnouncements";
 import {
   activateOnEnterOrSpace,
+  combineStamps,
   focusAfterCommit,
+  withFocusReturn as sharedWithFocusReturn,
   onActivate,
 } from "../../utils/keyboardActivation";
 import { filterUnchanged } from "../../utils/filterDom";
@@ -328,6 +331,79 @@ const Toolbar: React.FC<{
     }
   }, [itemLocations, setMoreItems, settings.toolbarItems.length, sheetWidth]);
 
+  /**
+   * Run a toolbar command and put focus back on the cells it acted on.
+   *
+   * Focus belongs in the user's working context after an editing command, not
+   * on the toolbar control that ran it (WCAG 2.4.3): select B5, bold it, and
+   * the next arrow key should move from B5 rather than along the toolbar.
+   *
+   * `refs.cellInput` is the target because that is where a mouse click already
+   * leaves focus, and where the grid's own key handling runs.
+   *
+   * A command that declined to act must not relocate anyone -- generalising the
+   * rule `filterUnchanged` states for the filter items. `luckysheetfile` is the
+   * main signal: immer rebuilds the references along the path to whatever a
+   * command wrote, up to and including that array, and preserves them for a
+   * subtree nothing touched. So a command that changed no cell, format, merge
+   * or freeze leaves it identical, and focus stays where the user put it.
+   * `luckysheetPaintModelOn`/`luckysheet_copy_save` are combined in alongside
+   * it for the one command that arms itself without ever touching
+   * `luckysheetfile`: Format Painter writes only those two (plus
+   * `luckysheetPaintSingle`, which isn't tracked here -- it is set `true` on
+   * every arm and never reset, so it can't distinguish anything the other two
+   * don't already). `combineStamps` keeps this additive rather than a
+   * weakening: a command that touches none of the tracked fields still reads
+   * identical before and after, same as checking `luckysheetfile` alone
+   * would.
+   *
+   * Deferred through `focusAfterCommit`, so it lands after the commit and after
+   * any popup's own focus restoration -- and reads `contextRef`, not `context`,
+   * because by then the commit has happened and `context` here is the value
+   * from before it.
+   *
+   * The return is usually otherwise silent to a screen reader: it is not a
+   * navigation, so a formatting command does not touch the selection
+   * `#sr-selection` is built from, and that region simply repeats itself.
+   * `toolbarFocusReturnCount` bumped here is what `#sr-toolbarFocusReturn`
+   * (SheetOverlay) watches to announce the cell the user landed back on --
+   * but only when `getSrSelectionCore` reads the same before and after. A
+   * command that *did* move the selection or the cell's value (a merge, an
+   * undo that restores content) already made `#sr-selection` re-announce on
+   * its own; bumping the counter for that too would speak the same cell
+   * twice. Joined to a string because `withFocusReturn` compares the stamp
+   * with `===`, which a fresh object from `getSrSelectionCore` would always
+   * fail even when both fields are unchanged.
+   */
+  const withFocusReturn = useCallback(
+    <A extends unknown[]>(run: (...args: A) => void) =>
+      sharedWithFocusReturn(
+        run,
+        // Through the ref, not `context`: this is read after the commit, when
+        // the value captured at render time is already stale.
+        () =>
+          combineStamps(
+            contextRef.current.luckysheetfile,
+            contextRef.current.luckysheetPaintModelOn,
+            contextRef.current.luckysheet_copy_save
+          ),
+        () => refs.cellInput.current,
+        () => {
+          setContext((ctx) => {
+            ctx.toolbarFocusReturnCount =
+              (ctx.toolbarFocusReturnCount ?? 0) + 1;
+          });
+        },
+        () => {
+          const { rangeText, cellValue } = getSrSelectionCore(
+            contextRef.current
+          );
+          return `${rangeText}|${cellValue}`;
+        }
+      ),
+    [refs.cellInput, setContext]
+  );
+
   const getToolbarItem = useCallback(
     (name: string, i: number) => {
       // @ts-ignore
@@ -336,7 +412,7 @@ const Toolbar: React.FC<{
         return <Divider key={i} />;
       }
       if (["font-color", "background"].includes(name)) {
-        const pick = (color: string | undefined) => {
+        const pick = withFocusReturn((color: string | undefined) => {
           // Applying a colour only repaints, so without this the action is
           // silent — the same gap the other toolbar announcements close. Named
           // from the palette where there is a name; a colour from the custom
@@ -377,7 +453,7 @@ const Toolbar: React.FC<{
           } else {
             refs.globalCache.recentBackgroundColor = color;
           }
-        };
+        });
         return (
           <div style={{ position: "relative" }} key={name}>
             <div
@@ -484,7 +560,7 @@ const Toolbar: React.FC<{
                   return (
                     <Option
                       key={value}
-                      onClick={() => {
+                      onClick={withFocusReturn(() => {
                         setOpen(false);
                         setContext((ctx) => {
                           const d = getFlowdata(ctx);
@@ -497,7 +573,7 @@ const Toolbar: React.FC<{
                             value
                           );
                         });
-                      }}
+                      })}
                     >
                       <div className="fortune-toolbar-menu-line">
                         <div>{text}</div>
@@ -527,7 +603,7 @@ const Toolbar: React.FC<{
                 {fontarray.map((o) => (
                   <Option
                     key={o}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       setContext((ctx) => {
                         current = o;
                         const d = getFlowdata(ctx);
@@ -535,7 +611,7 @@ const Toolbar: React.FC<{
                         updateFormat(ctx, refs.cellInput.current!, d, "ff", o);
                       });
                       setOpen(false);
-                    }}
+                    })}
                   >
                     {o}
                   </Option>
@@ -563,7 +639,7 @@ const Toolbar: React.FC<{
                 ].map((num) => (
                   <Option
                     key={num}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       // A size picked from a list is a value, not a toggle, so
                       // it is confirmed by reading the size the anchor ended up
                       // with rather than by watching for a change: picking the
@@ -592,7 +668,7 @@ const Toolbar: React.FC<{
                         )
                       );
                       setOpen(false);
-                    }}
+                    })}
                   >
                     {num}
                   </Option>
@@ -634,7 +710,7 @@ const Toolbar: React.FC<{
                 {items.map(({ text, title }) => (
                   <Option
                     key={title}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       setContext((ctx) => {
                         handleHorizontalAlign(
                           ctx,
@@ -643,7 +719,7 @@ const Toolbar: React.FC<{
                         );
                       });
                       setOpen(false);
-                    }}
+                    })}
                   >
                     <div className="fortune-toolbar-menu-line">
                       {text}
@@ -688,7 +764,7 @@ const Toolbar: React.FC<{
                 {items.map(({ text, title }) => (
                   <Option
                     key={title}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       setContext((ctx) => {
                         handleVerticalAlign(
                           ctx,
@@ -697,7 +773,7 @@ const Toolbar: React.FC<{
                         );
                       });
                       setOpen(false);
-                    }}
+                    })}
                   >
                     <div className="fortune-toolbar-menu-line">
                       {text}
@@ -754,10 +830,10 @@ const Toolbar: React.FC<{
             tooltip={tooltip}
             key={name}
             disabled={refs.globalCache.undoList.length === 0}
-            onClick={() => {
+            onClick={withFocusReturn(() => {
               handleUndo();
               announceNow(info.toolbarUndone);
-            }}
+            })}
           />
         );
       }
@@ -768,10 +844,10 @@ const Toolbar: React.FC<{
             tooltip={tooltip}
             key={name}
             disabled={refs.globalCache.redoList.length === 0}
-            onClick={() => {
+            onClick={withFocusReturn(() => {
               handleRedo();
               announceNow(info.toolbarRedone);
-            }}
+            })}
           />
         );
       }
@@ -1050,6 +1126,40 @@ const Toolbar: React.FC<{
           </Combo>
         );
       }
+      if (name === "search" || name === "link") {
+        // Both open a dialog/card rather than committing anything into the
+        // fields withFocusReturn's readStamp tracks -- search just flips
+        // ctx.showSearch, and handleLink (today) only ever writes
+        // ctx.linkCard, neither of which is luckysheetfile,
+        // luckysheetPaintModelOn or luckysheet_copy_save. Wrapping either
+        // would decline every time -- harmless today, but only by accident:
+        // if either ever starts committing into the cell (a link edit that
+        // writes the cell's text, say), the wrap would activate and yank
+        // focus into the cell input, fighting whichever dialog just opened.
+        // Excluded outright rather than left to that accident, same as
+        // keyboard-shortcuts and screenshot above.
+        //
+        // Dispatches through the same handlerMap the generic Button path
+        // below uses, rather than reimplementing "search" inline, so this
+        // can't drift from core's own definition the way this comment used
+        // to warn "link" might.
+        return (
+          <Button
+            iconId={name}
+            tooltip={tooltip}
+            key={name}
+            onClick={() => {
+              setContext((draftCtx) => {
+                toolbarItemClickHandler(name)?.(
+                  draftCtx,
+                  refs.cellInput.current!,
+                  refs.globalCache
+                );
+              });
+            }}
+          />
+        );
+      }
       if (name === "image") {
         return (
           <Button
@@ -1190,7 +1300,7 @@ const Toolbar: React.FC<{
                 {itemData.map(({ value, text }) => (
                   <Option
                     key={value}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       setContext((ctx) => {
                         autoSelectionFormula(
                           ctx,
@@ -1201,7 +1311,7 @@ const Toolbar: React.FC<{
                         );
                       });
                       setOpen(false);
-                    }}
+                    })}
                   >
                     <div className="fortune-toolbar-menu-line">
                       <div>{text}</div>
@@ -1213,6 +1323,11 @@ const Toolbar: React.FC<{
                 <Option
                   key="formula"
                   onClick={() => {
+                    // Not wrapped in withFocusReturn: this opens a dialog
+                    // rather than editing the sheet, so luckysheetfile never
+                    // changes and the wrapper would only ever decline -- the
+                    // same reason keyboard-shortcuts, screenshot and every
+                    // Combo trigger are excluded below.
                     showDialog(<FormulaSearch onCancel={hideDialog} />);
                     setOpen(false);
                   }}
@@ -1315,10 +1430,10 @@ const Toolbar: React.FC<{
                 {itemdata.map(({ text, value }) => (
                   <Option
                     key={value}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       mergeAndAnnounce(value);
                       setOpen(false);
-                    }}
+                    })}
                   >
                     <div className="fortune-toolbar-menu-line">
                       <SVGIcon name={value} style={{ marginRight: 4 }} />
@@ -1412,13 +1527,13 @@ const Toolbar: React.FC<{
                   value !== "divider" ? (
                     <Option
                       key={value}
-                      onClick={() => {
+                      onClick={withFocusReturn(() => {
                         announceBorder(value, text);
                         setContext((ctx) => {
                           handleBorder(ctx, value, customColor, customStyle);
                         });
                         setOpen(false);
-                      }}
+                      })}
                     >
                       <div className="fortune-toolbar-menu-line">
                         {text}
@@ -1499,12 +1614,12 @@ const Toolbar: React.FC<{
                 {items.map(({ text, value }) => (
                   <Option
                     key={value}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       setContext((ctx) => {
                         handleFreeze(ctx, value);
                       });
                       setOpen(false);
-                    }}
+                    })}
                   >
                     <div className="fortune-toolbar-menu-line">
                       {text}
@@ -1546,7 +1661,7 @@ const Toolbar: React.FC<{
                 {items.map(({ text, iconId, value }) => (
                   <Option
                     key={value}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       // The chosen mode's own label, rather than reading `tb`
                       // back off the cell: the label is already localised and
                       // is exactly what the user picked.
@@ -1565,7 +1680,7 @@ const Toolbar: React.FC<{
                         );
                       });
                       setOpen(false);
-                    }}
+                    })}
                   >
                     <div className="fortune-toolbar-menu-line">
                       {text}
@@ -1618,7 +1733,7 @@ const Toolbar: React.FC<{
                 {items.map(({ text, iconId, value }) => (
                   <Option
                     key={value}
-                    onClick={() => {
+                    onClick={withFocusReturn(() => {
                       setContext((ctx) => {
                         const d = getFlowdata(ctx);
                         if (d == null) return;
@@ -1631,7 +1746,7 @@ const Toolbar: React.FC<{
                         );
                       });
                       setOpen(false);
-                    }}
+                    })}
                   >
                     <div className="fortune-toolbar-menu-line">
                       {text}
@@ -1777,7 +1892,7 @@ const Toolbar: React.FC<{
           tooltip={tooltip}
           key={name}
           selected={toolbarItemSelectedFunc(name)?.(cell)}
-          onClick={() => {
+          onClick={withFocusReturn(() => {
             // Queued before the commit so the hook can snapshot the state this
             // action is about to change; it reports the result afterwards, and
             // says nothing for the items with no phrase of their own.
@@ -1794,7 +1909,7 @@ const Toolbar: React.FC<{
                 refs.globalCache
               );
             });
-          }}
+          })}
         />
       );
     },
@@ -1807,6 +1922,7 @@ const Toolbar: React.FC<{
       toolbarActionPhrase,
       cell,
       setContext,
+      withFocusReturn,
       refs.cellInput,
       refs.fxInput,
       refs.globalCache,

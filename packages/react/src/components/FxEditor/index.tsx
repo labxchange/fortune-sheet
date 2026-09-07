@@ -37,10 +37,27 @@ import NameBox from "./NameBox";
 import usePrevious from "../../hooks/usePrevious";
 import { returnFocusToCell } from "../../utils/keyboardActivation";
 
+/**
+ * Whether a keystroke is one that starts typing into a cell, as opposed to
+ * navigating or invoking a command. Mirrors the keyCode test the grid's own
+ * type-to-edit path uses, kept deliberately conservative: anything this rejects
+ * simply does not start an edit, and the user's next real character will.
+ */
+function isTextProducingKey(e: React.KeyboardEvent<HTMLDivElement>): boolean {
+  if (e.ctrlKey || e.metaKey || e.altKey) return false;
+  // Printable characters arrive as a single-character `key`; Backspace and
+  // Delete count too, since clearing a cell from the formula bar is an edit.
+  return e.key.length === 1 || e.key === "Backspace" || e.key === "Delete";
+}
+
 const FxEditor: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
   const [focused, setFocused] = useState(false);
   const lastKeyDownEventRef = useRef<KeyboardEvent>(null);
+  // Set by a pointer press on the formula bar and consumed by the very next
+  // focus, so that onFocus can tell "the user clicked in here to edit" from
+  // "focus passed through on its way to the grid".
+  const startEditOnFocus = useRef(false);
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const [isHidenRC, setIsHidenRC] = useState<boolean>(false);
   const firstSelection = context.luckysheet_select_save?.[0];
@@ -97,41 +114,80 @@ const FxEditor: React.FC = () => {
     context.luckysheet_select_save,
   ]);
 
+  const canStartEdit = useCallback(
+    () =>
+      context.allowEdit !== false &&
+      (context.luckysheet_select_save?.length ?? 0) > 0 &&
+      !context.luckysheet_cell_selected_move &&
+      isAllowEdit(context, context.luckysheet_select_save),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      context.config,
+      context.allowEdit,
+      context.luckysheet_select_save,
+      context.luckysheet_cell_selected_move,
+      context.luckysheetfile,
+      context.currentSheetId,
+    ]
+  );
+
+  // Put the selected cell into edit mode, the way clicking the formula bar
+  // always has. Split out of onFocus so that focus arriving here and the user
+  // *meaning* to edit are no longer the same event -- see startEditOnFocus.
+  const beginCellEdit = useCallback(() => {
+    setFocused(true);
+    setContext((draftCtx) => {
+      const last =
+        draftCtx.luckysheet_select_save![
+          draftCtx.luckysheet_select_save!.length - 1
+        ];
+
+      const row_index = last.row_focus;
+      const col_index = last.column_focus;
+
+      draftCtx.luckysheetCellUpdate = [row_index, col_index];
+      refs.globalCache.doNotFocus = true;
+      // formula.rangeResizeTo = $("#luckysheet-functionbox-cell");
+    });
+  }, [refs.globalCache, setContext]);
+
   const onFocus = useCallback(() => {
     const fromPointer = focusFromPointer.current;
     focusFromPointer.current = false;
     if (context.allowEdit === false) {
       return;
     }
-    if (
-      (context.luckysheet_select_save?.length ?? 0) > 0 &&
-      !context.luckysheet_cell_selected_move &&
-      isAllowEdit(context, context.luckysheet_select_save)
-    ) {
-      setFocused(true);
-      setContext((draftCtx) => {
-        const last =
-          draftCtx.luckysheet_select_save![
-            draftCtx.luckysheet_select_save!.length - 1
-          ];
-
-        const row_index = last.row_focus;
-        const col_index = last.column_focus;
-
-        draftCtx.luckysheetCellUpdate = [row_index, col_index];
-        refs.globalCache.doNotFocus = true;
-        // formula.rangeResizeTo = $("#luckysheet-functionbox-cell");
-      });
+    if (canStartEdit()) {
+      // Only a pointer press means "I want to edit this cell". Focus that
+      // arrives any other way is a keyboard user tabbing *past* the formula bar
+      // on their way into the grid, and starting an edit for them opened a
+      // session that never closed -- the grid was then in edit mode from the
+      // very next tab stop onwards, with a caret on whatever they reached.
+      // The edit still starts for them, on their first keystroke, in onKeyDown.
+      if (startEditOnFocus.current) {
+        startEditOnFocus.current = false;
+        beginCellEdit();
+      } else {
+        setFocused(true);
+      }
 
       /**
        * Put the caret after the existing value, so an edit continues from the
        * end instead of in front of what is already there (WCAG 2.4.3).
        *
        * Nothing else does it. `moveToEnd` is called from `InputBox` alone, and
-       * only when `globalCache.doNotFocus` is unset — which the recipe above
+       * only when `globalCache.doNotFocus` is unset — which `beginCellEdit`
        * sets, deliberately, to stop the cell input pulling focus back out of
        * the formula bar. That left the caret wherever the browser puts it in a
        * freshly focused contenteditable, which is offset 0.
+       *
+       * Runs whenever focus arrives here by keyboard and editing is possible --
+       * not only when `beginCellEdit` above also ran. A keyboard user tabbing
+       * in while a cell is already being edited (started elsewhere, e.g. F2 in
+       * the grid) takes the `setFocused(true)` branch above, not
+       * `beginCellEdit`, since the session already exists; the caret still
+       * needs positioning here, since this is the first time it lands in the
+       * formula bar's own view of that same edit.
        *
        * Synchronous, unlike `InputBox`'s deferred call: the value in this field
        * was written by the selection effect above on a previous commit, so it
@@ -151,12 +207,25 @@ const FxEditor: React.FC = () => {
     context.currentSheetId,
     refs.globalCache,
     setContext,
+    canStartEdit,
+    beginCellEdit,
   ]);
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (context.allowEdit === false) {
         return;
+      }
+      // A keyboard user who tabbed in gets their edit here instead of on focus,
+      // on the first key that actually produces text. This has to run before
+      // the switch below and before onChange: both do nothing while
+      // luckysheetCellUpdate is empty, so a later start would eat the character.
+      if (
+        context.luckysheetCellUpdate.length === 0 &&
+        isTextProducingKey(e) &&
+        canStartEdit()
+      ) {
+        beginCellEdit();
       }
       lastKeyDownEventRef.current = new KeyboardEvent(e.type, e.nativeEvent);
       const { key } = e;
@@ -351,10 +420,67 @@ const FxEditor: React.FC = () => {
         }
       });
     },
-    [context, refs.cellInput, refs.fxInput, setContext]
+    [
+      context,
+      // Both are recreated when the selection changes. Without them here the
+      // handler keeps a canStartEdit from the first render, which answers for a
+      // workbook that had no selection yet and so always says no.
+      canStartEdit,
+      beginCellEdit,
+      refs.cellInput,
+      refs.fxInput,
+      setContext,
+    ]
   );
 
   const onChange = useCallback(() => {
+    // Paste, IME composition and drag-drop text all reach here without ever
+    // passing isTextProducingKey's keydown check in onKeyDown (paste and drop
+    // carry no text-producing keydown at all; composition's own keydown key is
+    // "Process", not a character). The content change itself is the one signal
+    // every entry method shares, so it is the last point to open an edit
+    // session before this is mirrored into the cell -- without it, the pasted
+    // or composed text sits in the DOM with no luckysheetCellUpdate behind it,
+    // and a later Enter or blur has nothing to commit.
+    if (context.luckysheetCellUpdate.length === 0 && canStartEdit()) {
+      // A context-menu paste or a drop as the very first interaction carries
+      // no keydown at all, so lastKeyDownEventRef.current is still whatever
+      // (possibly nothing) preceded this session -- the kcode-gated mirror
+      // below cannot be relied on to run for it. Mirror directly instead,
+      // rather than leaving the grid's own cell-input overlay showing stale
+      // content until some later keystroke happens to trigger the gated path.
+      //
+      // doNotUpdateCell suppresses InputBox's own cell-value sync effect for
+      // this transition -- the same one-shot mechanism FormulaSearch uses
+      // when it writes into cellInput directly. Without it, that effect
+      // resyncs cellInput from the *stored* (still-empty) cell value the
+      // moment luckysheetCellUpdate goes from empty to set, clobbering the
+      // mirror written below on the very same render pass.
+      refs.globalCache.doNotUpdateCell = true;
+      beginCellEdit();
+      // recentText is intentionally omitted (not read from a possibly-stale
+      // prior keydown) so handleFormulaInput diffs the editor's own current
+      // text against itself.
+      setContext((draftCtx) => {
+        handleFormulaInput(
+          draftCtx,
+          refs.cellInput.current!,
+          refs.fxInput.current!,
+          0
+        );
+      });
+      // Without this, a Ctrl+V whose keydown did land (lastKeyDownEventRef.current
+      // is set) would fall through to the kcode-gated call below and run
+      // handleFormulaInput a second time for the same change, now with
+      // recentText.current -- captured at keydown, i.e. pre-paste -- as
+      // preText. For a pasted formula the two passes take different branches
+      // (this one sees value1txt === value; the second sees the stale
+      // pre-paste text as value1txt), which can leave a stale mirror in the
+      // cell-input overlay. The commit itself reads from the editor directly,
+      // so this was never data loss, but the second pass has nothing correct
+      // left to do once this one has already mirrored the real content.
+      return;
+    }
     const e = lastKeyDownEventRef.current;
     if (!e) return;
     const kcode = e.keyCode;
@@ -386,7 +512,15 @@ const FxEditor: React.FC = () => {
         );
       });
     }
-  }, [refs.cellInput, refs.fxInput, setContext]);
+  }, [
+    context.luckysheetCellUpdate.length,
+    canStartEdit,
+    beginCellEdit,
+    refs.cellInput,
+    refs.fxInput,
+    refs.globalCache,
+    setContext,
+  ]);
 
   const allowEdit = useMemo(() => {
     if (context.allowEdit === false) {
@@ -424,7 +558,14 @@ const FxEditor: React.FC = () => {
             role="textbox"
             id="luckysheet-functionbox-cell"
             aria-label={info.currentCellInput}
+            onPointerDown={() => {
+              startEditOnFocus.current = true;
+            }}
             onFocus={onFocus}
+            onBlurCapture={() => {
+              // Never let a stale flag survive to a later, unrelated focus.
+              startEditOnFocus.current = false;
+            }}
             onMouseDown={() => {
               focusFromPointer.current = true;
             }}
