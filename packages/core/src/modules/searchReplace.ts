@@ -645,32 +645,36 @@ export function replaceAll(
     // navigating. Collapse onto the first cell replaced — first in search
     // order, which is the top-left-most match: one predictable place to
     // resume from, and something this run actually changed.
+    //
+    // Only when the scope was ours to pick. A range the user drew before
+    // opening the dialog is not a blanket we left behind, and collapsing it
+    // would silently widen their next Replace All: a single cell reads as "no
+    // scope of their own" where `range` is derived above, which would send
+    // that run across the whole sheet.
     ctx.luckysheet_select_save = normalizeSelection(ctx, [
       { row: [first.r, first.r], column: [first.c, first.c] },
     ]);
-    // The selection is now parked on a cell we wrote, which is what
-    // `replaceCursor` exists to record. Not cleared: "Replace All consumed
-    // every match" is false for exactly the replacement this ticket is about —
-    // "beta" -> "beta_" leaves every cell still a match — and with no cursor
-    // the very next Replace appends again to the cell Replace All left
-    // selected. Setting it makes that press behave like any other: resume
-    // after this cell, or report that there is nothing after it.
-    globalCache.replaceCursor = {
-      sheetId: ctx.currentSheetId,
-      r: first.r,
-      c: first.c,
-      searchText,
-      replaceText,
-      checkModes: { ...checkModes },
-    };
-  } else {
-    // The user drew this selection before opening the dialog, so it is not a
-    // blanket we left behind, and collapsing it would silently widen the next
-    // Replace All: a single cell reads as "no scope of their own" above and
-    // would send that run across the whole sheet. Leave it, and leave no
-    // cursor — nothing is parked on a cell we wrote.
-    globalCache.replaceCursor = undefined;
   }
+  // Either way the selection is now anchored on `first`, which is a cell this
+  // run wrote: collapsed onto it above, or the user's own range, whose focus
+  // `normalizeSelection` defaults to its first row and column. That anchor is
+  // what the next press resolves `count` to, so both cases need the cursor —
+  // it is what stops that press appending to the anchored cell again.
+  //
+  // Not cleared, on either branch: "Replace All consumed every match" is false
+  // for exactly the replacement this ticket is about — "beta" -> "beta_"
+  // leaves every cell it wrote still a match — so with no cursor the very next
+  // Replace re-hits the anchor. Setting it makes that press behave like any
+  // other: resume after the anchored cell, or report there is nothing after
+  // it.
+  globalCache.replaceCursor = {
+    sheetId: ctx.currentSheetId,
+    r: first.r,
+    c: first.c,
+    searchText,
+    replaceText,
+    checkModes: { ...checkModes },
+  };
   scrollToHighlightCell(ctx, first.r, first.c);
 
   // `successTip` is "${xlength} items found" — the wrong sentence for an

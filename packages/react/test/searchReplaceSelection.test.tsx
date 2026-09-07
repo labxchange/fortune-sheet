@@ -390,6 +390,75 @@ describe("Replace leaves a usable selection", () => {
     expect(valueAt(ref, 0, 2)).toBe("cat");
   });
 
+  it("resumes past the anchor, and stops, after a whole-sheet Replace All", async () => {
+    // The multi-match version of the test above it, on the branch that
+    // collapses. The first press must not re-hit the anchor, and the residual
+    // it does have — one more suffix on the next match, which this run also
+    // wrote — has to terminate rather than walk the sheet.
+    const { getByRole, ref } = renderWorkbook();
+    const dialog = await openDialog(getByRole);
+    fillFields(dialog, "8_10", "8_10_");
+
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceAllBtn")!);
+    });
+    expect(valueAt(ref, 0, 0)).toBe("8_10_");
+    expect(valueAt(ref, 1, 0)).toBe("8_10_");
+
+    const replaceBtn = dialog.querySelector("#replaceBtn")!;
+    act(() => {
+      fireEvent.click(replaceBtn);
+    });
+    expect(valueAt(ref, 0, 0)).toBe("8_10_");
+    expect(valueAt(ref, 1, 0)).toBe("8_10__");
+
+    // Nothing after A2, so the next press reports `lastMatchTip` and writes
+    // nothing. Deliberately no wrap back onto A1.
+    act(() => {
+      fireEvent.click(replaceBtn);
+    });
+    expect(valueAt(ref, 0, 0)).toBe("8_10_");
+    expect(valueAt(ref, 1, 0)).toBe("8_10__");
+  });
+
+  it("does not append again inside a selection the user drew", async () => {
+    // The other half of the branch above. Leaving the user's range in place
+    // leaves it *anchored* on a cell this run wrote — `normalizeSelection`
+    // defaults `row_focus`/`column_focus` to the range's first row and column
+    // — so this branch needs the same cursor the collapsing one does. Without
+    // it the next press appends to that cell, which is the bug this PR exists
+    // to fix, reached through Replace All inside a selection.
+    const { getByRole, ref } = renderWorkbook(OUT_OF_RANGE);
+    act(() => {
+      ref.current!.setSelection([{ row: [0, 1], column: [0, 0] }]);
+    });
+    const dialog = await openDialog(getByRole);
+    fillFields(dialog, "cat", "cat_");
+
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceAllBtn")!);
+    });
+    expect(valueAt(ref, 0, 0)).toBe("cat_");
+    expect(valueAt(ref, 1, 0)).toBe("cat_");
+    expect(valueAt(ref, 0, 2)).toBe("cat");
+
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceBtn")!);
+    });
+
+    // A1 is the cell the selection is anchored on, and it is left alone.
+    expect(valueAt(ref, 0, 0)).toBe("cat_");
+    // A2 is the knowingly-accepted residual, not the desired outcome: "resume
+    // after the anchored cell" lands on the next match, which this run had
+    // also written, so it gains one more suffix before the press after it
+    // reports `lastMatchTip`. Bounded, and the same trade the whole-sheet
+    // branch makes; narrowing it means teaching the cursor to stand for a
+    // whole run, which would refuse every cell until a term changes.
+    expect(valueAt(ref, 1, 0)).toBe("cat__");
+    // Still scoped: C1 was never in the user's range.
+    expect(valueAt(ref, 0, 2)).toBe("cat");
+  });
+
   it("frees the cell again when a search mode changes", async () => {
     // The modes are part of what the cursor was written for, like the terms:
     // ticking Match case narrows the matches, and the press after it must act
