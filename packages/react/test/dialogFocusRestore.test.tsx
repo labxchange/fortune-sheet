@@ -9,7 +9,11 @@ import { useDialogFocus } from "../src/hooks/useDialogFocus";
 // assertions would hold whether or not it ran. The toolbar trigger is a real
 // focusable element, so they only hold when the restore actually fires.
 const openFromToolbar = (getByRole: ReturnType<typeof render>["getByRole"]) => {
-  const trigger = getByRole("button", { name: "Keyboard shortcuts" });
+  // Matched on the prefix: since #26 the button quotes its own binding
+  // ("Keyboard shortcuts (Ctrl + /)"), and `shortcutKeysForPlatform` makes that
+  // suffix platform-dependent. What this helper needs is the trigger, not its
+  // binding, so it does not assert one.
+  const trigger = getByRole("button", { name: /^Keyboard shortcuts/ });
   trigger.focus();
   fireEvent.click(trigger);
   return trigger;

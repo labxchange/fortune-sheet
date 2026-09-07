@@ -20,11 +20,20 @@ const isTextEntry = (el: EventTarget | null): boolean => {
   );
 };
 
-export type RovingFocusOrientation = "horizontal" | "vertical" | "grid";
+export type RovingFocusOrientation =
+  | "horizontal"
+  | "vertical"
+  | "grid"
+  | "linear";
 
 export type UseRovingFocusOptions = {
   containerRef: React.RefObject<HTMLElement | null>;
-  /** Default "vertical". */
+  /**
+   * Default "vertical". "linear" is for a set that *wraps* visually but is one
+   * sequence in the accessibility tree — a `listbox` whose options are laid
+   * out in rows: all four arrows walk the flat order, so the set position AT
+   * reads ("3 of 64") is the thing the keys move through.
+   */
   orientation?: RovingFocusOrientation;
   /** Required for orientation "grid". */
   columns?: number;
@@ -80,6 +89,14 @@ export function useRovingFocus({
         else if (e.key === "ArrowDown" && (row + 1) * cols + col < items.length)
           next = (row + 1) * cols + col;
         else if (e.key === "ArrowUp" && row > 0) next = (row - 1) * cols + col;
+      } else if (orientation === "linear") {
+        // Both axes, one order. The visual rows are presentational, so Down is
+        // not "the item below" — there is no below to name — it is simply the
+        // next one, as Right is.
+        if (e.key === "ArrowRight" || e.key === "ArrowDown")
+          next = step(current, 1, items.length);
+        else if (e.key === "ArrowLeft" || e.key === "ArrowUp")
+          next = step(current, -1, items.length);
       } else {
         const fwd = orientation === "horizontal" ? "ArrowRight" : "ArrowDown";
         const back = orientation === "horizontal" ? "ArrowLeft" : "ArrowUp";

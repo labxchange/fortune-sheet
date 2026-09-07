@@ -10,22 +10,23 @@ type LocaleInfo = ReturnType<typeof locale>["info"];
  * bar — a purely visual change a screen-reader user has no other way to
  * learn about (WCAG 4.1.3).
  *
- * Driven by `sheetTabColorChangeCount`, bumped in `ChangeColor` at the one
- * place that writes `sheet.color`. That effect runs on mount too (re-writing
- * the sheet's existing colour), so the counter — not `sheet.color` itself —
- * is what tells a real change from the mount no-op.
+ * Driven by `sheetTabColorChangeCount`, bumped in `ChangeColor`'s `applyColor`
+ * — the one place that writes `sheet.color`, and reached only from a swatch,
+ * the reset row or Confirm. The counter rather than `sheet.color` itself
+ * because a colour re-applied is still an action the user took and is owed an
+ * answer, and two identical writes are indistinguishable by value.
  *
- * Two deliberate silences, both a consequence of driving this from the write:
+ * `applyColor` is imperative, so there is no mount run to discount: it was an
+ * effect on `selectColor`, and Confirm closes the submenu in the same commit
+ * that sets it, so the effect never ran and Confirm applied nothing at all.
+ * A previous-value ref used to separate that mount no-op from a real pick;
+ * with the write moved to the request there is no no-op left to separate.
  *
- * Re-picking the colour a tab already has says nothing, and neither does
- * resetting a tab that has no colour. React bails out of the identical
- * `selectColor` state write, so `ChangeColor`'s effect never runs and the
- * counter never moves. That differs from `useSelectAllAnnouncement`, which
- * speaks a repeat activation through `markAsRepeat` even though the resulting
- * state is identical — but select-all is an action the user invoked and got
- * no other feedback for, whereas a swatch that is already applied has the
- * visible checkmark next to it, and the alternative here is a counter bumped
- * on every submenu open, which would announce colours nobody chose.
+ * A consequence worth stating: re-picking the colour a tab already carries
+ * *does* announce, through `markAsRepeat`, exactly as `useSelectAllAnnouncement`
+ * speaks a repeat activation. The user pressed a swatch; the alternative is a
+ * press that answers with nothing. Only a write that never happens is silent —
+ * `applyColor` bails before the bump when `allowEdit === false`.
  *
  * A custom colour announces its hex ("#ff5733"), since `colorNames` only
  * covers the palette swatches. Read out digit by digit it is poor, but it

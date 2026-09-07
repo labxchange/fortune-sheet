@@ -73,7 +73,12 @@ describe("Keyboard shortcuts dialog", () => {
     );
     expect(queryByRole("dialog")).toBeNull();
 
-    fireEvent.click(getByRole("button", { name: "Keyboard shortcuts" }));
+    // The button quotes the binding that opens the dialog — the one shortcut
+    // the dialog itself cannot teach. jsdom reports no Mac platform, so this is
+    // the non-Mac form.
+    fireEvent.click(
+      getByRole("button", { name: "Keyboard shortcuts (Ctrl + /)" })
+    );
 
     await waitFor(() => expect(getByRole("dialog")).toBeTruthy());
   });
@@ -270,7 +275,8 @@ describe("Keyboard shortcuts dialog", () => {
     // inert, so Dialog's restore has nothing to yank focus back to and this
     // assertion holds even with the restore left unconditional. The toolbar
     // trigger is a real focusable element, so it does not.
-    const trigger = getByRole("button", { name: "Keyboard shortcuts" });
+    // Prefix match: the button quotes its platform-dependent binding since #26.
+    const trigger = getByRole("button", { name: /^Keyboard shortcuts/ });
     trigger.focus();
     fireEvent.click(trigger);
     await waitFor(() => getByRole("dialog"));

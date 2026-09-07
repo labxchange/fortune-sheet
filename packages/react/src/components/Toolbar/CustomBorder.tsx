@@ -91,9 +91,17 @@ const size = [
 
 type Props = {
   onPick: (changeColor?: string, changeStyle?: string) => void;
+  /** The chosen border colour, for the toolbar's status region. Picking a
+   *  colour here only stores it for the next handleBorder call, so nothing
+   *  repaints and there is otherwise no sign the choice registered.
+   *
+   *  `undefined` means the colour was reset. Typed rather than cast: the
+   *  `as string` this used to carry let the reset path reach a caller that
+   *  assumed a colour, which announced a raw `${color}` placeholder. */
+  onColorPicked?: (color: string | undefined) => void;
 };
 
-const CustomBorder: React.FC<Props> = ({ onPick }) => {
+const CustomBorder: React.FC<Props> = ({ onPick, onColorPicked }) => {
   const { context, refs } = useContext(WorkbookContext);
   const { border } = locale(context);
   const [changeColor, setchangeColor] = useState("#000000");
@@ -164,14 +172,23 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
           setOpenedBy("pointer");
           setOpenSubmenu("color");
         }}
-        onMouseLeave={() => setOpenSubmenu(null)}
+        onMouseLeave={() => {
+          // This popup holds the typed-colour field and the native swatch, and
+          // hiding it blurs whatever is focused inside — so a pointer drifting
+          // off the row mid-entry would take the caret with it. Stay open while
+          // focus is in there; Escape and the next mouseleave still close it.
+          if (colorRef.current?.contains(document.activeElement)) return;
+          setOpenSubmenu(null);
+        }}
       >
         <div
           className="fortune-border-select-option"
           ref={colorOptionRef}
           role="button"
           tabIndex={0}
-          aria-haspopup="menu"
+          // No `aria-haspopup`: this discloses a panel of colours rather than a
+          // menu — see the container below — and `aria-expanded` with
+          // `aria-controls` is the complete disclosure relationship on its own.
           aria-expanded={openSubmenu === "color"}
           aria-controls={colorMenuId}
           onKeyDown={onActivate(() => {
@@ -192,7 +209,14 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
         <div
           ref={colorRef}
           id={colorMenuId}
-          role="menu"
+          // A group, not a menu: this owns `CustomColor`, whose palette is a
+          // `listbox` of 64 options, and `role="menu"` may only own
+          // `menuitem`/`menuitemradio`/`menuitemcheckbox`/`group`
+          // (axe: aria-required-children). The style submenu below keeps
+          // `role="menu"` for now — its children are `role="button"`, which is
+          // the same class of mismatch, but it is pre-existing and untouched by
+          // this work.
+          role="group"
           className="fortune-border-select-menu"
           style={{
             display: openSubmenu === "color" ? "block" : "none",
@@ -200,14 +224,19 @@ const CustomBorder: React.FC<Props> = ({ onPick }) => {
           }}
         >
           <CustomColor
+            // This popup is display-toggled rather than unmounted, so its own
+            // state is the live answer for the whole workbook's lifetime.
+            appliedColor={changeColor}
             onCustomPick={(color) => {
               onPick(color, changeStyle);
               colorPreviewRef.current!.style.backgroundColor = changeColor;
               setchangeColor(color as string);
+              onColorPicked?.(color);
             }}
             onColorPick={(color) => {
               onPick(color, changeStyle);
               setchangeColor(color as string);
+              onColorPicked?.(color);
             }}
           />
         </div>

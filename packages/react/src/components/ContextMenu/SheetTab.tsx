@@ -14,7 +14,7 @@ import { useAlert } from "../../hooks/useAlert";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
-import { onActivate } from "../../utils/keyboardActivation";
+import { onActivate, returnFocusToCell } from "../../utils/keyboardActivation";
 import { ChangeColor } from "../ChangeColor";
 import SVGIcon from "../SVGIcon";
 import Divider from "./Divider";
@@ -50,6 +50,21 @@ const SheetTabContextMenu: React.FC = () => {
       ctx.sheetTabContextMenu = {};
     });
   }, [setContext]);
+
+  /**
+   * Confirm applied the colour, so the menu has done its job: collapse it and
+   * put the user back on the sheet.
+   *
+   * Deferred through `returnFocusToCell` because closing unmounts the control
+   * that currently holds focus — setting focus inline would be undone by
+   * `useEscapeToClose`'s own restore as the submenu tears down, and a focus
+   * left on a detached node silently falls back to `<body>`.
+   */
+  const confirmColor = useCallback(() => {
+    setIsShowChangeColor(false);
+    close();
+    returnFocusToCell(refs.cellInput.current);
+  }, [close, refs.cellInput]);
 
   useLayoutEffect(() => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -300,7 +315,11 @@ const SheetTabContextMenu: React.FC = () => {
               <Menu
                 role="button"
                 expanded={isShowChangeColor}
-                hasPopup="menu"
+                // No `hasPopup`: what this discloses is a panel of colours,
+                // not a menu — see the container below. `aria-expanded` plus
+                // `aria-controls` is already the whole disclosure
+                // relationship, which is the argument `Combo` makes for the
+                // same shape.
                 controls={changeColorMenuId}
                 onClick={() => {
                   setChangeColorOpenedBy("pointer");
@@ -319,11 +338,22 @@ const SheetTabContextMenu: React.FC = () => {
               {isShowChangeColor && context.allowEdit && (
                 <div
                   id={changeColorMenuId}
-                  role="menu"
+                  // A group, not a menu. `role="menu"` may only own
+                  // `menuitem`/`menuitemradio`/`menuitemcheckbox`/`group`,
+                  // and this owns the shared `ColorPicker` — a `listbox` of
+                  // 64 options since this work gave the palette the role its
+                  // interaction model already had — plus a text field and
+                  // Confirm. axe reports `aria-required-children` for it. The
+                  // filter-by-colour submenu answers the same question the
+                  // same way (`ContextMenu/Menu.tsx`).
+                  role="group"
                   ref={changeColorMenuRef}
                   style={{ position: "absolute" }}
                 >
-                  <ChangeColor triggerParentUpdate={updateShowInputColor} />
+                  <ChangeColor
+                    triggerParentUpdate={updateShowInputColor}
+                    onConfirm={confirmColor}
+                  />
                 </div>
               )}
             </div>
