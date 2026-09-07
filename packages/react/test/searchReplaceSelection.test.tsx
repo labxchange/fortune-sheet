@@ -80,6 +80,31 @@ const OUT_OF_RANGE = [
   },
 ];
 
+// A non-matching row above two matches, so deleting it shifts a *different*
+// cell onto the coordinates the cursor recorded.
+const JUNK_FIRST = [
+  {
+    name: "Sheet1",
+    celldata: [
+      {
+        r: 0,
+        c: 0,
+        v: { v: "junk", m: "junk", ct: { fa: "General", t: "s" } },
+      },
+      {
+        r: 1,
+        c: 0,
+        v: { v: "8_10", m: "8_10", ct: { fa: "General", t: "s" } },
+      },
+      {
+        r: 2,
+        c: 0,
+        v: { v: "8_10", m: "8_10", ct: { fa: "General", t: "s" } },
+      },
+    ],
+  },
+];
+
 // Two spellings that differ only in case, so Match case changes what matches.
 const MIXED_CASE = [
   {
@@ -339,10 +364,12 @@ describe("Replace leaves a usable selection", () => {
   });
 
   it("replaces the restored cell again after Undo", async () => {
-    // The cursor is not document state, so Undo does not revert it. If it
-    // survived, the press after Undo would treat the cell the user has just
-    // restored as one we had already written, skip it, and silently write the
-    // next match instead — a cell they never asked about.
+    // The cursor is not document state, so Undo does not revert it and nothing
+    // clears it. What saves the restored cell is that it no longer holds the
+    // text we wrote there, so the cursor stops recognising it. Were the cursor
+    // keyed on coordinates alone, the press after Undo would treat the cell
+    // the user has just restored as one we had already written, skip it, and
+    // silently write the next match instead — a cell they never asked about.
     const { getByRole, ref } = renderWorkbook(DATA, ["undo", "search"]);
     const dialog = await openDialog(getByRole);
     fillFields(dialog, "8_10", "8_10_");
@@ -362,6 +389,59 @@ describe("Replace leaves a usable selection", () => {
     });
     expect(valueAt(ref, 0, 0)).toBe("8_10_");
     expect(valueAt(ref, 1, 0)).toBe("8_10");
+  });
+
+  it("walks on when the replacement empties the cell", async () => {
+    // The cursor records the cell's text by reading it back after the write,
+    // and replacing with nothing leaves a cell that reads as nullish rather
+    // than as "". Taking `.toString()` of that throws, so Replace has to
+    // record the empty text and carry on to the next match.
+    const { getByRole, ref } = renderWorkbook();
+    const dialog = await openDialog(getByRole);
+    fillFields(dialog, "8_10", "");
+
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceBtn")!);
+    });
+    expect(valueAt(ref, 0, 0)).toBeNull();
+
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceBtn")!);
+    });
+    expect(valueAt(ref, 1, 0)).toBeNull();
+  });
+
+  it("leaves the cell alone again after Undo then Redo", async () => {
+    // Redo puts the document back exactly as Replace left it, so the cell
+    // holds our text again and the cursor is right to recognise it: the press
+    // after a redo should behave like the press after the original replace and
+    // move on. Clearing the cursor on redo instead would hand A1 back and
+    // append to it, which is the headline bug of this PR reached through the
+    // history buttons.
+    const { getByRole, ref } = renderWorkbook(DATA, ["undo", "redo", "search"]);
+    const dialog = await openDialog(getByRole);
+    fillFields(dialog, "8_10", "8_10_");
+
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceBtn")!);
+    });
+    expect(valueAt(ref, 0, 0)).toBe("8_10_");
+
+    act(() => {
+      fireEvent.click(getByRole("button", { name: /^undo$/i }));
+    });
+    act(() => {
+      fireEvent.click(getByRole("button", { name: /^redo$/i }));
+    });
+    expect(valueAt(ref, 0, 0)).toBe("8_10_");
+
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceBtn")!);
+    });
+
+    // A1 is left alone and the run resumes on the next match.
+    expect(valueAt(ref, 0, 0)).toBe("8_10_");
+    expect(valueAt(ref, 1, 0)).toBe("8_10_");
   });
 
   it("keeps a second Replace All inside the user's selection", async () => {
@@ -423,11 +503,13 @@ describe("Replace leaves a usable selection", () => {
 
   it("does not append again inside a selection the user drew", async () => {
     // The other half of the branch above. Leaving the user's range in place
-    // leaves it *anchored* on a cell this run wrote — `normalizeSelection`
-    // defaults `row_focus`/`column_focus` to the range's first row and column
-    // — so this branch needs the same cursor the collapsing one does. Without
-    // it the next press appends to that cell, which is the bug this PR exists
-    // to fix, reached through Replace All inside a selection.
+    // leaves it *anchored* on a cell this run wrote, so this branch needs the
+    // same cursor the collapsing one does; without it the next press appends
+    // to that cell, which is the bug this PR exists to fix, reached through
+    // Replace All inside a selection. `setSelection` here passes no focus, so
+    // `normalizeSelection` defaults it to the range's first row and column and
+    // the anchor is A1 — see the two tests at the end of this file for the
+    // anchors a drag and a multi-range selection leave instead.
     const { getByRole, ref } = renderWorkbook(OUT_OF_RANGE);
     act(() => {
       ref.current!.setSelection([{ row: [0, 1], column: [0, 0] }]);
@@ -483,5 +565,137 @@ describe("Replace leaves a usable selection", () => {
 
     expect(valueAt(ref, 0, 0)).toBe("abc__");
     expect(valueAt(ref, 1, 0)).toBe("ABC");
+  });
+  it("replaces the cell again once its value has changed under the cursor", async () => {
+    // Undo is only one of the ways the document moves out from under the
+    // cursor. Retyping the search text into the cell Replace wrote leaves the
+    // coordinates and the terms untouched, so a cursor that recorded only
+    // those would still claim that cell as one we had written — and would skip
+    // it and silently write the next match instead, which is finding 1's
+    // defect reached by editing rather than by Undo.
+    const { getByRole, ref } = renderWorkbook();
+    const dialog = await openDialog(getByRole);
+    fillFields(dialog, "8_10", "8_10_");
+
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceBtn")!);
+    });
+    expect(valueAt(ref, 0, 0)).toBe("8_10_");
+
+    act(() => {
+      ref.current!.setCellValue(0, 0, "8_10");
+    });
+    act(() => {
+      ref.current!.setSelection([{ row: [0, 0], column: [0, 0] }]);
+    });
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceBtn")!);
+    });
+
+    // A1 is what it wrote, and A2 — the cell the user never asked about — is
+    // untouched.
+    expect(valueAt(ref, 0, 0)).toBe("8_10_");
+    expect(valueAt(ref, 1, 0)).toBe("8_10");
+  });
+
+  it("replaces the cell a row shift moved onto the cursor's coordinates", async () => {
+    // The other shape of the same door: the value at those coordinates changes
+    // without anyone editing that cell. Deleting the row above moves the
+    // still-unreplaced match onto them, and a coordinates-only cursor would
+    // report there was nothing left to replace while it sat there in plain
+    // sight.
+    const { getByRole, ref } = renderWorkbook(JUNK_FIRST);
+    act(() => {
+      ref.current!.setSelection([{ row: [1, 1], column: [0, 0] }]);
+    });
+    const dialog = await openDialog(getByRole);
+    fillFields(dialog, "8_10", "8_10_");
+
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceBtn")!);
+    });
+    expect(valueAt(ref, 1, 0)).toBe("8_10_");
+
+    act(() => {
+      ref.current!.deleteRowOrColumn("row", 0, 0);
+    });
+    // A2 now holds the match that was in A3 and was never replaced.
+    expect(valueAt(ref, 0, 0)).toBe("8_10_");
+    expect(valueAt(ref, 1, 0)).toBe("8_10");
+
+    act(() => {
+      ref.current!.setSelection([{ row: [1, 1], column: [0, 0] }]);
+    });
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceBtn")!);
+    });
+    expect(valueAt(ref, 1, 0)).toBe("8_10_");
+  });
+
+  it("resumes from the anchor a drag left, not from the first match", async () => {
+    // `normalizeSelection` only defaults `row_focus` when it is nil, and a
+    // drag always sets it — dragging A2 up to A1 gives `row: [0, 1]` with
+    // `row_focus: 1`. That focus is what the next press resolves to, so the
+    // cursor has to name it: recording the first match instead leaves the real
+    // anchor unprotected and it takes another suffix.
+    const { getByRole, ref } = renderWorkbook(OUT_OF_RANGE);
+    act(() => {
+      ref.current!.setSelection([
+        { row: [0, 1], column: [0, 0], row_focus: 1, column_focus: 0 },
+      ] as any);
+    });
+    const dialog = await openDialog(getByRole);
+    fillFields(dialog, "cat", "cat_");
+
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceAllBtn")!);
+    });
+    expect(valueAt(ref, 0, 0)).toBe("cat_");
+    expect(valueAt(ref, 1, 0)).toBe("cat_");
+    expect(valueAt(ref, 0, 2)).toBe("cat");
+
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceBtn")!);
+    });
+
+    // A2 is the anchor, and it is the last match in the range, so the press
+    // resumes past it, finds nothing after it and writes nothing at all.
+    expect(valueAt(ref, 0, 0)).toBe("cat_");
+    expect(valueAt(ref, 1, 0)).toBe("cat_");
+    expect(valueAt(ref, 0, 2)).toBe("cat");
+  });
+
+  it("resumes past the anchor when it sits mid-way through the matches", async () => {
+    // The multi-range version: `count` resolves from the *last* range's focus,
+    // which need not be the first match — here the ranges are given C1 first,
+    // so the search order is C1, A1, A2 while the anchor is A1. The press has
+    // to protect A1 and move on to A2, rather than protect C1 and append to
+    // A1 again.
+    const { getByRole, ref } = renderWorkbook(OUT_OF_RANGE);
+    act(() => {
+      ref.current!.setSelection([
+        { row: [0, 0], column: [2, 2] },
+        { row: [0, 1], column: [0, 0] },
+      ] as any);
+    });
+    const dialog = await openDialog(getByRole);
+    fillFields(dialog, "cat", "cat_");
+
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceAllBtn")!);
+    });
+    expect(valueAt(ref, 0, 2)).toBe("cat_");
+    expect(valueAt(ref, 0, 0)).toBe("cat_");
+    expect(valueAt(ref, 1, 0)).toBe("cat_");
+
+    act(() => {
+      fireEvent.click(dialog.querySelector("#replaceBtn")!);
+    });
+
+    // A1 is the anchor and is left alone; A2 is the next entry in search order
+    // and takes the bounded extra suffix this branch already documents.
+    expect(valueAt(ref, 0, 0)).toBe("cat_");
+    expect(valueAt(ref, 1, 0)).toBe("cat__");
+    expect(valueAt(ref, 0, 2)).toBe("cat_");
   });
 });

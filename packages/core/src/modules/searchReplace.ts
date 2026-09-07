@@ -379,6 +379,15 @@ export function onSearchDialogMoveEnd(globalCache: GlobalCache) {
   _.set(globalCache, "searchDialog.moveProps", undefined);
 }
 
+// The text a cell reads as, for the cursor's identity. Read back from the
+// cell after the write rather than taken from the string we passed in, so it
+// is whatever `setCellValue` actually stored, and empty rather than nullish
+// for a replacement that cleared the cell.
+function cellText(r: number, c: number, d: CellMatrix) {
+  const v = valueShowEs(r, c, d);
+  return v == null ? "" : v.toString();
+}
+
 export function replace(
   ctx: Context,
   globalCache: GlobalCache,
@@ -454,11 +463,13 @@ export function replace(
   }
 
   // Resume after the cell the previous press wrote, rather than on it: the
-  // cell picked above is the one we just wrote, for the same terms and modes
-  // on the same sheet, so move to the next one. Anything that changes which
-  // cell gets picked, or changes that identity — Find Next, a result row,
-  // another sheet, editing a field or toggling a mode — leaves the
-  // selection-driven `count` alone. See `replaceCursor`.
+  // cell picked above still holds what we wrote there, for the same terms and
+  // modes on the same sheet, so move to the next one. Anything that changes
+  // which cell gets picked, or changes that identity — Find Next, a result
+  // row, another sheet, editing a field or toggling a mode — leaves the
+  // selection-driven `count` alone, and anything that changes the cell's value
+  // — undo, redo, a hand edit, a row or column shift, a paste — fails the
+  // `wrote` check and hands the cell back. See `replaceCursor`.
   const cursor = globalCache.replaceCursor;
   if (
     cursor != null &&
@@ -467,7 +478,9 @@ export function replace(
     cursor.replaceText === replaceText &&
     _.isEqual(cursor.checkModes, checkModes) &&
     searchIndexArr[count].r === cursor.r &&
-    searchIndexArr[count].c === cursor.c
+    searchIndexArr[count].c === cursor.c &&
+    cellText(searchIndexArr[count].r, searchIndexArr[count].c, flowdata) ===
+      cursor.wrote
   ) {
     // `searchIndexArr` is row-major within each range and deduplicated by
     // cell, so "after" is simply the next entry. Deliberately no wrap:
@@ -525,6 +538,7 @@ export function replace(
     sheetId: ctx.currentSheetId,
     r,
     c,
+    wrote: cellText(r, c, d),
     searchText,
     replaceText,
     checkModes: { ...checkModes },
@@ -655,11 +669,36 @@ export function replaceAll(
       { row: [first.r, first.r], column: [first.c, first.c] },
     ]);
   }
-  // Either way the selection is now anchored on `first`, which is a cell this
-  // run wrote: collapsed onto it above, or the user's own range, whose focus
-  // `normalizeSelection` defaults to its first row and column. That anchor is
-  // what the next press resolves `count` to, so both cases need the cursor —
-  // it is what stops that press appending to the anchored cell again.
+  // Which cell the next press will actually pick, resolved exactly as `replace`
+  // resolves it: the focus of the last selection range, falling back to the
+  // first match when that focus is not itself a match. Not `first`.
+  // `normalizeSelection` only defaults a nil focus, and a drag always sets one
+  // — dragging A2 up to A1 leaves `row: [0, 1]` with `row_focus: 1` — while a
+  // multi-range selection resolves from its *last* range, which need not hold
+  // the first match at all. On the collapsing branch above the two coincide;
+  // on the branch that keeps the user's range they do not, and recording
+  // `first` there would leave the real anchor unprotected.
+  //
+  // After the collapse above, deliberately: the next press reads the selection
+  // this run leaves, not the one it was given. Resolving it beforehand would
+  // read a focus the collapse is about to discard — a single matching cell the
+  // user had selected somewhere below the first match reads as "no scope of
+  // their own", so it defaults to the whole sheet, and the cursor has to name
+  // the cell we collapsed onto rather than the one they had clicked.
+  const selection = ctx.luckysheet_select_save;
+  const anchored = selection?.[selection.length - 1];
+  let anchorIndex = _.findIndex(
+    searchIndexArr,
+    (entry) =>
+      entry.r === anchored?.row_focus && entry.c === anchored?.column_focus
+  );
+  if (anchorIndex < 0) {
+    anchorIndex = 0;
+  }
+  const anchor = searchIndexArr[anchorIndex];
+
+  // That anchor is a cell this run wrote, so both branches need the cursor —
+  // it is what stops the next press appending to the anchored cell again.
   //
   // Not cleared, on either branch: "Replace All consumed every match" is false
   // for exactly the replacement this ticket is about — "beta" -> "beta_"
@@ -669,13 +708,16 @@ export function replaceAll(
   // it.
   globalCache.replaceCursor = {
     sheetId: ctx.currentSheetId,
-    r: first.r,
-    c: first.c,
+    r: anchor.r,
+    c: anchor.c,
+    wrote: cellText(anchor.r, anchor.c, d),
     searchText,
     replaceText,
     checkModes: { ...checkModes },
   };
-  scrollToHighlightCell(ctx, first.r, first.c);
+  // The anchor, not `first`: on the branch that keeps the user's range those
+  // differ, and scrolling to `first` would scroll away from the selection.
+  scrollToHighlightCell(ctx, anchor.r, anchor.c);
 
   // `successTip` is "${xlength} items found" — the wrong sentence for an
   // action that just rewrote them, and the text the user is shown as well as

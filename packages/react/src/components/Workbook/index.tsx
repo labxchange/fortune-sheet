@@ -341,12 +341,6 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     const handleUndo = useCallback(() => {
       const history = globalCache.current.undoList.pop();
       if (history) {
-        // Undo moves the document out from under Replace's cursor, and the
-        // cursor is not part of the patch that just got inverted. Left alone,
-        // it would still claim we had written the cell the user has just
-        // restored, and the next Replace would skip it and write a different
-        // one. See `GlobalCache.replaceCursor`.
-        globalCache.current.replaceCursor = undefined;
         setContext((ctx_) => {
           if (history.options?.deleteSheetOp) {
             history.inversePatches[0].path[1] = ctx_.luckysheetfile.length;
@@ -410,9 +404,6 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
     const handleRedo = useCallback(() => {
       const history = globalCache.current.redoList.pop();
       if (history) {
-        // Same as undo: the document has moved, so what the cursor recorded is
-        // no longer what is on the sheet.
-        globalCache.current.replaceCursor = undefined;
         setContext((ctx_) => {
           const newContext = applyPatches(ctx_, history.patches);
           globalCache.current.undoList.push(history);

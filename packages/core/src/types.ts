@@ -277,14 +277,26 @@ export type GlobalCache = {
    * still there; this is that missing distinction.
    *
    * The rule it implements is exactly: *if the cell we are about to replace is
-   * the one we just replaced, under the same terms and modes on the same
-   * sheet, move to the next one instead.* It is a test of the cell Replace has
-   * picked, not of the selection — a range anchored on the just-replaced cell
-   * satisfies it too, and so does landing back on that cell because the
-   * selection sits somewhere that does not match at all. Find Next, clicking a
-   * result row, another sheet, and editing either field or any of the three
-   * modes all change what that cell or that identity is, so they invalidate
-   * the cursor without anything having to clear it.
+   * the one we just replaced — same coordinates, still holding the text we
+   * wrote there, under the same terms and modes on the same sheet — move to
+   * the next one instead.* It is a test of the cell Replace has picked, not of
+   * the selection — a range anchored on the just-replaced cell satisfies it
+   * too, and so does landing back on that cell because the selection sits
+   * somewhere that does not match at all. Find Next, clicking a result row,
+   * another sheet, and editing either field or any of the three modes all
+   * change what that cell or that identity is, so they invalidate the cursor
+   * without anything having to clear it.
+   *
+   * `wrote` is why nothing has to clear it when the *document* moves either.
+   * Undo, redo, retyping the cell by hand, a row or column insert or delete
+   * that shifts a different cell onto those coordinates, a paste, the
+   * `setCellValue` API — all of them leave a value there that is no longer the
+   * one we wrote, and the guard stops matching. Without it the press after any
+   * of them would treat the cell the user is looking at as one we had already
+   * written, skip it, and silently write a different match instead. The one
+   * residual is a shift that happens to land a cell holding exactly the
+   * replacement text on the cursor's coordinates, which still looks like our
+   * own write.
    *
    * The consequence is that reselecting the very cell Replace left the
    * selection on is refused: nothing here can tell that apart from never
@@ -293,15 +305,17 @@ export type GlobalCache = {
    * reported bug is that very cell being rewritten on every press.
    *
    * It lives here rather than in `Context` because it is not document state:
-   * `filterPatch` keeps only `luckysheetfile` patches, so a cursor held in
-   * context would be invisible to undo and would survive it, and the next
-   * press would skip the cell the user had just restored. Undo and redo clear
-   * it (`Workbook`), because they move the document out from under it.
+   * `filterPatch` keeps only `luckysheetfile` patches, so it is neither
+   * broadcast to collaborators nor entered into history — which is also why it
+   * cannot be reverted for us, and why the value check above is what has to
+   * carry undo.
    */
   replaceCursor?: {
     sheetId: string;
     r: number;
     c: number;
+    /** The cell's text as it read back after the write. */
+    wrote: string;
     searchText: string;
     replaceText: string;
     checkModes: {
