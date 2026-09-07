@@ -3,19 +3,26 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
 import WorkbookContext from "../../context";
 import ColorPicker from "../Toolbar/ColorPicker";
+import ColorHexInput from "../Toolbar/ColorHexInput";
 import { activateOnEnterOrSpace } from "../../utils/keyboardActivation";
 import "./index.css";
 
 type Props = {
   triggerParentUpdate: (state: boolean) => void;
+  /** Confirm was pressed: the caller closes the menu and moves focus. */
+  onConfirm?: () => void;
 };
 
-export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
+export const ChangeColor: React.FC<Props> = ({
+  triggerParentUpdate,
+  onConfirm,
+}) => {
   const { context, setContext } = useContext(WorkbookContext);
   const { toolbar, sheetconfig, button } = locale(context);
   const [inputColor, setInputColor] = useState<string>("#000000");
@@ -25,40 +32,64 @@ export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
     ].color
   );
 
+  const customColorLabelId = useId();
+
+  // Whatever inside here was holding the "in use" flag, this menu going away
+  // ends it. The hex field clears its own on unmount, but the native swatch
+  // beside it does not and cannot be given a blur it will never receive — so
+  // the flag is also released at the level that owns the menu, where the
+  // question is simply whether the menu is still there.
+  const triggerParentUpdateRef = useRef(triggerParentUpdate);
+  triggerParentUpdateRef.current = triggerParentUpdate;
+  useEffect(() => () => triggerParentUpdateRef.current(false), []);
+
+  /**
+   * Write the colour to the sheet, and mark it as announceable.
+   *
+   * Imperative rather than through an effect on `selectColor`. It was an
+   * effect, and Confirm is the one path that also closes this menu: the state
+   * update and `SheetTab`'s `setIsShowChangeColor(false)` batch into a single
+   * commit, `ChangeColor` is a conditional mount, so the component was gone
+   * before the passive effect for the new value could run. Confirm announced a
+   * colour it had not applied. The swatch, hex and reset paths were unaffected
+   * only because they leave the menu open — which is why a green suite missed
+   * it. Applying where the request is made owes nothing to whether this
+   * component survives the commit.
+   */
+  const applyColor = useCallback(
+    (color: string | undefined) => {
+      setSelectColor(color);
+      setContext((ctx: Context) => {
+        if (ctx.allowEdit === false) return;
+        const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
+        ctx.luckysheetfile[index].color = color;
+        // Drives `useSheetTabColorAnnouncement`. No "is this a real change?"
+        // guard: the effect this replaced also ran on mount, re-writing the
+        // colour the sheet already had, and needed a previous-value ref to
+        // tell that no-op from a pick. Applying imperatively there is no mount
+        // run to discount — this body runs only when a user applies a colour,
+        // so every bump is a real one. Re-applying the colour a tab already
+        // carries still counts, and the hook's modulo-2 repeat marker is what
+        // keeps a live region from swallowing the identical text.
+        ctx.sheetTabColorChangeCount = (ctx.sheetTabColorChangeCount ?? 0) + 1;
+      });
+    },
+    [setContext]
+  );
+
   // 确定按钮
   const certainBtn = useCallback(() => {
-    setSelectColor(inputColor);
-  }, [inputColor]);
-
-  // Baseline for the counter bump below: the sheet's colour when this
-  // instance first mounted, so the mount run (which just re-writes that same
-  // colour) doesn't count as a change. A previous-*value* ref rather than a
-  // "have I run before" boolean, specifically so it survives React
-  // StrictMode's double-invoke of a mount effect — a boolean flip inside the
-  // producer still leaves the *second* invocation of that same mount seeing
-  // itself as a real change; comparing against the last color actually
-  // written does not, because both invocations write the same value.
-  const previousColor = useRef(selectColor);
-
-  // 把用户选择的颜色记录在ctx中
-  useEffect(() => {
-    const isRealChange = previousColor.current !== selectColor;
-    previousColor.current = selectColor;
-    setContext((ctx: Context) => {
-      if (ctx.allowEdit === false) return;
-      const index = getSheetIndex(ctx, ctx.currentSheetId) as number;
-      ctx.luckysheetfile[index].color = selectColor;
-      if (isRealChange) {
-        ctx.sheetTabColorChangeCount = (ctx.sheetTabColorChangeCount ?? 0) + 1;
-      }
-    });
-  }, [selectColor, setContext]);
+    applyColor(inputColor);
+    onConfirm?.();
+  }, [inputColor, applyColor, onConfirm]);
 
   return (
     <div id="fortune-change-color">
       <div
         className="color-reset"
-        onClick={() => setSelectColor(undefined)}
+        onClick={() => {
+          applyColor(undefined);
+        }}
         onKeyDown={activateOnEnterOrSpace}
         tabIndex={0}
         role="button"
@@ -66,9 +97,13 @@ export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
         {sheetconfig.resetColor}
       </div>
       <div className="custom-color">
-        <div>{toolbar.customColor}:</div>
+        {/* The adjacent text is already this control's visible label, so point
+            at it rather than adding a second, invisible name — that keeps the
+            two in step and satisfies Label in Name (WCAG 2.5.3) for free. */}
+        <div id={customColorLabelId}>{toolbar.customColor}:</div>
         <input
           type="color"
+          aria-labelledby={customColorLabelId}
           value={inputColor}
           onChange={(e) => setInputColor(e.target.value)}
           onFocus={() => {
@@ -78,6 +113,18 @@ export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
             triggerParentUpdate(false);
           }}
           onKeyDown={(e) => e.stopPropagation()}
+        />
+        <ColorHexInput
+          value={inputColor}
+          // The row above closes this submenu on mouseleave unless something
+          // inside it says it is in use, and only the native swatch was saying
+          // so — a pointer that opened the menu and then drifted off the row
+          // unmounted the field mid-entry and took the typed value with it.
+          onEditingChange={triggerParentUpdate}
+          onCommit={(color) => {
+            setInputColor(color);
+            applyColor(color);
+          }}
         />
         <div
           className="button-basic button-primary"
@@ -92,9 +139,10 @@ export const ChangeColor: React.FC<Props> = ({ triggerParentUpdate }) => {
         </div>
       </div>
       <ColorPicker
+        selectedColor={selectColor}
         onPick={(color) => {
           setInputColor(color);
-          setSelectColor(color);
+          applyColor(color);
         }}
       />
     </div>

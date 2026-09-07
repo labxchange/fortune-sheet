@@ -16,6 +16,7 @@ import {
   escapeHTMLTag,
   isAllowEdit,
   getrangeseleciton,
+  locale,
 } from "@fortune-sheet/core";
 import React, {
   useContext,
@@ -32,6 +33,8 @@ import ContentEditable from "./ContentEditable";
 import FormulaSearch from "./FormulaSearch";
 import FormulaHint from "./FormulaHint";
 import usePrevious from "../../hooks/usePrevious";
+import useFocusedCellRefText from "../../hooks/useFocusedCellRefText";
+import { useFocusedCellFormulaAnnouncement } from "../../hooks/useFocusedCellFormulaAnnouncement";
 
 const InputBox: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
@@ -396,6 +399,67 @@ const InputBox: React.FC = () => {
     [context.luckysheetCellUpdate]
   );
 
+  const cellRef = useFocusedCellRefText(context);
+  const editing = context.luckysheetCellUpdate.length > 0;
+  const { info } = locale(context);
+  const formulaAnnouncement = useFocusedCellFormulaAnnouncement(context, info);
+
+  /**
+   * The cell input's accessible name, and the reason it needs one.
+   *
+   * The sheet is painted on a canvas, so this input is the only element that
+   * stands for a cell in the DOM: `InputBox` positions it over the focused cell,
+   * and `handleGlobalKeyDown` parks focus on it after every keystroke. Unnamed,
+   * it announced as a bare "edit text" — so a keyboard user who committed an
+   * edit, or came back to the sheet, was told nothing about where they were
+   * (WCAG 2.4.3, 4.1.2). Naming it for the cell is what makes focus resting here
+   * correct rather than something to be moved away from.
+   *
+   * **The name carries the reference, not the value.** It used to carry both,
+   * and so does `#sr-selection` — which meant that on the ordinary arrow-key
+   * move the two composed the identical sentence in the same commit, one as an
+   * assertive alert and one as the accessible name of the element holding
+   * focus. NVDA and JAWS re-announce a name change on the focused element, so
+   * the common case spoke the whole cell description twice. `useFilterAnnouncements`
+   * already draws this line for the same reason; this is the same split.
+   *
+   * The division is by what each channel is for. `#sr-selection` is an alert
+   * tied to the selection *changing*, so it reads the content: that is the
+   * question "what is in the cell I just moved to". The name is read when focus
+   * arrives *without* the selection moving — back from the formula bar, back
+   * from the toolbar, or when the user asks what is focused — where the
+   * question is "where am I", and the answer is the reference. A user who wants
+   * the content from here has the field's own text, which a screen reader reads
+   * after the name.
+   *
+   * Dropping the value also settles which selection the name describes. The
+   * value was read from `luckysheet_select_save[0]` while `cellRef` and the
+   * formula marker come from `_.last(...)`, so a multi-range selection —
+   * ctrl-click A1 then C5 — named the cell that would actually be edited and
+   * paired it with a *different* cell's value. There is no longer a second
+   * selection to disagree with.
+   *
+   * The formula marker stays, because it is a property of the named cell rather
+   * than its content, and every route that arrives without the selection moving
+   * would otherwise present a computed value as though it had been typed. It is
+   * absent while editing, as the reference alone is: the field then holds the
+   * formula source itself, leading `=` and all, and reading a name over the top
+   * of it says the content twice before the user has finished typing it.
+   *
+   * **The marker is deliberately in both channels, and that was tested.** On an
+   * arrow-key move `#sr-selection` and this name both end in "Has formula.", so
+   * on paper it is the same doubling the value split above was made to remove.
+   * It is not: a name change on an already-focused element is not re-announced
+   * the way a live region is, and Ayesha's VoiceOver pass (2026-09-03) confirmed
+   * the marker is spoken once. Verified by ear, so it is recorded here — do not
+   * "fix" the apparent duplication from reading alone. If a future AT does
+   * double it, drop the marker from the name and keep `#sr-selection`'s.
+   */
+  const cellInputLabel = useMemo(() => {
+    if (!cellRef) return "";
+    return editing ? cellRef : `${cellRef}${formulaAnnouncement}`;
+  }, [cellRef, editing, formulaAnnouncement]);
+
   const cfg = context.config || {};
   const rowReadOnly: Record<number, number> = cfg.rowReadOnly || {};
   const colReadOnly: Record<number, number> = cfg.colReadOnly || {};
@@ -403,6 +467,44 @@ const InputBox: React.FC = () => {
   const edit = !(
     (colReadOnly[col_index] || rowReadOnly[row_index]) &&
     context.allowEdit === true
+  );
+
+  /**
+   * Whether this cell can actually be typed into — which `edit` above does not
+   * answer, despite being the thing that sets `contenteditable`.
+   *
+   * `edit`'s `&& context.allowEdit === true` conjunction means a workbook
+   * rendered `allowEdit={false}` with no per-row/column config evaluates
+   * `(undefined || undefined) && false` → falsy → `edit === true`. It also
+   * never consults cell locking. So the read-only case with the clearest
+   * failure mode was the one it got wrong: `core/events/keyboard.ts` returns
+   * early on `!isAllowEdit(ctx)` for every text-entry key, and this element was
+   * meanwhile a focusable textbox reporting `aria-readonly={false}` — a field
+   * that swallows everything typed into it while announcing that it accepts it
+   * (WCAG 4.1.2), which is the exact mismatch the state was added to prevent.
+   *
+   * `isAllowEdit` is the predicate the commit path itself uses, and it folds in
+   * all four questions: row read-only, column read-only, `checkCellIsLocked`,
+   * and `ctx.allowEdit`. Scoped to the focus cell rather than the selection on
+   * both counts — this editor only ever edits that one cell, and `isAllowEdit`
+   * walks every cell of the range it is handed with a sheet lookup each, which
+   * on a select-all would be a million of them per render.
+   *
+   * `contentEditable` is deliberately left on `edit`. Changing what the DOM
+   * lets the user type is a behaviour change beyond this ticket, and the honest
+   * fix for the mismatch is the state that tells the truth about it rather than
+   * a promise quietly withdrawn; the residue is a read-only workbook whose
+   * editor is still `contenteditable`, which is pre-existing and now at least
+   * announced correctly.
+   */
+  const canEditCell = useMemo(
+    () =>
+      !isHidenRC &&
+      !!firstSelection &&
+      isAllowEdit(context, [
+        { row: [row_index, row_index], column: [col_index, col_index] },
+      ]),
+    [context, isHidenRC, firstSelection, row_index, col_index]
   );
 
   return (
@@ -441,6 +543,30 @@ const InputBox: React.FC = () => {
           }}
           className="luckysheet-cell-input"
           id="luckysheet-rich-text-editor"
+          // `contenteditable` alone leaves this a plain div as far as ARIA is
+          // concerned, and aria-label is prohibited on a role-less div — the
+          // name above would be dropped by the accessibility tree rather than
+          // announced (axe: aria-prohibited-attr). The role it already behaves
+          // as is the one to declare: a free-text field.
+          //
+          // Multi-line, because it is: Alt+Enter and Meta+Enter insert a
+          // newline in the cell (`onKeyDown`, above). Without saying so, a
+          // screen reader presents this as single-line and Enter reads as
+          // "commit" with no hint that a line break is available at all.
+          role="textbox"
+          aria-multiline="true"
+          // Declaring the role makes a promise the role-less div never made,
+          // so the state has to travel with it: a cell that cannot be typed
+          // into is announced as a read-only field rather than as one that
+          // accepts input and drops it (WCAG 4.1.2). This was written as the
+          // exact negation of the `allowEdit` expression below, which turned
+          // out to be the wrong question — see `canEditCell` above. The role
+          // and the name stay unconditional, because a read-only textbox is
+          // still a textbox and still has to say which cell it is: dropping
+          // them would leave focus resting on an unnamed generic div, which is
+          // the defect this element was named to fix.
+          aria-readonly={!canEditCell}
+          aria-label={cellInputLabel}
           style={{
             transform: `scale(${context.zoomRatio})`,
             transformOrigin: "left top",

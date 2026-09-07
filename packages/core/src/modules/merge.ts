@@ -4,18 +4,29 @@ import { Range } from "../types";
 import { getSheetIndex } from "../utils";
 import { isInlineStringCT } from "./inline-string";
 
+/**
+ * Merges, or un-merges, every range of the selection.
+ *
+ * Returns whether it changed anything. Each branch below skips a range that is
+ * a single cell (`r1 === r2 && c1 === c2`), and the un-merge branches touch
+ * only cells that carry an `mc` — so a press can legitimately do nothing, and
+ * before this returned a value the caller had no way to tell that from a merge
+ * that happened. The toolbar reports the outcome to a screen reader, where the
+ * difference is the whole message: a single-cell selection left the button
+ * looking dead to both mouse and keyboard. Same contract as `sortSelection`.
+ */
 export function mergeCells(
   ctx: Context,
   sheetId: string,
   ranges: Range,
   type: string
-) {
+): boolean {
   // if (!checkIsAllowEdit()) {
   //   tooltip.info("", locale().pivotTable.errorNotAllowEdit);
   //   return;
   // }
   const idx = getSheetIndex(ctx, sheetId);
-  if (idx == null) return;
+  if (idx == null) return false;
 
   const sheet = ctx.luckysheetfile[idx];
 
@@ -25,6 +36,9 @@ export function mergeCells(
   }
 
   const d = sheet.data!;
+
+  /** Whether any cell's merge state was actually rewritten. */
+  let acted = false;
 
   // if (!checkProtectionNotEnable(ctx.currentSheetId)) {
   //   return;
@@ -48,6 +62,7 @@ export function mergeCells(
           const cell = d[r][c];
 
           if (cell != null && cell.mc != null) {
+            acted = true;
             const mc_r = cell.mc.r;
             const mc_c = cell.mc.c;
 
@@ -114,6 +129,7 @@ export function mergeCells(
             const cell = d[r][c];
 
             if (cell != null && cell.mc != null) {
+              acted = true;
               const mc_r = cell.mc.r;
               const mc_c = cell.mc.c;
 
@@ -150,7 +166,12 @@ export function mergeCells(
           continue;
         }
 
+        // Set per branch, not before the dispatch: an unrecognised `type`
+        // must not report a merge that never happened. `handlerMap`'s
+        // "merge-all" entry passes "mergeAll", which matches none of the three,
+        // and `handleMerge` turns a `true` here into a "changed" announcement.
         if (type === "merge-all") {
+          acted = true;
           let fv = {};
           let isfirst = false;
 
@@ -175,7 +196,7 @@ export function mergeCells(
 
           d[r1][c1] = fv;
           const a = d[r1][c1];
-          if (!a) return;
+          if (!a) return acted;
           a.mc = { r: r1, c: c1, rs: r2 - r1 + 1, cs: c2 - c1 + 1 };
 
           cfg.merge[`${r1}_${c1}`] = {
@@ -185,6 +206,8 @@ export function mergeCells(
             cs: c2 - c1 + 1,
           };
         } else if (type === "merge-vertical") {
+          acted = true;
+
           for (let c = c1; c <= c2; c += 1) {
             let fv = {};
             let isfirst = false;
@@ -206,7 +229,7 @@ export function mergeCells(
 
             d[r1][c] = fv;
             const a = d[r1][c];
-            if (!a) return;
+            if (!a) return acted;
             a.mc = { r: r1, c, rs: r2 - r1 + 1, cs: 1 };
 
             cfg.merge[`${r1}_${c}`] = {
@@ -217,6 +240,8 @@ export function mergeCells(
             };
           }
         } else if (type === "merge-horizontal") {
+          acted = true;
+
           for (let r = r1; r <= r2; r += 1) {
             let fv = {};
             let isfirst = false;
@@ -238,7 +263,7 @@ export function mergeCells(
 
             d[r][c1] = fv;
             const a = d[r][c1];
-            if (!a) return;
+            if (!a) return acted;
             a.mc = { r, c: c1, rs: 1, cs: c2 - c1 + 1 };
 
             cfg.merge[`${r}_${c1}`] = {
@@ -256,4 +281,5 @@ export function mergeCells(
   if (sheet.id === ctx.currentSheetId) {
     ctx.config = cfg;
   }
+  return acted;
 }

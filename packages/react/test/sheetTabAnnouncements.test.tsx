@@ -142,9 +142,12 @@ describe("sheet tab announcements", () => {
     });
     await virtual.start({ container });
     // Scoped to the sheet-tab's own colour submenu — the toolbar has its own
-    // font/fill colour pickers with matching swatch aria-labels.
+    // font/fill colour pickers with matching swatch aria-labels. The swatches
+    // are options of a listbox, not gridcells: ColorPicker dropped grid/row/
+    // gridcell on this branch because role="row" is named from its contents
+    // and read all eight colour names of the row being entered.
     const swatch = container.querySelector<HTMLElement>(
-      `#fortune-sheet-tab-options-menu [role='gridcell'][aria-label='Black']`
+      `#fortune-sheet-tab-options-menu [role='option'][aria-label='Black']`
     )!;
     await act(async () => {
       fireEvent.click(swatch);
@@ -203,9 +206,13 @@ describe("sheet tab announcements", () => {
   });
 
   it("stays silent when the colour submenu is opened under StrictMode without picking anything", async () => {
-    // StrictMode double-invokes a mount effect (effect, cleanup, effect
-    // again) to surface effects that aren't idempotent. ChangeColor's
-    // colour-change counter must not mistake that replay for a real pick.
+    // Opening the submenu must write nothing: `applyColor` is reached only
+    // from a swatch, the reset row or Confirm, so the counter cannot move
+    // here. StrictMode because this used to be a mount effect that re-wrote
+    // the sheet's existing colour, whose double-invoke a previous-value ref
+    // had to discount; with the write moved onto the request there is no
+    // mount run to misread, and this is the test that would catch it coming
+    // back.
     const { container: strictContainer } = render(
       <React.StrictMode>
         <Workbook lang="en" data={[sheet1, sheet2] as any} />
