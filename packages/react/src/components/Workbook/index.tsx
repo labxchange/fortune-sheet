@@ -625,6 +625,17 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
         // because it can stop propagation before this handler runs, the two do
         // not double-fire.
 
+        // Any shortcut that moves focus out of the shortcuts dialog has to
+        // take the dialog with it: it stays painted on top and its Tab trap
+        // only covers its own subtree, so focus left behind it walks the page
+        // underneath (WCAG 2.4.3 focus order).
+        const leaveShortcutsDialog = () => {
+          if (!context.showShortcutsDialog) return;
+          setContextWithProduce((draftCtx) => {
+            draftCtx.showShortcutsDialog = false;
+          });
+        };
+
         // AltGr is delivered as Ctrl+Alt on Windows and Linux, so on any layout
         // that composes characters with it — Polish ą/ń/ś, and German, Spanish,
         // Czech, Turkish and more — those keystrokes are indistinguishable from
@@ -690,6 +701,16 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               workbookContainer.current?.querySelector<HTMLElement>(region);
             if (container) {
               e.preventDefault();
+              // `target.focus()` below runs while the dialog is still mounted,
+              // so `useDialogFocus`'s focusin listener sees focus leave and the
+              // cleanup's gate declines the restore. Not order-dependent:
+              // `setContextWithProduce` only queues a batched setState, so the
+              // dialog survives this whole handler whichever of these two
+              // statements runs first. The context-menu branch below reaches the
+              // same place by the opposite route — nothing there focuses
+              // synchronously, so the gate passes and the deferred re-check
+              // declines instead.
+              leaveShortcutsDialog();
               // The grid is entered at its root, which holds tabIndex -1 for
               // the purpose: landing on one of the controls inside it (the
               // select-all corner, a filter funnel) makes the grid guard in
@@ -800,6 +821,18 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               clientX: pageX - window.scrollX,
               clientY: pageY - window.scrollY,
             });
+            // Nothing focuses anything synchronously here, so unlike the
+            // region branch above, focus is still inside the dialog when it
+            // unmounts: its restore is scheduled rather than declined at the
+            // gate. What keeps it off the menu is the re-check inside
+            // `useDialogFocus`'s deferred restore. `ContextMenu` autofocuses
+            // its first row through `useEscapeToClose` in a mount effect, and
+            // React runs mount effects after the unmounting dialog's cleanup
+            // but before the deferred task, so the restore finds focus already
+            // claimed and stands down. Same destination as the region branch,
+            // reached the other way round — there the gate settles it at
+            // unmount, here the re-check settles it a task later.
+            leaveShortcutsDialog();
             setContextWithProduce((draftCtx) => {
               handleContextMenu(
                 draftCtx,

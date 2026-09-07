@@ -48,6 +48,42 @@ const DISABLED = '[disabled], [aria-disabled="true"]';
  * removed. Without it that case lands on <body>, which is the same lost-focus
  * failure the restore exists to prevent, just reached by a different route.
  *
+ * Neither restore fires when focus has already left the dialog by the time it
+ * closes. A caller that deliberately moves focus and then dismisses — a
+ * shortcut that leaves the shortcuts dialog for the grid, an outside click —
+ * has already put focus where it belongs, and restoring would drag it back to
+ * the opener.
+ *
+ * The deferred restore asks that a second time when its task runs, because the
+ * answer can change in between: a caller that hands focus over by mounting
+ * something which focuses *itself* has not moved focus by the time this
+ * cleanup reads the gate, only by the time the restore would fire. See the
+ * cleanup.
+ *
+ * That gate duplicates `useEscapeToClose`'s, deliberately. Handing the restore
+ * to that hook instead — `Dialog` calls it, and did exactly this at one point —
+ * is foreclosed twice over:
+ *
+ * Its restore is synchronous in its own cleanup, and `Dialog`'s cannot be: see
+ * `deferRestore` below and the reasoning at the cleanup. Delegating would put
+ * the focus change back ahead of the announcement that rides it, which is the
+ * defect the deferral was added to fix.
+ *
+ * And `SearchReplace` calls this hook and not that one — it handles no Escape
+ * at all — so a restore that lived only in `useEscapeToClose` would leave it
+ * with none, which is the drop-to-<body> failure the restore exists to prevent.
+ *
+ * The condition therefore lives with the restore it guards, in the one place
+ * both callers share. Kept in the same shape as the hook it duplicates so the
+ * two read as one behaviour, including tracking the boolean continuously — see
+ * the listener below for why cleanup cannot just re-read the ref.
+ *
+ * One cost of that, worth knowing before someone counts listeners: a `Dialog`
+ * runs two document-level focusin listeners while it is open, this one and
+ * `useEscapeToClose`'s, and the latter's `focusInsideContainer` is computed and
+ * then discarded because `Dialog` passes `restoreFocus: false`. Cheap, but not
+ * free, and it is not what a reader expects from a hook that already tracks it.
+ *
  * `deferRestore` decides *when* the restore runs, and only `Dialog` needs it —
  * see the cleanup for the full reasoning. It defaults to the synchronous
  * restore this hook was extracted with, so `SearchReplace`, which has no
@@ -103,6 +139,18 @@ export function useDialogFocus(
       }
     };
 
+    // Tracked continuously rather than read from the ref at cleanup time:
+    // callers unmount the dialog on close, and React nulls `dialogRef` during
+    // the mutation phase, which runs before this passive effect's cleanup. The
+    // listener goes on before initial focus below so that focus lands inside
+    // and is seen landing there — otherwise this starts and stays false, and
+    // every restore below is skipped.
+    let focusInsideDialog = dialog.contains(document.activeElement);
+    const handleFocusIn = (e: FocusEvent) => {
+      focusInsideDialog = dialog.contains(e.target as Node);
+    };
+    document.addEventListener("focusin", handleFocusIn);
+
     const focusable = focusableNow();
     if (initialFocusRef?.current) {
       initialFocusRef.current.focus();
@@ -115,6 +163,10 @@ export function useDialogFocus(
     dialog.addEventListener("keydown", trapFocus);
     return () => {
       dialog.removeEventListener("keydown", trapFocus);
+      document.removeEventListener("focusin", handleFocusIn);
+      // Focus is already where the caller put it, so there is nothing to give
+      // back — and both restores below would take it away from there.
+      if (!focusInsideDialog) return;
       /*
        * Focusing a detached node does nothing at all — focus is left exactly
        * where it is, which as this dialog unmounts means it goes to <body>
@@ -158,7 +210,30 @@ export function useDialogFocus(
        * focused as a detached node — and because `restore` runs in there too,
        * the fallback is chosen against the DOM as it stands then.
        */
-      focusAfterCommit(restore);
+      focusAfterCommit(() => {
+        /*
+         * The gate above was read at unmount, and deferring means the answer
+         * can change before the restore acts on it: an action that dismisses
+         * this dialog may also mount something that focuses itself, and React
+         * runs that passive *mount* effect after this cleanup and before the
+         * task. `Workbook`'s Ctrl/Cmd+Shift+M, +R and +L are the live case —
+         * they close the shortcuts dialog and open a context menu, which
+         * autofocuses its first row through `useEscapeToClose` — and without
+         * this re-check the restore then pulls focus straight back out of the
+         * menu. That is worse than a stranded menu: `ContextMenu` also sets
+         * `closeOnFocusOut`, so it reads the restore as the user tabbing away
+         * and dismisses itself. The shortcut opened a menu that vanished.
+         *
+         * So the same question the synchronous gate asks, asked again at the
+         * moment it matters. `<body>` is the whole of "focus was dropped":
+         * that is what a removed dialog leaves behind, and it is the only
+         * state this restore exists to rescue. Anything else holding focus put
+         * itself there on purpose and outranks a restore to the opener.
+         */
+        const active = document.activeElement;
+        if (active && active !== document.body) return null;
+        return restore();
+      });
     };
   }, [dialogRef, initialFocusRef, fallbackFocusRef, deferRestore]);
 }
