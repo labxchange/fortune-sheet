@@ -11101,6 +11101,7 @@ export default {
       "Se entró en la región filtrada: ${start} hasta ${end}.",
     leftFilteredRegion: "Se salió de la región filtrada.",
     currentCellInput: "Entrada de celda actual",
+    formulaReferenceSelected: "Referencia ${range}.",
     newSheet: "Nueva hoja",
     sheetTabs: "Pestañas de hojas",
     sheetOptions: "Opciones de hoja",
