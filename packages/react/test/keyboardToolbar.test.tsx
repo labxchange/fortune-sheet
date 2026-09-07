@@ -72,14 +72,15 @@ describe("Toolbar keyboard accessibility", () => {
 
     fireEvent.mouseDown(fontColorArrow);
     const grid = document.querySelector(".fortune-toolbar-color-picker")!;
-    // the swatches are gridcells inside rows, so the arrow-key model the user
-    // is given matches what AT can perceive
-    expect(grid.getAttribute("role")).toBe("grid");
-    expect(within(grid as HTMLElement).getAllByRole("row")).toHaveLength(8);
-    const swatches = within(grid as HTMLElement).getAllByRole("gridcell");
+    // A listbox of options, not a grid of gridcells. The visual rows are
+    // presentational, so nothing between the listbox and its options can be
+    // named by concatenating the eight colour names it contains.
+    expect(grid.getAttribute("role")).toBe("listbox");
+    expect(within(grid as HTMLElement).queryAllByRole("row")).toHaveLength(0);
+    const swatches = within(grid as HTMLElement).getAllByRole("option");
     expect(swatches).toHaveLength(64);
 
-    // A grid costs one tab stop, with arrows moving inside it. All 64 being
+    // A listbox costs one tab stop, with arrows moving inside it. All 64 being
     // tabbable would contradict the role announced above — Tab would step
     // swatch by swatch through the whole palette.
     const tabbable = () =>
@@ -97,9 +98,46 @@ describe("Toolbar keyboard accessibility", () => {
     expect(swatches[0].getAttribute("aria-label")).toBe("Black");
     expect(
       within(grid as HTMLElement)
-        .getAllByRole("gridcell")
+        .getAllByRole("option")
         .find((el) => el.getAttribute("aria-label") === "Light red 1")
     ).toBeTruthy();
+  });
+
+  // Regression: the palette used to be grid/row/gridcell. role="row" takes its
+  // accessible name from its contents, and a row here holds nothing but eight
+  // named swatches, so moving onto a swatch announced the colour and then all
+  // eight colour names of the row it had entered. Nothing between the listbox
+  // and an option may reach the accessibility tree.
+  it("does not expose any palette container that AT would name by its contents", () => {
+    const { getAllByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+    const [, fontColorArrow] = getAllByRole("button", {
+      name: /^Font color/,
+    });
+
+    fireEvent.mouseDown(fontColorArrow);
+    const picker = document.querySelector(
+      ".fortune-toolbar-color-picker"
+    ) as HTMLElement;
+
+    // no name-from-contents container survives anywhere inside the palette
+    expect(picker.querySelector('[role="row"]')).toBeNull();
+    expect(picker.querySelector('[role="grid"]')).toBeNull();
+    expect(picker.querySelector('[role="gridcell"]')).toBeNull();
+
+    // every wrapper between an option and the listbox is presentational, so
+    // the options are owned directly by the listbox in the tree
+    const options = within(picker).getAllByRole("option");
+    options.forEach((option) => {
+      let node = option.parentElement;
+      while (node && node !== picker) {
+        expect(node.getAttribute("role")).toBe("presentation");
+        node = node.parentElement;
+      }
+    });
+
+    // the swatch's own name is the colour and nothing else
+    expect(options[0].getAttribute("aria-label")).toBe("Black");
+    expect(options[0].textContent).toBe("");
   });
 
   it("closes a Combo dropdown (Format) when its own trigger is clicked again", () => {
@@ -163,9 +201,23 @@ describe("Toolbar keyboard accessibility", () => {
     ) as HTMLElement;
 
     [
-      { label: "border color", menuClass: "fortune-border-select-menu" },
-      { label: "border style", menuClass: "fortune-border-select-menu" },
-    ].forEach(({ label, menuClass }) => {
+      // The two submenus differ in role, and deliberately: the colour one owns
+      // the shared `ColorPicker`, which is a `listbox`, and `role="menu"` may
+      // only own `menuitem`/`menuitemradio`/`menuitemcheckbox`/`group` — so it
+      // is a group (axe: aria-required-children). The style one still says
+      // menu; its children are `role="button"`, the same class of mismatch, but
+      // pre-existing and left alone here.
+      {
+        label: "border color",
+        menuClass: "fortune-border-select-menu",
+        role: "group",
+      },
+      {
+        label: "border style",
+        menuClass: "fortune-border-select-menu",
+        role: "menu",
+      },
+    ].forEach(({ label, menuClass, role }) => {
       const trigger = getByText(label).closest(
         '[role="button"]'
       ) as HTMLElement;
@@ -187,7 +239,7 @@ describe("Toolbar keyboard accessibility", () => {
       const submenuId = trigger.getAttribute("aria-controls");
       expect(submenuId).toBeTruthy();
       const submenu = document.getElementById(submenuId!)!;
-      expect(submenu.getAttribute("role")).toBe("menu");
+      expect(submenu.getAttribute("role")).toBe(role);
       expect(trigger.contains(submenu)).toBe(false);
 
       fireEvent.keyDown(document.activeElement!, { key: "Escape" });
@@ -231,9 +283,9 @@ describe("Toolbar keyboard accessibility", () => {
   });
 
   it("hovering the Highlight-cell-rules condition-format submenu does not steal focus, while keyboard opening still autofocuses and Escape restores it", () => {
-    const { getAllByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
-    const [conditionFormatCombo] = getAllByRole("button", {
-      name: /^Conditional format:/,
+    const { getByRole } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+    const conditionFormatCombo = getByRole("button", {
+      name: "Conditional format",
     });
     fireEvent.mouseDown(conditionFormatCombo);
     const popup = document.querySelector(

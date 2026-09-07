@@ -1,6 +1,8 @@
 #fortune-change-color {
   min-width: 164px;
-  height: 252px;
+  /* min-, not a fixed height: the custom-colour row now wraps to fit the typed
+     colour field, and a fixed 252px would spill the palette out of the panel. */
+  min-height: 252px;
   background: rgb(240, 240, 240);
   border-radius: 6px;
   box-shadow: 0 2px 4px rgb(0 0 0 / 20%);
@@ -32,17 +34,42 @@
   z-index: 2000;
 }
 
+/* See the matching rule in Toolbar/index.css: the ring sat on the button's own
+   #0188fb at 1.66:1, so it is offset clear of the button onto the white panel. */
+#fortune-change-color .button-basic:focus-visible {
+  outline-offset: 2px;
+}
+
+/* Its partner: the offset ring also has to sit above the buttons after it, and
+   the z-index that puts it there is ignored by a statically positioned element.
+   Scoped to this panel rather than added to the shared .button-basic, whose
+   eight other consumers were not audited for this ticket. */
+#fortune-change-color .button-basic {
+  position: relative;
+}
+
+/* See the matching rule in Toolbar/index.css: the native colour swatch's own
+   focus ring is drawn against the colour it is previewing and vanishes on a
+   dark one, so it gets an explicit ring offset onto the panel behind it. */
+#fortune-change-color .custom-color input[type="color"]:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+  outline-offset: 2px;
+}
+
 #fortune-change-color .custom-color {
   position: relative;
-  margin: auto;
   padding: 10px;
   border-radius: 6px;
   background: white;
-  display: flex;
   align-items: center;
   margin: 1px 0px;
   display: flex;
   justify-content: space-around;
+  /* The row has to wrap for the typed-colour field: the panel is 164px and was
+     already carrying a label, a swatch and OK. */
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .button-basic {

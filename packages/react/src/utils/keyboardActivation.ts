@@ -98,13 +98,29 @@ export function onActivationKeyDown<T extends HTMLElement = HTMLElement>(
  * then. A target that is gone is left alone rather than focused, because
  * focusing a detached node silently moves focus to <body> — the failure this
  * helper exists to prevent.
+ *
+ * `preventScroll` because every caller here aims at something already on
+ * screen: nine restore focus to where the user was, and the tenth
+ * (`SheetItem`'s rename field) puts it on a control inside the tab they just
+ * acted on. Nothing should move. Without it the browser scrolls the nearest
+ * scrollable ancestor to reveal the target — and the target is usually the
+ * cell input, which `InputBox` parks at `left: -10000` whenever there is no
+ * selection for it to sit on. An embedder that puts the grid in a scroll pane
+ * (LabXchange's sims lay their pages out in one) then has its own layout
+ * dragged sideways by a focus call, which is not this helper's business to do.
+ *
+ * The constraint that buys, stated for whoever calls this next: the target has
+ * to be visible already. Sending focus somewhere the user would need to be
+ * scrolled to see leaves it focused off-screen with nothing to indicate it
+ * (WCAG 2.4.7) — such a caller wants a plain `focus()`, or an opt-out added
+ * here.
  */
 export function focusAfterCommit(
   getTarget: () => HTMLElement | null | undefined
 ): void {
   setTimeout(() => {
     const target = getTarget();
-    if (target?.isConnected) target.focus();
+    if (target?.isConnected) target.focus({ preventScroll: true });
   });
 }
 
@@ -148,4 +164,26 @@ export function mouseDownToggleHandlers<T extends HTMLElement = HTMLElement>(
       if (!disabled) onToggle();
     }),
   };
+}
+
+/**
+ * Hand keyboard focus back to the cell after an edit ends in the formula bar.
+ *
+ * The target is the cell input, not the grid root. The sheet is painted on a
+ * canvas, so no cell is focusable in its own right — but the cell input is
+ * positioned over the focused cell by `InputBox` and carries that cell's
+ * accessible name, so it is the closest thing the DOM has to "the cell". The
+ * grid root would be a landmark-level target and announce as the whole sheet.
+ *
+ * It is also where `handleGlobalKeyDown` parks focus at the end of every
+ * keystroke (`core/events/keyboard.ts`), so aiming here works with the grid's
+ * existing focus model rather than being undone by it a keypress later.
+ *
+ * Deferred because the commit re-renders and `InputBox` schedules its own
+ * caret fixup in a timeout; `focusAfterCommit` also declines a detached target.
+ */
+export function returnFocusToCell(
+  cellInput: HTMLElement | null | undefined
+): void {
+  focusAfterCommit(() => cellInput);
 }

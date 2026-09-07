@@ -32,7 +32,15 @@ const CustomButton: React.FC<Props> = ({
       style={selected ? { backgroundColor: "#E7E5EB" } : {}}
     >
       <CustomIcon iconName={iconName} content={icon} />
-      {tooltip && <div className="fortune-tooltip">{tooltip}</div>}
+      {tooltip && (
+        // Hidden from AT: this is the visual-only hover tooltip, and its text
+        // is the same string already carried as the control's aria-label. Left
+        // exposed it lands in the accessibility tree as a second, static copy
+        // of the name beside the button that owns it.
+        <div className="fortune-tooltip" aria-hidden="true">
+          {tooltip}
+        </div>
+      )}
       {children}
     </div>
   );
