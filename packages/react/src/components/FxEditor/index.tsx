@@ -334,7 +334,10 @@ const FxEditor: React.FC = () => {
             }
             case "Escape": {
               cancelNormalSelected(draftCtx);
-              moveHighlightCell(draftCtx, "down", 0, "rangeOfSelect");
+              // `keepSelection`, and exactly one call: cancelling an edit is
+              // not a keyboard move, so the ranges the edit started from stay
+              // put. A second, flagless call here would collapse them before
+              // this one ever ran.
               moveHighlightCell(draftCtx, "down", 0, "rangeOfSelect", true);
               // $("#luckysheet-functionbox-cell").blur();
               // $("#luckysheet-rich-text-editor").focus();
