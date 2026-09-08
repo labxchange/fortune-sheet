@@ -11057,6 +11057,16 @@ export default {
     tipRowHeightLimit: "行高必须在0 ~ 545之间",
     tipColumnWidthLimit: "列宽必须在0 ~ 2038之间",
     pageInfoFull: "共${total}条，${totalPage}页，已显示全部数据",
+    // The formula suggestion list. `formulaSuggestions` names the list itself;
+    // `formulaSuggestionsAvailable` announces that it has appeared, which
+    // nothing else conveys -- the list opens while the learner types, with no
+    // focus change and no selection change, so a screen-reader user was given
+    // no indication it existed (WCAG 4.1.3). The count is included because
+    // knowing how many entries there are is what makes the list worth
+    // navigating; movement between entries is then carried by
+    // `aria-activedescendant` and needs no message of its own.
+    formulaSuggestions: "公式建议",
+    formulaSuggestionsAvailable: "有 ${count} 个公式建议。",
 
     // Toolbar action feedback. A toolbar button changes the sheet without
     // moving the selection, so nothing else reaches a live region: the result
@@ -11262,6 +11272,8 @@ export default {
       zoomOut: "缩小",
       zoomReset: "重置缩放",
       cancelOrExitMode: "取消单元格编辑或退出选择模式",
+      moveBetweenFormulaSuggestions: "在公式建议之间移动",
+      acceptFormulaSuggestion: "插入选中的公式建议",
     },
   },
   currencyDetail: [

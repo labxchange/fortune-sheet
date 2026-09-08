@@ -259,6 +259,14 @@ export type GlobalCache = {
   ignoreWriteCell?: boolean;
   doNotFocus?: boolean;
   doNotUpdateCell?: boolean;
+  /**
+   * Set immediately before `announceEditorInput` dispatches the `input` event
+   * that tells a host a suggestion was accepted, and cleared by the first
+   * `onChange` that sees it. Without it the workbook would process its own
+   * announcement as a keystroke. Lives here rather than in a ref because the
+   * two accept routes are in different components.
+   */
+  ignoreNextInput?: boolean;
   recentTextColor?: string;
   recentBackgroundColor?: string;
   visibleColumnsUnique?: number[];

@@ -172,6 +172,21 @@ export function getDefaultShortcutSections(ctx: Context): ShortcutSection[] {
           keys: both("Escape"),
           description: d.cancelOrExitMode,
         },
+        // The formula suggestion list. Documented here rather than in a host's
+        // `extraShortcutSections`, because the list is the workbook's own and
+        // these keys only mean this while it is open -- Enter otherwise commits
+        // the edit and Tab otherwise moves to the next cell, both already
+        // listed above. Undocumented, the list was reachable only by guessing.
+        {
+          id: "moveBetweenFormulaSuggestions",
+          keys: both("↑ / ↓"),
+          description: d.moveBetweenFormulaSuggestions,
+        },
+        {
+          id: "acceptFormulaSuggestion",
+          keys: both("Enter / Tab"),
+          description: d.acceptFormulaSuggestion,
+        },
         {
           id: "insertDateTime",
           keys: { mac: "⌘ ⇧ ;", windows: "Ctrl + Shift + ;" },

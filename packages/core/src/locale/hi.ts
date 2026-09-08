@@ -11078,6 +11078,16 @@ export default {
     tipRowHeightLimit: "पंक्ति की ऊँचाई 0 ~ 545 के बीच होनी चाहिए",
     tipColumnWidthLimit: "कॉलम की चौड़ाई 0 ~ 2038 के बीच होनी चाहिए",
     pageInfoFull: "कुल ${total}，${totalPage} पृष्ठ，सभी डेटा प्रदर्शित",
+    // The formula suggestion list. `formulaSuggestions` names the list itself;
+    // `formulaSuggestionsAvailable` announces that it has appeared, which
+    // nothing else conveys -- the list opens while the learner types, with no
+    // focus change and no selection change, so a screen-reader user was given
+    // no indication it existed (WCAG 4.1.3). The count is included because
+    // knowing how many entries there are is what makes the list worth
+    // navigating; movement between entries is then carried by
+    // `aria-activedescendant` and needs no message of its own.
+    formulaSuggestions: "फ़ॉर्मूला सुझाव",
+    formulaSuggestionsAvailable: "${count} फ़ॉर्मूला सुझाव उपलब्ध हैं।",
 
     // Toolbar action feedback. A toolbar button changes the sheet without
     // moving the selection, so nothing else reaches a live region: the result
@@ -11290,6 +11300,8 @@ export default {
       zoomOut: "ज़ूम आउट",
       zoomReset: "ज़ूम रीसेट करें",
       cancelOrExitMode: "कक्ष संपादन रद्द करें या चयन मोड से बाहर निकलें",
+      moveBetweenFormulaSuggestions: "फ़ॉर्मूला सुझावों के बीच जाएँ",
+      acceptFormulaSuggestion: "चयनित फ़ॉर्मूला सुझाव सम्मिलित करें",
     },
   },
   currencyDetail: [

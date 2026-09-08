@@ -29,6 +29,17 @@
   font-size: 14px;
 }
 
+/*
+  Hover is distinct from the current entry, and deliberately weaker. Pointing
+  at an entry also *makes* it current (onMouseEnter), so the two states
+  coincide under the pointer -- this exists for the moment before that lands
+  and to keep the row the cursor is over legible when it is not the current
+  one, without competing with the current-entry treatment below.
+*/
+.luckysheet-formula-search-c .luckysheet-formula-search-item:hover {
+  background: #fafafa;
+}
+
 .luckysheet-formula-search-c .luckysheet-formula-search-item-active {
   display: block;
   border-top: 1px solid #ebebeb;

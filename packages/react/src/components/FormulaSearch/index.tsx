@@ -99,6 +99,7 @@ export const FormulaSearch: React.FC<{ onCancel: () => void }> = ({
         ctx.functionHint =
           filteredFunctionList[selectedFuncIndex].n.toUpperCase();
         ctx.functionCandidates = [];
+        ctx.functionCandidatesIndex = 0;
         if (_.isEmpty(ctx.formulaCache.functionlistMap)) {
           for (let i = 0; i < functionlist.length; i += 1) {
             ctx.formulaCache.functionlistMap[functionlist[i].n] =

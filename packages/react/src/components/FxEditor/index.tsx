@@ -20,6 +20,7 @@ import {
 } from "@fortune-sheet/core";
 import React, {
   useContext,
+  useId,
   useState,
   useCallback,
   useEffect,
@@ -59,6 +60,7 @@ const FxEditor: React.FC = () => {
   // "focus passed through on its way to the grid".
   const startEditOnFocus = useRef(false);
   const inputContainerRef = useRef<HTMLDivElement>(null);
+  const suggestionsIdBase = useId();
   const [isHidenRC, setIsHidenRC] = useState<boolean>(false);
   const firstSelection = context.luckysheet_select_save?.[0];
   const prevFirstSelection = usePrevious(firstSelection);
@@ -587,7 +589,20 @@ const FxEditor: React.FC = () => {
           />
           {focused && (
             <>
+              {/*
+                Its own id base, so the options this instance renders cannot
+                collide with the cell input's copy of the same list.
+
+                No `aria-activedescendant` on the formula bar to match: the bar
+                has no suggestion navigation and no accept — both were
+                commented out long ago (see the `Enter` case and the arrow
+                block above) — so pointing at a "current option" here would
+                advertise something the user cannot move or choose. The
+                listbox/option structure is still correct to expose, because
+                the list is genuinely on screen and its entries are clickable.
+              */}
               <FormulaSearch
+                idBase={suggestionsIdBase}
                 style={{
                   top: inputContainerRef.current!.clientHeight,
                 }}

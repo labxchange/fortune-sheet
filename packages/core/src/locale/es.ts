@@ -11050,6 +11050,17 @@ export default {
     tipColumnWidthLimit: "El ancho de la columna debe estar entre 0 ~ 2038",
     pageInfoFull:
       "Total ${total}，página ${totalPage}，Se muestran todos los datos",
+    // The formula suggestion list. `formulaSuggestions` names the list itself;
+    // `formulaSuggestionsAvailable` announces that it has appeared, which
+    // nothing else conveys -- the list opens while the learner types, with no
+    // focus change and no selection change, so a screen-reader user was given
+    // no indication it existed (WCAG 4.1.3). The count is included because
+    // knowing how many entries there are is what makes the list worth
+    // navigating; movement between entries is then carried by
+    // `aria-activedescendant` and needs no message of its own.
+    formulaSuggestions: "Sugerencias de fórmulas",
+    formulaSuggestionsAvailable:
+      "${count} sugerencias de fórmulas disponibles.",
 
     // Toolbar action feedback. A toolbar button changes the sheet without
     // moving the selection, so nothing else reaches a live region: the result
@@ -11263,6 +11274,9 @@ export default {
       zoomReset: "Restablecer el zoom",
       cancelOrExitMode:
         "Cancelar la edición de celda o salir del modo de selección",
+      moveBetweenFormulaSuggestions:
+        "Moverse entre las sugerencias de fórmulas",
+      acceptFormulaSuggestion: "Insertar la sugerencia de fórmula resaltada",
     },
   },
   currencyDetail: {
