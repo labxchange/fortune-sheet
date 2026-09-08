@@ -446,10 +446,29 @@ describe("formula suggestion list", () => {
   describe("announcement", () => {
     const region = () => document.getElementById("sr-formulaSuggestions");
 
+    // The count trails, after a colon, rather than leading the sentence. These
+    // locale files carry no plural machinery, so "${count} formula suggestions
+    // available." announces "1 formula suggestions available." for every prefix
+    // matching exactly one function — `=AVEDEV`, `=SUMIFS` and plenty more.
     it("announces the count when the list appears", () => {
       setup();
 
-      expect(region()!.textContent).toBe("3 formula suggestions available.");
+      expect(region()!.textContent).toBe("Formula suggestions available: 3.");
+    });
+
+    it("reads correctly when exactly one function matches", () => {
+      const { ctx, rerender } = setup();
+
+      act(() => {
+        ctx.functionCandidates = [];
+        rerender();
+      });
+      act(() => {
+        ctx.functionCandidates = [{ n: "AVEDEV" }] as any;
+        rerender();
+      });
+
+      expect(region()!.textContent).toBe("Formula suggestions available: 1.");
     });
 
     it("is polite, not assertive", () => {
@@ -463,7 +482,7 @@ describe("formula suggestion list", () => {
 
     it("does not re-announce when the list narrows", () => {
       const { ctx, rerender } = setup();
-      expect(region()!.textContent).toBe("3 formula suggestions available.");
+      expect(region()!.textContent).toBe("Formula suggestions available: 3.");
 
       act(() => {
         ctx.functionCandidates = [{ n: "AVERAGE" }];
@@ -473,7 +492,7 @@ describe("formula suggestion list", () => {
       // Movement within an open list is spoken by the screen reader following
       // aria-activedescendant, so re-announcing the count on every keystroke
       // would only talk over the typing.
-      expect(region()!.textContent).toBe("3 formula suggestions available.");
+      expect(region()!.textContent).toBe("Formula suggestions available: 3.");
     });
 
     it("clears when the list closes, and speaks again next time it opens", () => {
@@ -489,7 +508,7 @@ describe("formula suggestion list", () => {
         ctx.functionCandidates = [{ n: "SUM" }, { n: "SUMIF" }];
         rerender();
       });
-      expect(region()!.textContent).toBe("2 formula suggestions available.");
+      expect(region()!.textContent).toBe("Formula suggestions available: 2.");
     });
 
     it("keeps the region mounted while the list is closed", () => {

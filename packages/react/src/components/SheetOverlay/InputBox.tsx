@@ -668,6 +668,8 @@ const InputBox: React.FC = () => {
         <>
           <FormulaSearch
             idBase={idBase}
+            editorRef={refs.cellInput}
+            mirrorRef={refs.fxInput}
             style={{
               top: (firstSelection?.height_move || 0) + 4,
             }}

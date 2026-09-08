@@ -11065,8 +11065,14 @@ export default {
     // knowing how many entries there are is what makes the list worth
     // navigating; movement between entries is then carried by
     // `aria-activedescendant` and needs no message of its own.
+    //
+    // The count goes LAST, after a colon. These files carry no plural
+    // machinery, so a count interpolated into a fixed plural announces
+    // "1 formula suggestions available." for every prefix matching exactly one
+    // function -- `=AVEDEV`, `=SUMIFS` and plenty more. Putting the number at
+    // the end sidesteps agreement in every locale here rather than in one.
     formulaSuggestions: "公式建议",
-    formulaSuggestionsAvailable: "有 ${count} 个公式建议。",
+    formulaSuggestionsAvailable: "公式建议：${count} 个。",
 
     // Toolbar action feedback. A toolbar button changes the sheet without
     // moving the selection, so nothing else reaches a live region: the result

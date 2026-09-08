@@ -31,13 +31,35 @@ export const formulaSuggestionOptionId = (idBase: string, index: number) =>
 
 type FormulaSearchProps = React.HTMLAttributes<HTMLDivElement> & {
   idBase: string;
+  /**
+   * The editor an accept writes into, and the field it mirrors the result to.
+   *
+   * Declared by the parent for the same reason `idBase` is: this component has
+   * two of them. `InputBox` renders it under the cell, where the editor is
+   * `cellInput`; `FxEditor` renders the same component under the formula bar,
+   * where it is `fxInput`. Reaching into `refs.cellInput` from in here would
+   * make a click on the bar's list write into the cell editor — and, because
+   * `acceptFormulaSuggestion` ends in `moveToEnd`, whose first branch calls
+   * `focus()`, it would also move focus out of the field being typed in with
+   * nothing announcing it (WCAG 2.4.3). `preventDefault` on the mousedown
+   * stops the browser moving focus; it cannot stop a programmatic `focus()`.
+   *
+   * The pair is passed in the same order `handleFormulaInput` already takes.
+   */
+  editorRef: React.MutableRefObject<HTMLDivElement | null>;
+  mirrorRef: React.MutableRefObject<HTMLDivElement | null>;
 };
 
-const FormulaSearch: React.FC<FormulaSearchProps> = ({ idBase, ...props }) => {
+const FormulaSearch: React.FC<FormulaSearchProps> = ({
+  idBase,
+  editorRef,
+  mirrorRef,
+  ...props
+}) => {
   const {
     context,
     setContext,
-    refs: { cellInput, fxInput, globalCache },
+    refs: { globalCache },
   } = useContext(WorkbookContext);
   const { info } = locale(context);
 
@@ -47,7 +69,7 @@ const FormulaSearch: React.FC<FormulaSearchProps> = ({ idBase, ...props }) => {
   const accept = useCallback(
     (index: number) => {
       const name = candidates[index]?.n;
-      const editor = cellInput.current;
+      const editor = editorRef.current;
       if (!name || editor == null) return;
 
       // Resolved out here, once. Inside the recipe React may re-derive it from
@@ -57,7 +79,7 @@ const FormulaSearch: React.FC<FormulaSearchProps> = ({ idBase, ...props }) => {
       setContext((draftCtx) => {
         acceptFormulaSuggestion(
           draftCtx,
-          fxInput.current,
+          mirrorRef.current,
           editor,
           name,
           nextText
@@ -70,7 +92,7 @@ const FormulaSearch: React.FC<FormulaSearchProps> = ({ idBase, ...props }) => {
       announceEditorInput(editor);
       delete globalCache.ignoreNextInput;
     },
-    [candidates, cellInput, fxInput, globalCache, setContext]
+    [candidates, editorRef, mirrorRef, globalCache, setContext]
   );
 
   const highlight = useCallback(

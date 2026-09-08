@@ -439,6 +439,15 @@ const FxEditor: React.FC = () => {
   );
 
   const onChange = useCallback(() => {
+    // The `input` event an accept dispatches for the host's benefit is not a
+    // keystroke — see the matching guard in `InputBox.onChange`. Now that the
+    // bar's own suggestion list accepts into `fxInput`, that announcement
+    // reaches this handler too, where it would re-enter the kcode gate below
+    // with the last typed character's code and run `handleFormulaInput` a
+    // second time for the same change: exactly the multi-character diff its
+    // caret restore cannot survive. The accept has already produced the final
+    // markup, the mirror and the range highlighting.
+    if (refs.globalCache.ignoreNextInput) return;
     // Paste, IME composition and drag-drop text all reach here without ever
     // passing isTextProducingKey's keydown check in onKeyDown (paste and drop
     // carry no text-producing keydown at all; composition's own keydown key is
@@ -594,15 +603,24 @@ const FxEditor: React.FC = () => {
                 collide with the cell input's copy of the same list.
 
                 No `aria-activedescendant` on the formula bar to match: the bar
-                has no suggestion navigation and no accept — both were
-                commented out long ago (see the `Enter` case and the arrow
-                block above) — so pointing at a "current option" here would
-                advertise something the user cannot move or choose. The
-                listbox/option structure is still correct to expose, because
-                the list is genuinely on screen and its entries are clickable.
+                has no KEYBOARD suggestion navigation — the arrow handling and
+                the `Enter` accept were both commented out long ago (see the
+                `Enter` case and the arrow block above) — so pointing at a
+                "current option" here would advertise a cursor the user cannot
+                move. It does have a pointer accept, which is the whole of
+                ticket 1 and needs no active-descendant to work: a click names
+                its own target. The listbox/option structure is correct to
+                expose either way, because the list is genuinely on screen.
               */}
               <FormulaSearch
                 idBase={suggestionsIdBase}
+                // This list belongs to the BAR, so an accept writes here and
+                // mirrors into the cell — the reverse of InputBox's pair. With
+                // the cell editor passed instead, clicking an entry wrote into
+                // the cell and `moveToEnd`'s `focus()` pulled focus out of the
+                // bar the user was typing in.
+                editorRef={refs.fxInput}
+                mirrorRef={refs.cellInput}
                 style={{
                   top: inputContainerRef.current!.clientHeight,
                 }}
