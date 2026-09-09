@@ -1,6 +1,7 @@
 import { render, fireEvent, act } from "@testing-library/react";
 import React from "react";
 import Workbook from "../src/components/Workbook";
+import { buildFocusReturnText } from "../src/hooks/useToolbarFocusReturnAnnouncement";
 
 // After an editing command from the toolbar, focus belongs on the cells it
 // acted on rather than on the control that ran it (WCAG 2.4.3): select B5, bold
@@ -101,5 +102,43 @@ describe("Toolbar commands return focus to the cells they act on", () => {
     const region = container.querySelector("#sr-toolbarFocusReturn")!;
     expect(region.getAttribute("role")).toBe("alert");
     expect(region.getAttribute("aria-live")).toBe("assertive");
+  });
+
+  // The sentence itself, asserted on the builder rather than through a driven
+  // toolbar command: the note at the top of this file explains why the positive
+  // path cannot commit under jsdom, and a region that never fires cannot pin
+  // its own text. The builder is the whole of the composition, so this is the
+  // behaviour and not a proxy for it.
+  describe("the sentence it speaks", () => {
+    const intro = "Use the arrow keys to move between cells.";
+
+    it("says where focus landed, then how to move from there", () => {
+      expect(buildFocusReturnText("B. 5", "beta", intro)).toBe(
+        "B. 5 beta. Use the arrow keys to move between cells."
+      );
+    });
+
+    it("drops the value for an empty cell instead of voicing a bare stop", () => {
+      // `getSrSelectionCore` returns "" for an empty cell, so interpolating it
+      // would give "B. 5 . Use the arrow keys" — a full stop after a space,
+      // which some readers voice as punctuation.
+      expect(buildFocusReturnText("B. 5", "", intro)).toBe(
+        "B. 5. Use the arrow keys to move between cells."
+      );
+    });
+
+    it("does not double the stop after a value that ends in one", () => {
+      expect(buildFocusReturnText("B. 5", "etc.", intro)).toBe(
+        "B. 5 etc. Use the arrow keys to move between cells."
+      );
+    });
+
+    it("repeats the hint the region that carries it only says once", () => {
+      // `#sr-selection` speaks `sheetSrIntro` on first arrival and then retires
+      // it for the workbook (`hasMovedRef`). The whole point of carrying it here
+      // too is that a toolbar round-trip is exactly when it is needed again, so
+      // a build that omits it is the regression to catch.
+      expect(buildFocusReturnText("B. 5", "beta", intro)).toContain(intro);
+    });
   });
 });

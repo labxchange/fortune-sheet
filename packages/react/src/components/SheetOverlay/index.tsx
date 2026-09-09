@@ -59,7 +59,10 @@ import { useFormulaRangeAnnouncement } from "../../hooks/useFormulaRangeAnnounce
 import { useSelectAllAnnouncement } from "../../hooks/useSelectAllAnnouncement";
 import { useNameBoxClampAnnouncement } from "../../hooks/useNameBoxClampAnnouncement";
 import { useContextMenuAnnouncements } from "../../hooks/useContextMenuAnnouncements";
-import { useToolbarFocusReturnAnnouncement } from "../../hooks/useToolbarFocusReturnAnnouncement";
+import {
+  buildFocusReturnText,
+  useToolbarFocusReturnAnnouncement,
+} from "../../hooks/useToolbarFocusReturnAnnouncement";
 import { useFocusedCellFormulaAnnouncement } from "../../hooks/useFocusedCellFormulaAnnouncement";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
@@ -719,11 +722,13 @@ const SheetOverlay: React.FC = () => {
 
   // Same text `#sr-selection` would show for this cell -- the toolbar-return
   // announcement is meant to say what that region would have, had a
-  // formatting command touched the selection instead of leaving it alone.
+  // formatting command touched the selection instead of leaving it alone --
+  // followed by the arrow-key hint. See `buildFocusReturnText` for why the hint
+  // repeats here when `#sr-selection`'s own copy of it is spoken only once.
   const toolbarFocusReturnAnnouncement = useToolbarFocusReturnAnnouncement(
     context.toolbarFocusReturnCount,
     !rangeText.includes("NaN")
-      ? `${rangeText} ${computedCellValue}`
+      ? buildFocusReturnText(rangeText, computedCellValue, info.sheetSrIntro)
       : `A1. ${info.sheetSrIntro}`
   );
 
