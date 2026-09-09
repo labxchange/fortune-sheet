@@ -19,7 +19,6 @@ import {
   acceptFormulaSuggestion,
   announceEditorInput,
   formulaTextAfterAccept,
-  replaceHtml,
 } from "@fortune-sheet/core";
 import React, {
   useContext,
@@ -42,6 +41,7 @@ import FormulaHint from "./FormulaHint";
 import usePrevious from "../../hooks/usePrevious";
 import useFocusedCellRefText from "../../hooks/useFocusedCellRefText";
 import { useFocusedCellFormulaAnnouncement } from "../../hooks/useFocusedCellFormulaAnnouncement";
+import { useFormulaSuggestionAnnouncement } from "../../hooks/useFormulaSuggestionAnnouncement";
 
 const InputBox: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
@@ -415,40 +415,23 @@ const InputBox: React.FC = () => {
    * notebook section: a fixed id puts duplicates in the document and lets
    * `aria-activedescendant` resolve into another sheet's list.
    *
-   * The announcement fires once, on the list *appearing* -- not on every
-   * keystroke that narrows it. Narrowing needs no message: once the list is
-   * open, moving between entries is spoken by the screen reader following
-   * `aria-activedescendant`, and re-announcing the count would talk over the
-   * learner as they type. `polite` for the same reason.
+   * The announcement itself lives in `useFormulaSuggestionAnnouncement`, shared
+   * with `FxEditor` — the formula bar renders the same list and needs the same
+   * region, and the announce-once-on-appearance rule is subtle enough that two
+   * copies of it would drift. Its doc comment carries the reasoning.
    *
-   * It does not race `#sr-selection`. That region is an assertive alert tied
-   * to the selection changing, and the selection does not move during formula
-   * entry, so it is silent for exactly as long as this one has something to
-   * say.
+   * Gated on this editor holding focus, which is the same condition that gates
+   * the list below. `functionCandidates` is global with no record of which
+   * editor filled it, so without the gate this region would also speak for the
+   * formula bar's copy of the list and the count would be announced twice.
    */
   const idBase = useId();
   const candidateCount = context.functionCandidates.length;
-  const announcedCountRef = useRef(0);
-  const [suggestionAnnouncement, setSuggestionAnnouncement] = useState("");
-
-  useEffect(() => {
-    if (candidateCount === 0) {
-      announcedCountRef.current = 0;
-      setSuggestionAnnouncement("");
-      return;
-    }
-    // Only when the list was closed a moment ago -- the ref, not the count,
-    // is the "have I already spoken for this list" record, so a list that
-    // narrows from five entries to two stays quiet.
-    if (announcedCountRef.current === 0) {
-      announcedCountRef.current = candidateCount;
-      setSuggestionAnnouncement(
-        replaceHtml(info.formulaSuggestionsAvailable, {
-          count: candidateCount,
-        })
-      );
-    }
-  }, [candidateCount, info.formulaSuggestionsAvailable]);
+  const cellInputFocused = document.activeElement === inputRef.current;
+  const suggestionAnnouncement = useFormulaSuggestionAnnouncement(
+    context,
+    cellInputFocused
+  );
 
   /**
    * The current option, or nothing.

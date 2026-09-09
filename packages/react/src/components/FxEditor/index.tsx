@@ -36,6 +36,7 @@ import FormulaSearch from "../SheetOverlay/FormulaSearch";
 import FormulaHint from "../SheetOverlay/FormulaHint";
 import NameBox from "./NameBox";
 import usePrevious from "../../hooks/usePrevious";
+import { useFormulaSuggestionAnnouncement } from "../../hooks/useFormulaSuggestionAnnouncement";
 import { returnFocusToCell } from "../../utils/keyboardActivation";
 
 /**
@@ -77,6 +78,22 @@ const FxEditor: React.FC = () => {
    */
   const focusFromPointer = useRef(false);
   const { info } = locale(context);
+  /**
+   * The bar's own copy of the cell input's suggestion announcement.
+   *
+   * The bar renders the listbox, so without this the list appeared, was fully
+   * present in the accessibility tree, and nothing said so — the same WCAG
+   * 4.1.3 gap the cell input closes with `#sr-formulaSuggestions`, which has
+   * `InputBox` as its only reader.
+   *
+   * Gated on `focused`, the same condition that gates the list itself:
+   * `functionCandidates` is global, so an ungated region here would also speak
+   * for the *cell's* list and announce every count twice.
+   */
+  const suggestionAnnouncement = useFormulaSuggestionAnnouncement(
+    context,
+    focused
+  );
 
   useEffect(() => {
     // 当选中行列是处于隐藏状态的话则不允许编辑
@@ -596,6 +613,25 @@ const FxEditor: React.FC = () => {
             tabIndex={0}
             allowEdit={allowEdit}
           />
+          {/*
+            Outside the `focused` gate below, because a live region has to be in
+            the document *before* its text changes for the change to be
+            announced. The gating is in the announcement hook instead, so the
+            element is permanent and only its text comes and goes — the same
+            arrangement `InputBox` uses for `#sr-formulaSuggestions`.
+
+            Its id is derived from `suggestionsIdBase` rather than a literal:
+            `sr-formulaSuggestions` is hard-coded in `InputBox`, so a second
+            copy under a bare literal would put two identical ids in one
+            document.
+          */}
+          <div
+            id={`${suggestionsIdBase}sr-formula-suggestions`}
+            className="sr-only"
+            role="status"
+          >
+            {suggestionAnnouncement}
+          </div>
           {focused && (
             <>
               {/*
@@ -607,10 +643,14 @@ const FxEditor: React.FC = () => {
                 the `Enter` accept were both commented out long ago (see the
                 `Enter` case and the arrow block above) — so pointing at a
                 "current option" here would advertise a cursor the user cannot
-                move. It does have a pointer accept, which is the whole of
-                ticket 1 and needs no active-descendant to work: a click names
-                its own target. The listbox/option structure is correct to
-                expose either way, because the list is genuinely on screen.
+                move. It does have a pointer accept — which, since options now
+                answer `click` as well as `mousedown`, assistive technology can
+                reach — and a click names its own target, so it needs no
+                active-descendant to work. The listbox/option structure is
+                correct to expose either way, because the list is genuinely on
+                screen.
+
+                Its appearance *is* announced, by the status region above.
               */}
               <FormulaSearch
                 idBase={suggestionsIdBase}

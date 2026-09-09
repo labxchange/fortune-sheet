@@ -170,6 +170,111 @@ describe("formula suggestion list", () => {
     });
   });
 
+  // Assistive technology does not press a mouse. NVDA's Enter in browse mode,
+  // VoiceOver's VO-Space and a touch reader's double-tap all activate an
+  // element by performing its default action, which for a non-form element
+  // means dispatching a `click` and nothing else -- there is no `mousedown`
+  // anywhere in that sequence. With a mousedown-only handler the option was
+  // therefore inert to exactly the users this list was exposed for, and on the
+  // formula bar, whose arrow and Enter handling are commented out, the pointer
+  // accept is the whole of its operability.
+  describe("assistive-technology activation", () => {
+    it("accepts a suggestion on click, with no mousedown at all", () => {
+      const { cellInput } = setup();
+
+      // `option.click()` is what an AT activation produces.
+      act(() => {
+        options()[0].click();
+      });
+
+      expect(cellInput.innerText).toBe("=AVERAGE(");
+    });
+
+    it("accepts the entry that was activated, not the highlighted one", () => {
+      const { cellInput } = setup({ index: 0 });
+
+      act(() => {
+        options()[2].click();
+      });
+
+      expect(cellInput.innerText).toBe("=AVERAGEIF(");
+    });
+
+    it("accepts once for a synthesized mousedown+mouseup+click", () => {
+      const { cellInput } = setup();
+
+      // A directly-dispatched sequence -- `userEvent.click`, and some AT
+      // bridges -- delivers all three in one task with no render in between,
+      // so the list is still mounted and `accept` is reachable a second time.
+      // Without the latch the second call runs against an editor already
+      // holding `=AVERAGE(` and produces the double-bracket shape.
+      act(() => {
+        fireEvent.mouseDown(options()[0]);
+        fireEvent.mouseUp(options()[0]);
+        fireEvent.click(options()[0]);
+      });
+
+      expect(cellInput.innerText).toBe("=AVERAGE(");
+    });
+
+    it("fires exactly one input event for that sequence", () => {
+      setup();
+      let n = 0;
+      const onInput = () => {
+        n += 1;
+      };
+      document.addEventListener("input", onInput);
+      act(() => {
+        fireEvent.mouseDown(options()[0]);
+        fireEvent.mouseUp(options()[0]);
+        fireEvent.click(options()[0]);
+      });
+      document.removeEventListener("input", onInput);
+
+      // A host tracking the in-progress text would otherwise see the accept
+      // twice, and the simulations validate steps against exactly that.
+      expect(n).toBe(1);
+    });
+
+    it("accepts again once a new prefix repopulates the list", () => {
+      // The latch is per-list, not per-mount: `acceptFormulaSuggestion`
+      // reassigns `functionCandidates`, so the identity change resets it.
+      const { ctx, cellInput, rerender } = setup();
+
+      act(() => {
+        options()[0].click();
+      });
+      expect(cellInput.innerText).toBe("=AVERAGE(");
+
+      act(() => {
+        ctx.functionCandidates = [{ n: "SUM", d: "Adds" }] as any;
+        ctx.functionCandidatesIndex = 0;
+        rerender();
+      });
+      cellInput.innerHTML = functionHTMLGenerate("=SU");
+      act(() => {
+        options()[0].click();
+      });
+
+      expect(cellInput.innerText).toBe("=SUM(");
+    });
+
+    it("leaves the list unmounted after a real pointer press, so click cannot re-enter", () => {
+      const { ctx, rerender } = setup();
+
+      act(() => {
+        fireEvent.mouseDown(options()[0]);
+        rerender();
+      });
+
+      // This is why the two handlers cannot both fire on real pointer input:
+      // the accept clears the candidates, so the list is gone before the
+      // browser delivers the click.
+      expect(ctx.functionCandidates).toEqual([]);
+      expect(listbox()).toBeNull();
+    });
+  });
+
   // A host cannot see a programmatic edit. Typing fires `input`; writing
   // `innerHTML` fires nothing — so anything watching the editor through
   // `input` saw the learner type `=AV` and then apparently stop.

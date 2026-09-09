@@ -1,5 +1,5 @@
 import _ from "lodash";
-import React, { useCallback, useContext } from "react";
+import React, { useCallback, useContext, useEffect, useRef } from "react";
 import {
   acceptFormulaSuggestion,
   announceEditorInput,
@@ -66,11 +66,37 @@ const FormulaSearch: React.FC<FormulaSearchProps> = ({
   const candidates = context.functionCandidates;
   const activeIndex = context.functionCandidatesIndex;
 
+  /**
+   * One accept per list.
+   *
+   * The `!name` bail below already covers a second call once
+   * `functionCandidates` has been cleared, but only after a render has
+   * intervened -- a directly-dispatched pointer sequence
+   * (`mousedown`+`mouseup`+`click`, which is what `userEvent.click` and some AT
+   * bridges produce) arrives in one task with no render in between, and the
+   * second call would run against an editor whose text is already `=AVERAGE(`,
+   * producing the double-bracket shape `nextText` below exists to avoid --
+   * measured as `=AVERAGE((` with the latch removed.
+   *
+   * `acceptFormulaSuggestion` assigns `ctx.functionCandidates = []` inside the
+   * immer recipe, so the array identity always changes and this effect always
+   * resets the latch -- both when an accept empties the list and when a new
+   * prefix repopulates it.
+   */
+  const accepted = useRef(false);
+  useEffect(() => {
+    accepted.current = false;
+  }, [candidates]);
+
   const accept = useCallback(
     (index: number) => {
+      if (accepted.current) return;
       const name = candidates[index]?.n;
       const editor = editorRef.current;
       if (!name || editor == null) return;
+      // Latched only past the bails above, so a call that accepts nothing does
+      // not spend the one accept this list is allowed.
+      accepted.current = true;
 
       // Resolved out here, once. Inside the recipe React may re-derive it from
       // an editor the first invocation has already written to, which appends a
@@ -137,6 +163,20 @@ const FormulaSearch: React.FC<FormulaSearchProps> = ({
             e.preventDefault();
             accept(index);
           }}
+          // Assistive technology activates an element by dispatching a *click*
+          // and nothing else — a screen reader's "activate" (NVDA's Enter in
+          // browse mode, VoiceOver's VO-Space, a touch reader's double-tap)
+          // never produces a mousedown — so with the handler above alone this
+          // option is inert to the users the list was exposed for. That bites
+          // hardest on the formula bar, where the arrow and Enter handling are
+          // commented out and the pointer accept is the whole of its
+          // operability.
+          //
+          // A real pointer press cannot reach this twice: the accept above
+          // clears `functionCandidates`, so the list is unmounted before the
+          // click is delivered. The `accepted` latch covers the synthesized
+          // sequence, which arrives with no render in between.
+          onClick={() => accept(index)}
           // Hovering moves the highlight, so the entry a click accepts is
           // always the entry shown as current. Without it the pointer and the
           // arrow keys could disagree, and a click would accept whatever the
