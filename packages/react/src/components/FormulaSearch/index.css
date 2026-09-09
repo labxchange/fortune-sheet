@@ -63,3 +63,27 @@
   background-color: #8c89fe;
   color: #fff;
 }
+
+/* The options had no focus style of their own: they were clickable divs, so
+   focus landed on them with nothing to show for it. Inset, because
+   .formulaList is an overflow-y:scroll box and an outset ring on the first or
+   last option is clipped by it -- the same reason
+   .fortune-toolbar-select-option uses a negative offset. */
+.formulaList [role="option"]:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+  outline-offset: -3px;
+}
+
+/* 1.4.11. The shared ring is #0063c3 with no offset, which on the primary
+   button's own #0188fb fill is far under 3:1 -- and sitting flush against the
+   fill is the "insufficient spacing" half of the same report. Offsetting it
+   lifts the ring off the blue and onto the dialog's white surface, which
+   fixes the contrast and the spacing together.
+
+   Scoped to this dialog on purpose. The class has 10 more instances across
+   Dialog, SearchReplace and FormatSearch which this ticket did not audit, and
+   Toolbar/index.css takes exactly this scoped approach for the same reason. */
+#luckysheet-search-formula .fortune-message-box-button:focus-visible {
+  outline-offset: 2px;
+}

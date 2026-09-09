@@ -59,7 +59,7 @@ export function handleGlobalEnter(
     //   );
     // } else {
     const lastCellUpdate = _.clone(ctx.luckysheetCellUpdate);
-    updateCell(
+    const { refused } = updateCell(
       ctx,
       ctx.luckysheetCellUpdate[0],
       ctx.luckysheetCellUpdate[1],
@@ -67,15 +67,21 @@ export function handleGlobalEnter(
       undefined,
       canvas
     );
-    ctx.luckysheet_select_save = [
-      {
-        row: [lastCellUpdate[0], lastCellUpdate[0]],
-        column: [lastCellUpdate[1], lastCellUpdate[1]],
-        row_focus: lastCellUpdate[0],
-        column_focus: lastCellUpdate[1],
-      },
-    ];
-    moveHighlightCell(ctx, "down", 1, "rangeOfSelect");
+    // A refused write leaves the caret where it was, so the warning dialog
+    // appears over the cell it is about. Kept in exact parity with the Tab
+    // branch below -- the two commit paths agreeing is worth more than either
+    // one's shape.
+    if (!refused) {
+      ctx.luckysheet_select_save = [
+        {
+          row: [lastCellUpdate[0], lastCellUpdate[0]],
+          column: [lastCellUpdate[1], lastCellUpdate[1]],
+          row_focus: lastCellUpdate[0],
+          column_focus: lastCellUpdate[1],
+        },
+      ];
+      moveHighlightCell(ctx, "down", 1, "rangeOfSelect");
+    }
     // }
 
     // // 若有参数弹出框，隐藏
@@ -1197,7 +1203,7 @@ export function handleGlobalKeyDown(
     if (ctx.luckysheetCellUpdate.length > 0) {
       if (!allowEdit) return;
       const lastCellUpdate = _.clone(ctx.luckysheetCellUpdate);
-      updateCell(
+      const { refused } = updateCell(
         ctx,
         lastCellUpdate[0],
         lastCellUpdate[1],
@@ -1205,6 +1211,14 @@ export function handleGlobalKeyDown(
         undefined,
         canvas
       );
+      if (refused) {
+        // Same hold as the Enter branch. `preventDefault` still runs, so the
+        // browser does not advance focus past a cell the grid is keeping the
+        // caret on. Returning early is what skips the move below -- it sits
+        // outside this block because a Tab with nothing in edit still steps.
+        e.preventDefault();
+        return;
+      }
       ctx.luckysheet_select_save = [
         {
           row: [lastCellUpdate[0], lastCellUpdate[0]],

@@ -1,7 +1,9 @@
 import React, {
   CSSProperties,
+  useCallback,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   useContext,
@@ -15,6 +17,52 @@ import {
 } from "../../utils/keyboardActivation";
 import SVGIcon from "../SVGIcon";
 import WorkbookContext from "../../context";
+
+/**
+ * The one owner of "which dropdown is open" for a group of sibling `Combo`s.
+ *
+ * Each `Combo` used to hold a private `useState(false)`, so nothing knew another
+ * was open and opening a second could not close the first. `onMouseLeave` on
+ * some triggers hid that from mouse users, which is why the ticket reported it
+ * as a VoiceOver problem: take the pointer away and nothing closed anything.
+ *
+ * One owner rather than each dropdown closing the others through callbacks --
+ * that would be O(n^2) wiring across 16 instances, and every dropdown added
+ * later would have to remember to join in.
+ *
+ * A `Combo` rendered with no provider above it keeps its own local state, so it
+ * still works standalone.
+ */
+type ComboExclusivityValue = {
+  openId: string | null;
+  setOpenId: React.Dispatch<React.SetStateAction<string | null>>;
+};
+
+const ComboExclusivityContext =
+  React.createContext<ComboExclusivityValue | null>(null);
+
+/**
+ * For an owner that has to be held *above* the provider -- the toolbar keeps
+ * one so the "More" button can close any open dropdown before it opens the
+ * overflow popup, which it cannot do from inside its own JSX.
+ */
+export function useComboExclusivityOwner(): ComboExclusivityValue {
+  const [openId, setOpenId] = useState<string | null>(null);
+  return useMemo(() => ({ openId, setOpenId }), [openId]);
+}
+
+export const ComboExclusivity: React.FC<{
+  /** Omit to let this provider own the state itself. */
+  value?: ComboExclusivityValue;
+  children?: React.ReactNode;
+}> = ({ value, children }) => {
+  const owned = useComboExclusivityOwner();
+  return (
+    <ComboExclusivityContext.Provider value={value ?? owned}>
+      {children}
+    </ComboExclusivityContext.Provider>
+  );
+};
 
 type Props = {
   tooltip: string;
@@ -58,11 +106,33 @@ const Combo: React.FC<Props> = ({
 }) => {
   const { context } = useContext(WorkbookContext);
   const style: CSSProperties = { userSelect: "none" };
-  const [open, setOpen] = useState(false);
   const [popupPosition, setPopupPosition] = useState({ left: 0 });
   const popupRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
   const popupId = useId();
+  // `popupId` doubles as this instance's identity in the shared owner -- it is
+  // already stable per instance, so a second `useId` would be redundant.
+  const exclusivity = useContext(ComboExclusivityContext);
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = exclusivity ? exclusivity.openId === popupId : localOpen;
+  const setOpen = useCallback<React.Dispatch<React.SetStateAction<boolean>>>(
+    (next) => {
+      if (!exclusivity) {
+        setLocalOpen(next);
+        return;
+      }
+      exclusivity.setOpenId((prevId) => {
+        const wasOpen = prevId === popupId;
+        const wantOpen = typeof next === "function" ? next(wasOpen) : next;
+        if (wantOpen) return popupId;
+        // Only ever clear our own id. `useOutsideClick` and the escape hook
+        // both close unconditionally, so a closed Combo must not be able to
+        // shut whichever one is actually open.
+        return wasOpen ? null : prevId;
+      });
+    },
+    [exclusivity, popupId]
+  );
   const { info } = locale(context);
   /** Without an onClick, the main button is itself the popup's toggle. */
   const ownsPopup = !onClick;
@@ -137,7 +207,16 @@ const Combo: React.FC<Props> = ({
 
   return (
     <div className="fortune-toobar-combo-container fortune-toolbar-item">
-      <div ref={buttonRef} className="fortune-toolbar-combo">
+      {/* `data-single-control` marks the case where the caret is decoration
+          rather than a control of its own, so the stylesheet knows the focus
+          ring belongs on this box (which contains both) instead of on the
+          button alone. With an onClick the two genuinely differ and each keeps
+          its own ring. */}
+      <div
+        ref={buttonRef}
+        className="fortune-toolbar-combo"
+        data-single-control={ownsPopup ? "" : undefined}
+      >
         <div
           className="fortune-toolbar-combo-button"
           {...(ownsPopup

@@ -41,6 +41,58 @@ describe("Region focus", () => {
       ).toBe(true);
     });
 
+    // Chrome grants :focus-visible by last input modality, so a programmatic
+    // .focus() after a MOUSE interaction does not match it and the ring does
+    // not paint -- while the same call after a keyboard interaction does. A
+    // region jump is explicit keyboard intent, so focusRegion marks the target
+    // and the stylesheet matches [data-focus-visible] alongside
+    // :focus-visible.
+    //
+    // jsdom has no modality tracking and no :focus-visible, so what is
+    // asserted here is the marker, which is the part this code owns. Whether
+    // the ring actually paints is a browser check.
+    it("marks the toolbar target so its focus ring is forced visible", () => {
+      const ref = React.createRef<WorkbookInstance>();
+      render(<Workbook ref={ref} data={[{ name: "Sheet1" }]} />);
+
+      ref.current!.focusToolbar();
+
+      expect(
+        (document.activeElement as HTMLElement).hasAttribute(
+          "data-focus-visible"
+        )
+      ).toBe(true);
+    });
+
+    // Paired with the test above so it cannot pass against a marker that is
+    // simply never removed -- a permanent attribute would paint a ring on a
+    // control the user has long since left.
+    it("drops the forced-visible marker when focus leaves", () => {
+      const ref = React.createRef<WorkbookInstance>();
+      render(<Workbook ref={ref} data={[{ name: "Sheet1" }]} />);
+
+      ref.current!.focusToolbar();
+      const target = document.activeElement as HTMLElement;
+      target.blur();
+
+      expect(target.hasAttribute("data-focus-visible")).toBe(false);
+    });
+
+    // The same helper serves the sheet tabs, so the fix reaches them too.
+    // Stated as a test rather than left as a surprise for a reviewer.
+    it("marks the sheet-tab target the same way", () => {
+      const ref = React.createRef<WorkbookInstance>();
+      render(<Workbook ref={ref} data={[{ name: "Sheet1" }]} />);
+
+      ref.current!.focusSheetTabs();
+
+      expect(
+        (document.activeElement as HTMLElement).hasAttribute(
+          "data-focus-visible"
+        )
+      ).toBe(true);
+    });
+
     it("enters the sheet tab bar on the active tab", () => {
       const ref = React.createRef<WorkbookInstance>();
       const { container } = render(

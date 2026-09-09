@@ -59,9 +59,46 @@
 
 .fortune-toolbar-button:focus-visible,
 .fortune-toolbar-combo-button:focus-visible,
-.fortune-toolbar-combo-arrow:focus-visible {
+.fortune-toolbar-combo-arrow:focus-visible,
+/* `[data-focus-visible]` is set by `focusRegion` (Workbook/api.ts) when the
+   region shortcut moves focus here programmatically. The browser withholds
+   :focus-visible from a programmatic focus that follows a mouse interaction,
+   so without this the shortcut moved focus invisibly. */
+.fortune-toolbar-button[data-focus-visible],
+.fortune-toolbar-combo-button[data-focus-visible],
+.fortune-toolbar-combo-arrow[data-focus-visible] {
   outline: var(--border_focus_outer, 3px) solid
     var(--color_border_focus_outer, #0063c3);
+}
+
+/* The caret is a SIBLING of the focusable button, both inside
+   .fortune-toolbar-combo -- so a ring drawn on the button alone stops short of
+   the caret. Where the caret is decoration (the button owns the popup, the
+   caret is aria-hidden with no tab stop), the two are one control and the ring
+   must enclose both, which means drawing it on the box that contains them.
+
+   Deliberately in its own rule rather than added to the list above: a browser
+   without :has() support drops these two rules whole and keeps the button's
+   own ring, so the fallback is today's behaviour rather than no ring at all. */
+.fortune-toolbar-combo[data-single-control]:has(
+    > .fortune-toolbar-combo-button:focus-visible
+  ),
+.fortune-toolbar-combo[data-single-control]:has(
+    > .fortune-toolbar-combo-button[data-focus-visible]
+  ) {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+}
+
+.fortune-toolbar-combo[data-single-control]:has(
+    > .fortune-toolbar-combo-button:focus-visible
+  )
+  > .fortune-toolbar-combo-button,
+.fortune-toolbar-combo[data-single-control]:has(
+    > .fortune-toolbar-combo-button[data-focus-visible]
+  )
+  > .fortune-toolbar-combo-button {
+  outline: none;
 }
 
 .fortune-toolbar-button:hover,

@@ -66,7 +66,29 @@ export function generateAPIs(
     // browser refuses to focus anything inside a display:none / inert subtree
     // and leaves activeElement alone; an embedder that trusts a bare true
     // swallows the keystroke and denies this workbook its own chance at it.
-    return document.activeElement === target;
+    const landed = document.activeElement === target;
+    // Force the focus ring on, because the browser will not.
+    //
+    // Chrome grants `:focus-visible` by last input modality, so a programmatic
+    // `.focus()` after a MOUSE interaction does not match it and no ring
+    // paints -- while the same call after a keyboard interaction does. That
+    // asymmetry is the reported defect: reach a cell by mouse, press the
+    // region shortcut, and focus moves invisibly.
+    //
+    // A region jump is explicit keyboard intent, so it must paint either way.
+    // Marking the target and having the CSS match `[data-focus-visible]`
+    // alongside `:focus-visible` does that without restyling onto bare
+    // `:focus`, which would put a ring on every mouse click on a toolbar
+    // control -- a visible regression, and the reason `:focus-visible` exists.
+    if (landed && !target.hasAttribute("data-focus-visible")) {
+      target.setAttribute("data-focus-visible", "");
+      target.addEventListener(
+        "blur",
+        () => target.removeAttribute("data-focus-visible"),
+        { once: true }
+      );
+    }
+    return landed;
   };
 
   return {
