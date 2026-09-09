@@ -399,6 +399,13 @@ describe("keyboard shortcuts", () => {
       "contextMenu",
       "rowContextMenu",
       "columnContextMenu",
+      // packages/react/test — formulaSuggestionsA11y (arrow navigation, both
+      // directions and both wraps; accept by click), tabInEditMode (accept by
+      // Enter and by Tab, and the case where Tab is left to the grid instead).
+      // Exercised there rather than here because both keys only mean this
+      // while a suggestion list is open, which is react-layer state.
+      "moveBetweenFormulaSuggestions",
+      "acceptFormulaSuggestion",
     ];
 
     test("every documented row is exercised, and vice versa", () => {

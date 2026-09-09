@@ -196,6 +196,18 @@ export type Context = {
   } & Rect)[];
   formulaRangeSelect: ({ rangeIndex: number } & Rect) | undefined;
   functionCandidates: any[];
+  // Which entry of `functionCandidates` is highlighted, and so which one Enter,
+  // Tab or a click accepts.
+  //
+  // This is state rather than a DOM class because it has three writers -- the
+  // arrow keys in InputBox, the same keys duplicated in FxEditor, and the
+  // pointer -- and two readers that must never disagree: the rendered highlight
+  // and `aria-activedescendant`. It used to live only as a class that the arrow
+  // handlers added and removed by hand, while FormulaSearch re-asserted
+  // `index === 0` on every render, so any re-render silently moved the
+  // learner's position back to the first entry and there was nothing a screen
+  // reader could be pointed at.
+  functionCandidatesIndex: number;
   functionHint: string | null | undefined;
 
   luckysheet_copy_save?: {
@@ -509,6 +521,7 @@ export function defaultContext(refs: RefValues): Context {
     formulaRangeHighlight: [],
     formulaRangeSelect: undefined,
     functionCandidates: [],
+    functionCandidatesIndex: 0,
     functionHint: null,
 
     luckysheet_copy_save: undefined, // 复制粘贴

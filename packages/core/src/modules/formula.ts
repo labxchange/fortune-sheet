@@ -1607,7 +1607,13 @@ export function setCaretPosition(
     el.focus();
   } catch (err) {
     console.error(err);
-    moveToEnd(ctx.formulaCache.rangeResizeTo[0]);
+    // Guarded, because this is the recovery path and it must not be the thing
+    // that throws: `rangeResizeTo` is only populated once a formula range has
+    // been interacted with, so on any earlier failure this dereferenced
+    // `undefined` and replaced a caret that could not be placed -- recoverable
+    // -- with a crash that also swallowed the original error above.
+    const fallback = ctx.formulaCache.rangeResizeTo?.[0];
+    if (fallback) moveToEnd(fallback);
   }
 }
 
@@ -1663,18 +1669,32 @@ function searchFunction(ctx: Context, searchtxt: string) {
   const t: typeof functionlist = [];
   let result_i = 0;
 
+  // `push`, not `unshift`. `functionlist` is in ascending name order, so
+  // unshifting reversed each bucket and put the *longest* match first --
+  // and the first entry is the one Enter, Tab or a click accepts. Typing
+  // "=AVER" offered AVERAGEIFS, AVERAGEIF, AVERAGEA, AVERAGE and accepted
+  // AVERAGEIFS, which inserts and evaluates perfectly well while being the
+  // wrong function: a step checking for `=AVERAGE(B2:B13)` could then only be
+  // satisfied by typing the whole name out, because only an exact match
+  // reaches the `f` bucket ahead of it. That is the reported defect -- the
+  // suggestion was accepted correctly, it was simply the wrong suggestion.
+  //
+  // Ordering within a bucket is left as `functionlist`'s own; this restores it
+  // rather than imposing a new one. Note the shortest prefix match still wins
+  // over the likeliest ("=AV" offers AVEDEV before AVERAGE) -- ranking by
+  // relevance the way Google Sheets does is a separate change.
   for (let i = 0; i < functionlist.length; i += 1) {
     const item = functionlist[i];
     const { n } = item;
 
     if (n === searchtxt) {
-      f.unshift(item);
+      f.push(item);
       result_i += 1;
     } else if (_.startsWith(n, searchtxt)) {
-      s.unshift(item);
+      s.push(item);
       result_i += 1;
     } else if (n.indexOf(searchtxt) > -1) {
-      t.unshift(item);
+      t.push(item);
       result_i += 1;
     }
 
@@ -1684,11 +1704,15 @@ function searchFunction(ctx: Context, searchtxt: string) {
   }
 
   const list = [...f, ...s, ...t];
-  if (list.length <= 0) {
-    return;
-  }
 
+  // Assigned unconditionally, including the empty case. Returning early on no
+  // match left the *previous* list in `ctx`, so narrowing a search until
+  // nothing matched kept a dropdown of stale entries open and acceptable. That
+  // was survivable while the list was only painted; it is not once the list is
+  // announced and exposed as options, because the count and the options would
+  // then describe entries that no longer match what was typed.
   ctx.functionCandidates = list;
+  ctx.functionCandidatesIndex = 0;
 
   // const listHTML = _this.searchFunctionHTML(list);
   // $("#luckysheet-formula-search-c").html(listHTML).show();
@@ -1901,6 +1925,7 @@ export function rangeHightlightselected(ctx: Context, $editor: HTMLDivElement) {
     const funcName = helpFunctionExe($editor, currSelection, ctx);
     ctx.functionHint = funcName?.toUpperCase();
     ctx.functionCandidates = [];
+    ctx.functionCandidatesIndex = 0;
   }
   // return;
   // }
@@ -2258,6 +2283,123 @@ export function handleFormulaInput(
       $copyTo.innerHTML = escapeHTMLTag(value);
     }
   }
+}
+
+/**
+ * The formula text that accepting `functionName` produces.
+ *
+ * Pure, and separate from `acceptFormulaSuggestion`, so that the caller can
+ * compute it *once* -- see that function's note on idempotence for why that
+ * matters.
+ *
+ * The identifier is matched at the end of the string, so a function name later
+ * in a formula (`=1+AV`) replaces only that name, and a formula with no
+ * trailing identifier is appended to rather than corrupted.
+ */
+export function formulaTextAfterAccept(
+  currentText: string,
+  functionName: string
+) {
+  return `${currentText.replace(/[A-Za-z_][A-Za-z0-9_.]*$/, functionName)}(`;
+}
+
+/**
+ * Accept a formula suggestion into the cell editor.
+ *
+ * The one path all three accept routes share -- Enter, Tab and a click on the
+ * list. Keeping it single is the point: the routes previously agreed only by
+ * coincidence, and the pointer had no route at all.
+ *
+ * **Idempotent, and it has to be.** Both callers run this inside a `setContext`
+ * recipe, which is a React state updater -- and React may invoke an updater
+ * more than once for a single event. That is why `nextText` is a parameter
+ * rather than derived from `$editor.innerText` in here: deriving it internally
+ * made a second invocation read the text the first one had just written, find
+ * no trailing identifier to replace, and append a second bracket, so a single
+ * click produced `=AVERAGEIF((`. Everything this function does now is a write
+ * of a value computed outside it, so running it twice is indistinguishable
+ * from running it once.
+ *
+ * It works on text and re-derives the editor's markup from it with
+ * `functionHTMLGenerate` -- the same generator every keystroke goes through --
+ * rather than splicing nodes into the editor itself. The previous
+ * implementation deleted the typed identifier with
+ * `Range.deleteContents()` and inserted `DOMParser`-built spans at a hardcoded
+ * child offset. That produced the right *text* -- so the formula committed
+ * correctly, and this is deliberately not the fix for step completion, which
+ * was a candidate-ordering defect in `searchFunction` -- but it left the
+ * editor's markup nested rather than flat, left a stray empty text node
+ * behind, and never told the formula bar anything, so the bar still showed the
+ * fragment the learner had typed while the cell showed the accepted function.
+ * Deriving the markup from text fixes all three at once, and puts the inserted
+ * text behind the same `escapeScriptTag` sanitisation as typing instead of
+ * bypassing it via `DOMParser`.
+ */
+export function acceptFormulaSuggestion(
+  ctx: Context,
+  $copyTo: HTMLDivElement | null | undefined,
+  $editor: HTMLDivElement,
+  functionName: string,
+  nextText: string
+) {
+  // The same tokenised markup `handleFormulaInput` would derive from this text,
+  // and the same mirror into the formula bar. Written directly rather than by
+  // calling `handleFormulaInput`, for one reason: its caret restore
+  // (`functionRange` -> `findrangeindex`) diffs the new markup against the old
+  // to keep a *typing* caret where the typist left it. That diff assumes one
+  // character changed. Handed a whole identifier replaced at once it resolves
+  // to a span index that does not exist, and `setCaretPosition` throws into its
+  // own catch -- which then reads `ctx.formulaCache.rangeResizeTo[0]`, throwing
+  // again. An accept does not need the diff at all: the caret always belongs
+  // after the bracket just opened, which `moveToEnd` says outright.
+  const html = functionHTMLGenerate(escapeScriptTag(nextText));
+  $editor.innerHTML = html;
+  if ($copyTo) $copyTo.innerHTML = html;
+
+  moveToEnd($editor);
+
+  // The rest of `handleFormulaInput`'s formula branch: rebuild the coloured
+  // range highlighting for the new text, so an accepted `=AVERAGE(` behaves
+  // like a typed one when the learner goes on to pick a range.
+  cancelFunctionrangeSelected(ctx);
+  createRangeHightlight(ctx, html);
+  ctx.formulaCache.rangestart = false;
+  ctx.formulaCache.rangedrag_column_start = false;
+  ctx.formulaCache.rangedrag_row_start = false;
+  rangeHightlightselected(ctx, $editor);
+
+  // After `rangeHightlightselected`, because it re-reads the caret and would
+  // otherwise re-open a list for whatever it finds there. The hint is set from
+  // the name actually accepted rather than left to that re-read.
+  ctx.functionCandidates = [];
+  ctx.functionCandidatesIndex = 0;
+  ctx.functionHint = functionName.toUpperCase();
+}
+
+/**
+ * Tell the outside world that the editor's text changed.
+ *
+ * Typing produces an `input` event and an accept does not: the accept writes
+ * `innerHTML` directly, and a programmatic mutation fires nothing. Anything
+ * watching the editor through `input` therefore saw a learner type `=AV` and
+ * then, as far as it could tell, stop -- the accepted function never existed.
+ *
+ * That is not a hypothetical. The spreadsheet simulations track the
+ * *in-progress* cell text (a `live` value read from the formula bar, refreshed
+ * on `document` `input`), and validate steps against it: "type AVERAGE" is
+ * checked as `live === "=AVERAGE"`. With no event, `live` was never refreshed
+ * on an accept, so no such step could pass however the learner reached it --
+ * the whole of the reported defect on the keyboard route.
+ *
+ * Callers must suppress the workbook's own handling of this event before
+ * dispatching it; see the guard in `InputBox`'s `onChange`. Enter and Tab are
+ * already filtered out by that handler's key gate, but a pointer accept
+ * carries whatever keydown came last, which would re-enter
+ * `handleFormulaInput` with a stale `preText` -- the multi-character diff its
+ * caret restore cannot survive.
+ */
+export function announceEditorInput($editor: HTMLDivElement) {
+  $editor.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 function isfreezonFuc(txt: string) {

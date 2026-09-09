@@ -12955,6 +12955,22 @@ export default {
     tipRowHeightLimit: "Высота строки должна быть от 0 до 545",
     tipColumnWidthLimit: "Ширина столбца должна быть от 0 до 2038",
     pageInfoFull: "Всего ${total}, ${totalPage} страниц, все данные отображены",
+    // The formula suggestion list. `formulaSuggestions` names the list itself;
+    // `formulaSuggestionsAvailable` announces that it has appeared, which
+    // nothing else conveys -- the list opens while the learner types, with no
+    // focus change and no selection change, so a screen-reader user was given
+    // no indication it existed (WCAG 4.1.3). The count is included because
+    // knowing how many entries there are is what makes the list worth
+    // navigating; movement between entries is then carried by
+    // `aria-activedescendant` and needs no message of its own.
+    //
+    // The count goes LAST, after a colon. These files carry no plural
+    // machinery, so a count interpolated into a fixed plural announces
+    // "1 formula suggestions available." for every prefix matching exactly one
+    // function -- `=AVEDEV`, `=SUMIFS` and plenty more. Putting the number at
+    // the end sidesteps agreement in every locale here rather than in one.
+    formulaSuggestions: "Предложения формул",
+    formulaSuggestionsAvailable: "Доступно предложений формул: ${count}.",
     // Toolbar action feedback. A toolbar button changes the sheet without
     // moving the selection, so nothing else reaches a live region: the result
     // is conveyed purely by the canvas repainting, which a screen-reader user
@@ -13165,6 +13181,8 @@ export default {
       zoomReset: "Сбросить масштаб",
       cancelOrExitMode:
         "Отменить редактирование ячейки или выйти из режима выделения",
+      moveBetweenFormulaSuggestions: "Переход между предложениями формул",
+      acceptFormulaSuggestion: "Вставить выделенное предложение формулы",
     },
   },
   currencyDetail: [

@@ -15,12 +15,15 @@ import {
   israngeseleciton,
   escapeHTMLTag,
   isAllowEdit,
-  getrangeseleciton,
   locale,
+  acceptFormulaSuggestion,
+  announceEditorInput,
+  formulaTextAfterAccept,
 } from "@fortune-sheet/core";
 import React, {
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useCallback,
@@ -30,11 +33,15 @@ import React, {
 import _ from "lodash";
 import WorkbookContext from "../../context";
 import ContentEditable from "./ContentEditable";
-import FormulaSearch from "./FormulaSearch";
+import FormulaSearch, {
+  formulaSuggestionOptionId,
+  formulaSuggestionsListboxId,
+} from "./FormulaSearch";
 import FormulaHint from "./FormulaHint";
 import usePrevious from "../../hooks/usePrevious";
 import useFocusedCellRefText from "../../hooks/useFocusedCellRefText";
 import { useFocusedCellFormulaAnnouncement } from "../../hooks/useFocusedCellFormulaAnnouncement";
+import { useFormulaSuggestionAnnouncement } from "../../hooks/useFormulaSuggestionAnnouncement";
 
 const InputBox: React.FC = () => {
   const { context, setContext, refs } = useContext(WorkbookContext);
@@ -114,7 +121,12 @@ const InputBox: React.FC = () => {
       refs.globalCache.ignoreWriteCell = false;
       if (!refs.globalCache.doNotFocus) {
         setTimeout(() => {
-          moveToEnd(inputRef.current!);
+          // Guarded: this fires a tick later, by which time the editor may be
+          // gone. `moveToEnd` dereferences it immediately, so an unmount inside
+          // that window threw `Cannot read properties of null`. Pre-existing,
+          // and only ever reachable on a fast unmount -- which is why it
+          // surfaced first from a test that awaited between the two.
+          if (inputRef.current) moveToEnd(inputRef.current);
         });
       }
       delete refs.globalCache.doNotFocus;
@@ -141,98 +153,88 @@ const InputBox: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context.luckysheet_select_save]);
 
-  const getActiveFormula = useCallback(
-    () => document.querySelector(".luckysheet-formula-search-item-active"),
-    []
+  // Move the highlight, wrapping at both ends. Wrapping is preserved from the
+  // DOM-walking version this replaces, which fell back to the last child when
+  // there was no previous sibling and to the first when there was no next.
+  const moveSuggestion = useCallback(
+    (delta: number) => {
+      setContext((draftCtx) => {
+        const count = draftCtx.functionCandidates.length;
+        if (count === 0) return;
+        draftCtx.functionCandidatesIndex =
+          (draftCtx.functionCandidatesIndex + delta + count) % count;
+      });
+    },
+    [setContext]
   );
 
-  const clearSearchItemActiveClass = useCallback(() => {
-    const activeFormula = getActiveFormula();
-    if (activeFormula) {
-      activeFormula.classList.remove("luckysheet-formula-search-item-active");
-    }
-  }, [getActiveFormula]);
-
-  // Calls preventDefault/stopPropagation itself, and only when there is an
-  // active suggestion whose function-name node is present -- the only case
-  // this does anything. A caller that instead gated its own
-  // preventDefault/stopPropagation on getActiveFormula() alone would drift
-  // from this: an active item without that child looks active to
-  // getActiveFormula() while this quietly does nothing, so such a caller
-  // would swallow the key with no effect -- the dead-Tab-in-edit-mode bug
-  // this hunk exists to fix, reached by a narrower route. A caller should
-  // therefore just call this and let it decide, rather than re-deriving
-  // "is there a real suggestion open" itself.
+  // Calls preventDefault/stopPropagation itself, and only when there really is
+  // a suggestion to accept -- the only case this does anything. The decision
+  // and the consumption have to stay in that order, and in this one place: a
+  // caller that instead consumed the key on its own reading of "is a list
+  // showing" would drift from this and swallow the key with no effect, which
+  // is the dead-Tab-in-edit-mode bug this hunk exists to fix. So the name is
+  // resolved *before* anything is consumed, and a list that is open but whose
+  // highlighted entry has no name leaves the key to the grid.
+  //
+  // Resolved from `context`, not from the `setContext` draft, for exactly that
+  // reason -- the answer has to be known out here, where the decision to
+  // consume is made, rather than inside a producer that has already run.
+  //
+  // The insertion is `acceptFormulaSuggestion`, shared with the pointer route
+  // in FormulaSearch, rather than the Range surgery that used to live here.
+  // That version read the text to replace from `getrangeseleciton()`, which
+  // returns a *node*, and inserted DOMParser-built spans at a hardcoded child
+  // offset that addressed the span `deleteContents()` had just emptied. It
+  // produced correct text -- so it was never the cause of a step failing to
+  // complete, which was candidate ordering in `searchFunction` -- but it left
+  // the markup nested, stranded an empty text node, and never updated the
+  // formula bar.
   const selectActiveFormula = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
-      const activeFormula = getActiveFormula();
-      const formulaNameDiv = activeFormula?.querySelector(
-        ".luckysheet-formula-search-func"
-      );
-      if (formulaNameDiv) {
-        const formulaName = formulaNameDiv.textContent;
-        const textEditor = document.getElementById(
-          "luckysheet-rich-text-editor"
+      const name =
+        context.functionCandidates[context.functionCandidatesIndex]?.n;
+      const editor = inputRef.current;
+      if (!name || editor == null) return;
+
+      // Read the editor and resolve the new text out here, once. Inside the
+      // recipe it would be re-derived on every invocation React makes of it,
+      // and the second pass would append a second bracket.
+      const nextText = formulaTextAfterAccept(editor.innerText, name);
+      setContext((draftCtx) => {
+        acceptFormulaSuggestion(
+          draftCtx,
+          refs.fxInput.current,
+          editor,
+          name,
+          nextText
         );
-        if (textEditor) {
-          // text for which suggestions have been listed
-          const searchTxt = getrangeseleciton()?.textContent || "";
-          const deleteCount = searchTxt.length;
-          textEditor.focus();
-
-          const selection = window.getSelection();
-          // A caller with no live Selection/Range still gets a consumed key
-          // below -- this only decides whether there is text to replace, not
-          // whether the suggestion itself is accepted.
-          if (selection && selection.rangeCount !== 0) {
-            const range = selection.getRangeAt(0);
-            if (deleteCount !== 0) {
-              const startOffset = Math.max(range.startOffset - deleteCount, 0);
-              const endOffset = range.startOffset;
-
-              // remove searchTxt
-              range.setStart(range.startContainer, startOffset);
-              range.setEnd(range.startContainer, endOffset);
-              range.deleteContents();
-            }
-
-            const functionStr = `<span dir="auto" class="luckysheet-formula-text-func">${formulaName}</span>`;
-            const lParStr = `<span dir="auto" class="luckysheet-formula-text-lpar">(</span>`;
-
-            const functionNode = new DOMParser().parseFromString(
-              functionStr,
-              "text/html"
-            ).body.childNodes[0];
-
-            const lParNode = new DOMParser().parseFromString(
-              lParStr,
-              "text/html"
-            ).body.childNodes[0];
-
-            if (range.startContainer.parentNode) {
-              range.setStart(range.startContainer.parentNode, 1);
-            }
-
-            range.insertNode(lParNode);
-            range.insertNode(functionNode);
-
-            // move the cursor to the end of the inserted text node
-            range.collapse();
-            selection.removeAllRanges();
-            selection.addRange(range);
-
-            setContext((draftCtx) => {
-              // clear functionCandidates and set functionHint
-              draftCtx.functionCandidates = [];
-              draftCtx.functionHint = formulaName;
-            });
-          }
-        }
-        e.preventDefault();
-        e.stopPropagation();
-      }
+      });
+      // After the edit, so a host reading the editor from the event sees the
+      // accepted text rather than the fragment it replaced.
+      //
+      // Cleared here rather than by the handler that reads it: `dispatchEvent`
+      // is synchronous, so `onChange` has already run by the time this line
+      // does. Clearing at the dispatch site makes the flag's lifetime exactly
+      // the dispatch, whether or not anything consumed it -- rather than
+      // resting on `ContentEditable` always calling `onChange`, which it skips
+      // when the markup is unchanged. An accept cannot currently produce
+      // unchanged markup (the appended bracket guarantees a difference), so
+      // this is belt-and-braces; the cost of being wrong is a swallowed
+      // keystroke, which is worth not having to re-derive.
+      refs.globalCache.ignoreNextInput = true;
+      announceEditorInput(editor);
+      delete refs.globalCache.ignoreNextInput;
+      e.preventDefault();
+      e.stopPropagation();
     },
-    [getActiveFormula, setContext]
+    [
+      context.functionCandidates,
+      context.functionCandidatesIndex,
+      refs.fxInput,
+      refs.globalCache,
+      setContext,
+    ]
   );
 
   const onKeyDown = useCallback(
@@ -272,10 +274,10 @@ const InputBox: React.FC = () => {
         // moving focus while core's Tab branch bailed on the edit -- so the key
         // did nothing at all. Calling `selectActiveFormula` and leaving the
         // decision to it -- rather than re-deriving "is there a real
-        // suggestion open" from `getActiveFormula()` here too -- is what keeps
-        // this branch from being able to drift from it: `selectActiveFormula`
-        // itself decides whether Tab was actually consumed, and its own
-        // preventDefault/stopPropagation only fire when it was.
+        // suggestion open" here too -- is what keeps this branch from being
+        // able to drift from it: `selectActiveFormula` itself decides whether
+        // Tab was actually consumed, and its own preventDefault/stopPropagation
+        // only fire when it was.
         selectActiveFormula(e);
       } else if (e.key === "F4" && context.luckysheetCellUpdate.length > 0) {
         // formula.setfreezonFuc(event);
@@ -284,51 +286,13 @@ const InputBox: React.FC = () => {
         e.key === "ArrowUp" &&
         context.luckysheetCellUpdate.length > 0
       ) {
-        if (document.getElementById("luckysheet-formula-search-c")) {
-          const formulaSearchContainer = document.getElementById(
-            "luckysheet-formula-search-c"
-          );
-          const activeItem = formulaSearchContainer?.querySelector(
-            ".luckysheet-formula-search-item-active"
-          );
-          let previousItem = activeItem
-            ? activeItem.previousElementSibling
-            : null;
-          if (!previousItem) {
-            previousItem =
-              formulaSearchContainer?.querySelector(
-                ".luckysheet-formula-search-item:last-child"
-              ) || null;
-          }
-          clearSearchItemActiveClass();
-          if (previousItem) {
-            previousItem.classList.add("luckysheet-formula-search-item-active");
-          }
-        }
+        moveSuggestion(-1);
         e.preventDefault();
       } else if (
         e.key === "ArrowDown" &&
         context.luckysheetCellUpdate.length > 0
       ) {
-        if (document.getElementById("luckysheet-formula-search-c")) {
-          const formulaSearchContainer = document.getElementById(
-            "luckysheet-formula-search-c"
-          );
-          const activeItem = formulaSearchContainer?.querySelector(
-            ".luckysheet-formula-search-item-active"
-          );
-          let nextItem = activeItem ? activeItem.nextElementSibling : null;
-          if (!nextItem) {
-            nextItem =
-              formulaSearchContainer?.querySelector(
-                ".luckysheet-formula-search-item:first-child"
-              ) || null;
-          }
-          clearSearchItemActiveClass();
-          if (nextItem) {
-            nextItem.classList.add("luckysheet-formula-search-item-active");
-          }
-        }
+        moveSuggestion(1);
         e.preventDefault();
       }
       // else if (
@@ -344,8 +308,8 @@ const InputBox: React.FC = () => {
       // }
     },
     [
-      clearSearchItemActiveClass,
       context.luckysheetCellUpdate.length,
+      moveSuggestion,
       selectActiveFormula,
       setContext,
     ]
@@ -353,6 +317,17 @@ const InputBox: React.FC = () => {
 
   const onChange = useCallback(
     (__: any, isBlur?: boolean) => {
+      // The `input` event an accept dispatches for the host's benefit is not a
+      // keystroke, and must not be processed as one: `handleFormulaInput` would
+      // run against `preText.current` from whatever keydown came last, and its
+      // caret restore cannot survive a whole identifier changing at once. The
+      // accept has already produced the final markup, the formula bar mirror
+      // and the range highlighting itself.
+      //
+      // Enter and Tab are filtered by the key gate below in any case (both are
+      // `kcode <= 46`); this is what covers the pointer accept, which carries
+      // the last typed character's code and would otherwise pass it.
+      if (refs.globalCache.ignoreNextInput) return;
       // setInputHTML(html);
       const e = lastKeyDownEventRef.current;
       if (!e) return;
@@ -431,6 +406,45 @@ const InputBox: React.FC = () => {
   const editing = context.luckysheetCellUpdate.length > 0;
   const { info } = locale(context);
   const formulaAnnouncement = useFocusedCellFormulaAnnouncement(context, info);
+
+  /**
+   * The suggestion list's screen-reader story.
+   *
+   * `idBase` is a `useId()` value rather than the fixed `luckysheet-*` id the
+   * list used to carry, because the simulations mount one `Workbook` per
+   * notebook section: a fixed id puts duplicates in the document and lets
+   * `aria-activedescendant` resolve into another sheet's list.
+   *
+   * The announcement itself lives in `useFormulaSuggestionAnnouncement`, shared
+   * with `FxEditor` — the formula bar renders the same list and needs the same
+   * region, and the announce-once-on-appearance rule is subtle enough that two
+   * copies of it would drift. Its doc comment carries the reasoning.
+   *
+   * Gated on this editor holding focus, which is the same condition that gates
+   * the list below. `functionCandidates` is global with no record of which
+   * editor filled it, so without the gate this region would also speak for the
+   * formula bar's copy of the list and the count would be announced twice.
+   */
+  const idBase = useId();
+  const candidateCount = context.functionCandidates.length;
+  const cellInputFocused = document.activeElement === inputRef.current;
+  const suggestionAnnouncement = useFormulaSuggestionAnnouncement(
+    context,
+    cellInputFocused
+  );
+
+  /**
+   * The current option, or nothing.
+   *
+   * Removed rather than left pointing at a stale id when the list closes: an
+   * `aria-activedescendant` naming an element that no longer exists is worse
+   * than none at all -- some screen readers go quiet on the owning field
+   * entirely.
+   */
+  const activeSuggestionId =
+    candidateCount > 0
+      ? formulaSuggestionOptionId(idBase, context.functionCandidatesIndex)
+      : undefined;
 
   /**
    * The cell input's accessible name, and the reason it needs one.
@@ -595,6 +609,23 @@ const InputBox: React.FC = () => {
           // the defect this element was named to fix.
           aria-readonly={!canEditCell}
           aria-label={cellInputLabel}
+          // The suggestion list's other half. Only these two attributes are
+          // added, and only while a list is open — the role, name and
+          // read-only state above are deliberately untouched, so nothing about
+          // an ordinary cell move sounds any different.
+          //
+          // Notably *not* `aria-expanded`: `role="textbox"` does not support
+          // it, so declaring it would trade one axe violation
+          // (aria-prohibited-attr, the reason the role exists at all) for
+          // another (aria-allowed-attr). Making this a `combobox` instead
+          // would permit it, at the price of re-roling the one element that
+          // stands for every cell in the grid. That the list has appeared is
+          // carried by `#sr-formulaSuggestions` below, which is what WCAG
+          // 4.1.3 asks for anyway.
+          aria-activedescendant={activeSuggestionId}
+          aria-controls={
+            candidateCount > 0 ? formulaSuggestionsListboxId(idBase) : undefined
+          }
           style={{
             transform: `scale(${context.zoomRatio})`,
             transformOrigin: "left top",
@@ -607,9 +638,21 @@ const InputBox: React.FC = () => {
           allowEdit={edit ? !isHidenRC : edit}
         />
       </div>
+      {/*
+        Outside the `activeElement` gate below, because a live region has to be
+        in the document *before* its text changes for the change to be
+        announced. Mounted alongside the list it describes rather than with the
+        other regions in SheetOverlay, so the two cannot get out of step.
+      */}
+      <div id="sr-formulaSuggestions" className="sr-only" role="status">
+        {suggestionAnnouncement}
+      </div>
       {document.activeElement === inputRef.current && (
         <>
           <FormulaSearch
+            idBase={idBase}
+            editorRef={refs.cellInput}
+            mirrorRef={refs.fxInput}
             style={{
               top: (firstSelection?.height_move || 0) + 4,
             }}

@@ -11087,6 +11087,22 @@ export default {
     tipRowHeightLimit: "Row height must be between 0 ~ 545",
     tipColumnWidthLimit: "The column width must be between 0 ~ 2038",
     pageInfoFull: "Total ${total}，${totalPage} page，All data displayed",
+    // The formula suggestion list. `formulaSuggestions` names the list itself;
+    // `formulaSuggestionsAvailable` announces that it has appeared, which
+    // nothing else conveys -- the list opens while the learner types, with no
+    // focus change and no selection change, so a screen-reader user was given
+    // no indication it existed (WCAG 4.1.3). The count is included because
+    // knowing how many entries there are is what makes the list worth
+    // navigating; movement between entries is then carried by
+    // `aria-activedescendant` and needs no message of its own.
+    //
+    // The count goes LAST, after a colon. These files carry no plural
+    // machinery, so a count interpolated into a fixed plural announces
+    // "1 formula suggestions available." for every prefix matching exactly one
+    // function -- `=AVEDEV`, `=SUMIFS` and plenty more. Putting the number at
+    // the end sidesteps agreement in every locale here rather than in one.
+    formulaSuggestions: "Formula suggestions",
+    formulaSuggestionsAvailable: "Formula suggestions available: ${count}.",
 
     // Toolbar action feedback. A toolbar button changes the sheet without
     // moving the selection, so nothing else reaches a live region: the result
@@ -11335,6 +11351,8 @@ export default {
       zoomOut: "Zoom out",
       zoomReset: "Reset zoom",
       cancelOrExitMode: "Cancel a cell edit, or leave selection mode",
+      moveBetweenFormulaSuggestions: "Move between formula suggestions",
+      acceptFormulaSuggestion: "Insert the highlighted formula suggestion",
     },
   },
   currencyDetail: [

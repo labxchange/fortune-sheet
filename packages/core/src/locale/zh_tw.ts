@@ -11024,6 +11024,22 @@ export default {
     tipRowHeightLimit: "行高必須在0 ~ 545之間",
     tipColumnWidthLimit: "列寬必須在0 ~ 2038之間",
     pageInfoFull: "共${total}條,${totalPage}頁,已顯示全部數據",
+    // The formula suggestion list. `formulaSuggestions` names the list itself;
+    // `formulaSuggestionsAvailable` announces that it has appeared, which
+    // nothing else conveys -- the list opens while the learner types, with no
+    // focus change and no selection change, so a screen-reader user was given
+    // no indication it existed (WCAG 4.1.3). The count is included because
+    // knowing how many entries there are is what makes the list worth
+    // navigating; movement between entries is then carried by
+    // `aria-activedescendant` and needs no message of its own.
+    //
+    // The count goes LAST, after a colon. These files carry no plural
+    // machinery, so a count interpolated into a fixed plural announces
+    // "1 formula suggestions available." for every prefix matching exactly one
+    // function -- `=AVEDEV`, `=SUMIFS` and plenty more. Putting the number at
+    // the end sidesteps agreement in every locale here rather than in one.
+    formulaSuggestions: "公式建議",
+    formulaSuggestionsAvailable: "公式建議：${count} 個。",
 
     // Toolbar action feedback. A toolbar button changes the sheet without
     // moving the selection, so nothing else reaches a live region: the result
@@ -11229,6 +11245,8 @@ export default {
       zoomOut: "縮小",
       zoomReset: "重設縮放",
       cancelOrExitMode: "取消儲存格編輯或離開選取模式",
+      moveBetweenFormulaSuggestions: "在公式建議之間移動",
+      acceptFormulaSuggestion: "插入選取的公式建議",
     },
   },
   currencyDetail: {
