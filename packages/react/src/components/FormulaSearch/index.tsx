@@ -44,10 +44,22 @@ export const FormulaSearch: React.FC<{
   // Arrow-key movement within the list. Reused rather than reimplemented --
   // the same hook drives the toolbar and the sheet-tab strip. It moves DOM
   // focus only; the one-tab-stop half is the roving `tabIndex` below.
+  // `loop: false` is load-bearing, not a preference. The hook wraps by
+  // default, which is right for a menu -- a closed ring of a dozen items -- and
+  // wrong for a ~400-option listbox: wrapping means the arrow keys have no
+  // exit at all. Reported with VoiceOver on as "focus is trapped, I'm unable to
+  // move out of the functions list": ArrowDown at PRODUCT, the last entry,
+  // returned to the first instead of stopping.
+  //
+  // ARIA's listbox pattern says the same thing -- Down at the last option does
+  // nothing, so the boundary is discoverable. That only works because the hook
+  // no longer preventDefaults a key that moves nothing; otherwise the boundary
+  // would trade a wrap for a dead key.
   useRovingFocus({
     containerRef: listRef,
     orientation: "vertical",
     itemSelector: '[role="option"]',
+    loop: false,
   });
 
   const typeList = useMemo(

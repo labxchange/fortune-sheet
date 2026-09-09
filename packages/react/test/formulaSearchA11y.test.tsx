@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo } from "react";
 import { render, screen, fireEvent, within } from "@testing-library/react";
-import { defaultContext, defaultSettings, Context } from "@fortune-sheet/core";
+import {
+  defaultContext,
+  defaultSettings,
+  locale,
+  Context,
+} from "@fortune-sheet/core";
 import WorkbookContext from "../src/context";
 import { ModalProvider } from "../src/context/modal";
 import { useDialog } from "../src/hooks/useDialog";
@@ -16,6 +21,19 @@ import { FormulaSearch } from "../src/components/FormulaSearch";
 // useDialog.
 
 const TITLE_ID = "test-formula-search-title";
+
+function escapeRegExp(text: string) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Expected accessible names come from the locale, not from hardcoded English.
+// The repo's own convention (`FilterMenu.test.tsx:21` and five siblings), and
+// the reason matters here: written from memory, these asserted "Find function"
+// against `findFunctionTitle: "Search function"`. A hardcoded expectation also
+// silently defends the old wording whenever a key is reworded across the six
+// locale files.
+const { formulaMore, button } = locale({ lang: "en" } as any);
+const exact = (text: string) => new RegExp(`^${escapeRegExp(text)}`);
 
 const makeRefs = () => ({
   globalCache: { undoList: [], redoList: [] },
@@ -73,7 +91,19 @@ const OpenDialog: React.FC = () => {
   return null;
 };
 
-const options = () => screen.getAllByRole("option");
+// Scoped to the listbox, NOT `screen`. The category control is a native
+// `<select>`, and a native `<option>` carries an implicit `role="option"` -- so
+// an unscoped `getAllByRole("option")` returns the ~15 category entries FIRST,
+// ahead of the function list, and `options()[1]` was a category rather than a
+// function. That is what made the click and arrow-key cases read
+// `aria-selected` as null.
+//
+// It also made two of the cases below pass for the wrong reason: the category
+// options have no `tabindex` and no `aria-selected`, so they diluted the
+// "exactly one tabbable" and "exactly one selected" filters instead of being
+// counted by them. Both would have passed with the listbox itself broken.
+const options = () =>
+  within(screen.getByRole("listbox")).getAllByRole("option");
 
 describe("Search Function dialog", () => {
   describe("rendered directly", () => {
@@ -90,18 +120,26 @@ describe("Search Function dialog", () => {
     // still leaves the control unnamed.
     it("names the search field", () => {
       expect(
-        screen.getByRole("textbox", { name: /Find function/ })
+        screen.getByRole("textbox", {
+          name: exact(formulaMore.findFunctionTitle),
+        })
       ).toBeTruthy();
     });
 
     it("names the category control", () => {
       expect(
-        screen.getByRole("combobox", { name: /Select a category/ })
+        screen.getByRole("combobox", {
+          name: exact(formulaMore.selectCategory),
+        })
       ).toBeTruthy();
     });
 
     it("names the function list", () => {
-      expect(screen.getByRole("listbox", { name: /function/i })).toBeTruthy();
+      expect(
+        screen.getByRole("listbox", {
+          name: exact(formulaMore.selectFunctionTitle),
+        })
+      ).toBeTruthy();
     });
 
     // Guards the two tests below, which are about a list long enough for
@@ -157,13 +195,13 @@ describe("Search Function dialog", () => {
     // all, so they took focus and then did nothing on Enter or Space. A real
     // button gets role, keyboard activation and a focus ring from the platform.
     it("makes OK a real button", () => {
-      const ok = screen.getByRole("button", { name: /OK|Confirm/i });
+      const ok = screen.getByRole("button", { name: exact(button.confirm) });
 
       expect(ok.tagName).toBe("BUTTON");
     });
 
     it("makes Cancel a real button", () => {
-      const cancel = screen.getByRole("button", { name: /Cancel/i });
+      const cancel = screen.getByRole("button", { name: exact(button.cancel) });
 
       expect(cancel.tagName).toBe("BUTTON");
     });
@@ -172,9 +210,14 @@ describe("Search Function dialog", () => {
     // dialog then had no tabbable option and OK dereferenced an entry that was
     // no longer there.
     it("keeps exactly one tabbable option after filtering the list", () => {
-      fireEvent.change(screen.getByRole("textbox", { name: /Find function/ }), {
-        target: { value: "SUM" },
-      });
+      fireEvent.change(
+        screen.getByRole("textbox", {
+          name: exact(formulaMore.findFunctionTitle),
+        }),
+        {
+          target: { value: "SUM" },
+        }
+      );
 
       const tabbable = options().filter(
         (o) => o.getAttribute("tabindex") === "0"
@@ -202,8 +245,8 @@ describe("Search Function dialog", () => {
     // check.
     const labelId = dialog.getAttribute("aria-labelledby");
     expect(labelId).toBe(TITLE_ID);
-    expect(document.getElementById(labelId!)?.textContent).toMatch(
-      /Find function/
+    expect(document.getElementById(labelId!)?.textContent).toContain(
+      formulaMore.findFunctionTitle
     );
   });
 });

@@ -107,6 +107,15 @@ export function useRovingFocus({
       if (e.key === "End") next = items.length - 1;
 
       if (next == null) return;
+      // Cancelling a key that moves nothing is how an arrow key goes dead: the
+      // event is consumed, no replacement behaviour runs, and the user -- or
+      // the screen reader driving them -- is left with a keystroke that did
+      // not happen. Only claim the key when focus actually moves.
+      //
+      // Reachable two ways: `loop: false` at either boundary (`step` clamps to
+      // the same index), and Home at index 0 / End at the last. Both used to
+      // preventDefault and re-focus the element already focused.
+      if (next === current) return;
       e.preventDefault();
       e.stopPropagation();
       items[next]?.focus();

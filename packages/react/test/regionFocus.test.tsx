@@ -78,8 +78,11 @@ describe("Region focus", () => {
       expect(target.hasAttribute("data-focus-visible")).toBe(false);
     });
 
-    // The same helper serves the sheet tabs, so the fix reaches them too.
-    // Stated as a test rather than left as a surprise for a reviewer.
+    // The same helper serves the sheet tabs, so the marker lands there too.
+    // That is NOT a ring: `SheetTab/index.css` has no `[data-focus-visible]`
+    // selector, so the tabs get the attribute and no change in appearance --
+    // no regression, no improvement, and one line of CSS away whenever someone
+    // wants it. Pinned here so the attribute cannot quietly stop being set.
     it("marks the sheet-tab target the same way", () => {
       const ref = React.createRef<WorkbookInstance>();
       render(<Workbook ref={ref} data={[{ name: "Sheet1" }]} />);
@@ -141,6 +144,30 @@ describe("Region focus", () => {
           .querySelector(".fortune-toolbar")
           ?.contains(document.activeElement)
       ).toBe(true);
+    });
+
+    // The route the report is actually about: "activate the toolbar shortcut
+    // after placing the cell with the mouse". This chord had its own copy of
+    // the region-entry logic in `Workbook/index.tsx`, so the three API-driven
+    // marker tests above passed while the reported path stayed untouched.
+    // Driving the chord is what proves the shared `enterRegion` is wired to
+    // both callers rather than just to the API.
+    //
+    // jsdom has no modality tracking and no :focus-visible, so the marker is
+    // the part assertable here; whether a ring paints is a browser check.
+    it("Ctrl+Alt+T forces the toolbar focus ring visible", () => {
+      const { container } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+
+      press(container, "KeyT");
+
+      const landed = document.activeElement as HTMLElement;
+      // Paired so this cannot pass on an element outside the toolbar -- if the
+      // chord stopped working, activeElement would be <body> and the attribute
+      // assertion alone would still be a meaningful red, but this says why.
+      expect(
+        container.querySelector(".fortune-toolbar")?.contains(landed)
+      ).toBe(true);
+      expect(landed.hasAttribute("data-focus-visible")).toBe(true);
     });
 
     // AltGr is delivered as Ctrl+Alt on Windows and Linux, so an AltGr-composed
