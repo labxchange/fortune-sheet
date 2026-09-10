@@ -21,10 +21,23 @@ import WorkbookContext from "../../context";
 /**
  * The one owner of "which dropdown is open" for a group of sibling `Combo`s.
  *
- * Each `Combo` used to hold a private `useState(false)`, so nothing knew another
- * was open and opening a second could not close the first. `onMouseLeave` on
- * some triggers hid that from mouse users, which is why the ticket reported it
- * as a VoiceOver problem: take the pointer away and nothing closed anything.
+ * Each `Combo` used to hold a private `useState(false)`, and exclusivity fell
+ * out of a side effect rather than being anybody's job: opening a `Combo` runs
+ * `useEscapeToClose`'s `autoFocus`, which focuses the first item *inside* the
+ * popup, so opening a second one is a focus move out of the first, which the
+ * first popup's `closeOnFocusOut` then closes on. That chain does hold for the
+ * strip -- by pointer and by keyboard both -- which is why the six strip cases
+ * in `toolbarDropdowns.test.tsx` are green against master.
+ *
+ * Where it does not hold is the seam: the "More" overflow popup, which is not
+ * a sibling of the strip's `Combo`s, so a strip dropdown opening beside an
+ * open overflow popup left both up. That is the reported defect.
+ *
+ * This owner supersedes the implicit chain for the strip and extends the same
+ * invariant across the seam. It does not make `closeOnFocusOut` redundant:
+ * that is dismiss-on-focus-out (WCAG 2.4.11), a different requirement that
+ * happens to have been carrying this one. Removing it would keep the toolbar
+ * exclusive and silently drop the dismissal.
  *
  * One owner rather than each dropdown closing the others through callbacks --
  * that would be O(n^2) wiring across 16 instances, and every dropdown added

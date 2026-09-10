@@ -60,6 +60,17 @@ const moreButton = (container: HTMLElement) =>
     `.fortune-toolbar-button[aria-label="${toolbar.toolMore}"]`
   );
 
+// The six strip cases below are characterisation tests, not regression tests:
+// they are green against `origin/master`'s sources too. Master gets strip
+// exclusivity as a side effect -- opening a `Combo` autofocuses an item inside
+// its popup, which is a focus move out of any popup already open, which that
+// popup's `closeOnFocusOut` acts on. `Combo.tsx` has the full chain.
+//
+// They are worth keeping exactly as written: the explicit owner this PR adds
+// replaces that chain for the strip, and these pin the behaviour it has to go
+// on providing. The one case that fails on master is the seam --
+// "closes an overflow dropdown when a strip dropdown is opened", in the nested
+// describe -- which is the reported defect.
 describe("toolbar dropdown exclusivity", () => {
   it("has at least two dropdowns to be exclusive about", () => {
     // Guards every other test in this file: they all compare two triggers, and
@@ -88,10 +99,11 @@ describe("toolbar dropdown exclusivity", () => {
     expect(second.getAttribute("aria-expanded")).toBe("true");
   });
 
-  // The pointer route above cannot stand in for this one. `useOutsideClick`
-  // listens on `document` in the bubble phase while the trigger's mousedown
-  // calls stopPropagation, so neither route was closing anything -- but they
-  // fail for different reasons and a fix could repair one alone.
+  // The pointer route above cannot stand in for this one: the two arrive at
+  // the owner by different paths -- `mouseDownToggleHandlers` and
+  // `onActivationKeyDown` -- and a change could repair or break one alone.
+  // (`useOutsideClick` covers neither: it listens on `document` in the bubble
+  // phase while the trigger's mousedown calls stopPropagation.)
   it("closes the first dropdown when a second is opened by keyboard", () => {
     const { container } = renderSheet();
     const [first, second] = triggers(container);
