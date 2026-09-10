@@ -297,6 +297,35 @@ describe("formula point mode", () => {
       ).toHaveLength(1);
     });
 
+    // T24 (WCAG 4.1.2). VoiceOver reads "object replacement character" when the
+    // node its text markers point at is destroyed underneath it. The second and
+    // later picks ran `span.innerHTML = range`, which replaces the span's text
+    // node on every arrow press; a character-data change on the surviving node
+    // is the same visual result without the churn.
+    //
+    // Asserts node IDENTITY, and that is the whole point: `textContent` was
+    // already correct while the defect was live -- the case above proves it --
+    // which is exactly why this was only ever audible and never visible.
+    //
+    // The pair is self-guarding. Identity alone would also hold if the second
+    // press did nothing at all, so the value assertion is what rules that out.
+    test("a further arrow keeps the text node the caret is anchored in", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      editFormula("=SUM(");
+
+      pressArrow(ctx, "ArrowUp", cellInput); // C2 -- creates the span
+      const span = cellInput.querySelector(
+        "span.fortune-formula-functionrange-cell"
+      );
+      const textNodeBefore = span.firstChild;
+
+      pressArrow(ctx, "ArrowUp", cellInput); // C1 -- mutates it in place
+
+      expect(span.firstChild).toBe(textNodeBefore);
+      expect(textNodeBefore.nodeValue).toBe("C1");
+    });
+
     test("the reference stops at the edge of the sheet, key still consumed", () => {
       const ctx = getContext();
       ctx.luckysheetCellUpdate = [2, 2];

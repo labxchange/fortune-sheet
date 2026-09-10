@@ -3036,8 +3036,41 @@ export function rangeSetValue(
       `span[rangeindex='${ctx.formulaCache.rangechangeindex}']`
     ) as HTMLSpanElement;
     if (span) {
-      span.innerHTML = range;
-      setCaretPosition(ctx, span, 0, range.length);
+      // Mutate the existing text node rather than reparsing the span's HTML.
+      // `innerHTML = range` destroys the text node the caret is anchored in and
+      // builds a fresh one on every arrow press. That invalidates the text
+      // markers VoiceOver is holding, so WebKit re-reads the field across an
+      // element boundary and the placeholder for an embedded object is what
+      // comes back -- the "object replacement character" the ticket reports.
+      // A character-data change on the surviving node is the same visual
+      // result without the subtree churn.
+      //
+      // The field's accessible value is plain text throughout (measured:
+      // `=SUM(D5`, no U+FFFC), which is what rules out the spans themselves
+      // being exposed as embedded objects and points at the mutation instead.
+      const textNode = span.firstChild;
+      if (textNode?.nodeType === Node.TEXT_NODE) {
+        textNode.nodeValue = range;
+      } else {
+        span.textContent = range;
+      }
+
+      // ...and do not re-seat a caret that is already where it would be put.
+      // `removeAllRanges()` + `addRange()` is a selection change whether or not
+      // the selection actually moves, and each one is another notification for
+      // the screen reader to speak over.
+      //
+      // Checked AFTER the mutation, because the browser clamps the offset to
+      // the new text length: `D5` -> `D6` leaves the caret already correct,
+      // while `D5` -> `D10` does not.
+      const selection = window.getSelection();
+      const caretAlreadyAtEnd =
+        selection?.isCollapsed &&
+        selection.anchorNode === span.firstChild &&
+        selection.anchorOffset === range.length;
+      if (!caretAlreadyAtEnd) {
+        setCaretPosition(ctx, span, 0, range.length);
+      }
     }
     //   }
   } else {
