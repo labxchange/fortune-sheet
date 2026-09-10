@@ -25,6 +25,42 @@ import { markAsRepeat } from "../utils/liveRegion";
  * builds the same `rangeText` + value string for `#sr-selection`, and this
  * region is meant to say the same thing that region would have, had it fired.
  */
+/**
+ * The sentence `#sr-toolbarFocusReturn` speaks: where focus landed, then how to
+ * move from there.
+ *
+ * The gesture hint is repeated on **every** toolbar return, not just on the
+ * first arrival the way `#sr-selection`'s own `sheetSrIntro` is. `hasMovedRef`
+ * in `SheetOverlay` latches for the whole workbook, so a user who tabs to the
+ * toolbar and comes back had heard the hint once, at load, and never again —
+ * which is precisely the moment they need it, because focus has just been
+ * somewhere else.
+ *
+ * **This cannot double-announce with `#sr-selection`, and the reason is a
+ * gate, not luck.** `withFocusReturn` only calls `onReturn` — the bump this
+ * region watches — when `readAnnounceStamp` reads the same before and after,
+ * i.e. only when the command touched neither the selection nor the displayed
+ * value. That is exactly the case where `#sr-selection`'s text is unchanged
+ * and a live region, which announces on mutation, stays silent. A command that
+ * *did* change either one re-announces through `#sr-selection` and never
+ * reaches here.
+ *
+ * `cellValue` is empty for an empty cell, so it is joined conditionally rather
+ * than interpolated — `"B. 5 . Use the arrow keys…"` puts a bare full stop
+ * after a space, which some readers voice as punctuation.
+ */
+export function buildFocusReturnText(
+  rangeText: string,
+  cellValue: string,
+  intro: string
+): string {
+  const cell = cellValue ? `${rangeText} ${cellValue}` : rangeText;
+  // A cell whose displayed value already ends in a full stop ("etc.") would
+  // otherwise read as "etc.. Use the arrow keys".
+  const separator = cell.endsWith(".") ? " " : ". ";
+  return `${cell}${separator}${intro}`;
+}
+
 export function useToolbarFocusReturnAnnouncement(
   toolbarFocusReturnCount: number | undefined,
   cellText: string

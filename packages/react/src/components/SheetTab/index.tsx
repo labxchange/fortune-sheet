@@ -249,7 +249,19 @@ const SheetTab: React.FC = () => {
       <div id="sr-sheetMove" className="sr-only" role="status">
         {sheetMoveAnnouncement}
       </div>
-      <div id="sr-sheetColor" className="sr-only" role="status">
+      {/* Assertive, alone among the three. A polite region is dropped rather
+          than queued when the screen reader is already speaking — which is why
+          this one has never been heard: the colour is applied from a menu whose
+          "OK" is still being announced as the region updates. The other two
+          fire while the user is moving through the strip themselves, where
+          interrupting their own navigation would be worse than a missed line,
+          so they stay polite deliberately (do not sweep all three). */}
+      <div
+        id="sr-sheetColor"
+        className="sr-only"
+        role="status"
+        aria-live="assertive"
+      >
         {sheetColorAnnouncement}
       </div>
       <div className="fortune-sheet-area-right">

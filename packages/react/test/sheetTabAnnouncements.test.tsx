@@ -157,7 +157,11 @@ describe("sheet tab announcements", () => {
     // mutations reads as the same (final) phrase twice once both have
     // happened — this is the one point where only the first has.
     expect(await virtual.spokenPhraseLog()).toContain(
-      "polite: Sheet1 tab color changed to Black."
+      // Assertive, unlike its two sibling regions: this fires straight after a
+      // menu "OK" whose own announcement is still being spoken, and a polite
+      // region is dropped rather than queued in that window — which is why the
+      // colour change had never actually been heard.
+      "assertive: Sheet1 tab color changed to Black."
     );
 
     const reset = container.querySelector<HTMLElement>(".color-reset")!;
@@ -170,7 +174,7 @@ describe("sheet tab announcements", () => {
     const spoken = (await virtual.spokenPhraseLog()).map((p) =>
       p.split(zeroWidthSpace).join("")
     );
-    expect(spoken).toContain("polite: Sheet1 tab color reset.");
+    expect(spoken).toContain("assertive: Sheet1 tab color reset.");
   });
 
   it("announces a copied sheet as added but not selected", async () => {

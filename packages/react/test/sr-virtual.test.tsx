@@ -152,6 +152,27 @@ describe("what a screen reader announces", () => {
     distinct.forEach((p) => expect(p).toContain("assertive:"));
   });
 
+  it("tells the reader how to move through the cells on reaching the sheet", async () => {
+    // The grid paints to <canvas>: there is no per-cell node to walk, so a
+    // reader arriving here has no way to discover that the arrow keys are the
+    // way through. The hint rides the landmark's *description*, which is read
+    // as part of landing on it -- there is no DOM event to hang it on, because
+    // a VoiceOver cursor arriving fires none.
+    //
+    // Asserted on the first phrase, which is the reader announcing the
+    // container it was started on: role, then name, then description, composed
+    // the way the ARIA spec says to. A describedby pointing at a node the tree
+    // ignores would leave the sentence out of this phrase while still looking
+    // correct in the DOM.
+    await virtual.start({ container: container.querySelector("main")! });
+    const arrival = await virtual.lastSpokenPhrase();
+    await virtual.stop();
+
+    expect(arrival).toBe(
+      "main, Spreadsheet, Use the arrow keys to move between cells."
+    );
+  });
+
   it("speaks the select-all announcement politely", async () => {
     await virtual.start({ container: container.querySelector("main")! });
     await act(async () => {

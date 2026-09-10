@@ -59,7 +59,10 @@ import { useFormulaRangeAnnouncement } from "../../hooks/useFormulaRangeAnnounce
 import { useSelectAllAnnouncement } from "../../hooks/useSelectAllAnnouncement";
 import { useNameBoxClampAnnouncement } from "../../hooks/useNameBoxClampAnnouncement";
 import { useContextMenuAnnouncements } from "../../hooks/useContextMenuAnnouncements";
-import { useToolbarFocusReturnAnnouncement } from "../../hooks/useToolbarFocusReturnAnnouncement";
+import {
+  buildFocusReturnText,
+  useToolbarFocusReturnAnnouncement,
+} from "../../hooks/useToolbarFocusReturnAnnouncement";
 import { useFocusedCellFormulaAnnouncement } from "../../hooks/useFocusedCellFormulaAnnouncement";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
@@ -67,6 +70,14 @@ import {
   activateOnEnterOrSpace,
   focusAfterCommit,
 } from "../../utils/keyboardActivation";
+
+/**
+ * Suffix for the grid root's description node. The id itself is per-instance
+ * (`useId()`), so a test locates the node by `[id$="-sheetIntro"]` rather than
+ * by a literal it cannot know. Same convention as
+ * `CONTEXT_MENU_REGION_ID_SUFFIX`.
+ */
+export const GRID_INTRO_ID_SUFFIX = "sheetIntro";
 
 const SheetOverlay: React.FC = () => {
   const { context, setContext, settings, refs } = useContext(WorkbookContext);
@@ -714,16 +725,24 @@ const SheetOverlay: React.FC = () => {
   } = useContextMenuAnnouncements(context, refs.cellInput);
   const formulaAnnouncement = useFocusedCellFormulaAnnouncement(context, info);
   const cellAreaId = useId();
+  // From the hook, never a module constant, for the reason spelled out above
+  // `contextMenuRegionId`: this fork is embedded once per sim section, and a
+  // fixed id makes every instance's `aria-describedby` resolve to the *first*
+  // instance's node. Suffixed the same way, so a test can find it by
+  // `[id$=...]` without knowing React's generated prefix.
+  const gridIntroId = `${useId()}-${GRID_INTRO_ID_SUFFIX}`;
   const { cellAnnouncement: filterCellAnnouncement, regionAnnouncement } =
     useFilterAnnouncements(context, info);
 
   // Same text `#sr-selection` would show for this cell -- the toolbar-return
   // announcement is meant to say what that region would have, had a
-  // formatting command touched the selection instead of leaving it alone.
+  // formatting command touched the selection instead of leaving it alone --
+  // followed by the arrow-key hint. See `buildFocusReturnText` for why the hint
+  // repeats here when `#sr-selection`'s own copy of it is spoken only once.
   const toolbarFocusReturnAnnouncement = useToolbarFocusReturnAnnouncement(
     context.toolbarFocusReturnCount,
     !rangeText.includes("NaN")
-      ? `${rangeText} ${computedCellValue}`
+      ? buildFocusReturnText(rangeText, computedCellValue, info.sheetSrIntro)
       : `A1. ${info.sheetSrIntro}`
   );
 
@@ -782,6 +801,19 @@ const SheetOverlay: React.FC = () => {
       // not say the region is the sheet and does not distinguish it from an
       // embedding page's own main landmark (WCAG 1.3.1, 2.4.1).
       aria-label={info.spreadsheetLandmark}
+      /*
+       * The gesture, spoken as part of landing on the region (WCAG 1.3.1,
+       * 2.1.1). The grid paints to `<canvas>`, so there is no per-cell node
+       * for a screen reader to walk and VO+Arrow steps straight back out --
+       * the arrow keys are the only way through the cells, and nothing said
+       * so. A *description* rather than a live region because a VoiceOver
+       * cursor arriving on an element fires no DOM event at all: there is no
+       * focus to hang a handler on, and the description is what the reader
+       * composes into the utterance on arrival. Same reasoning as
+       * `useContextMenuAnnouncements`, which puts its text on the cell input's
+       * `aria-describedby` rather than queueing it politely.
+       */
+      aria-describedby={gridIntroId}
       ref={containerRef}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
@@ -1223,6 +1255,14 @@ const SheetOverlay: React.FC = () => {
           </div>
         </div>
       </div>
+      {/* The grid root's accessible description -- see `aria-describedby` on
+          `<main>`. Deliberately not a live region: it is never announced by
+          mutation, only read as part of the landmark's own utterance, so it
+          carries no `role` and no `aria-live`. Adding either would make it
+          re-announce on re-render. */}
+      <span id={gridIntroId} className="sr-only">
+        {info.sheetSrIntro}
+      </span>
       {/* Ordered as reference, value, then the value's own properties, then the
           event that moved us here: a formula marker qualifies the value it
           follows, so it sits next to it, while a clamp describes the jump and

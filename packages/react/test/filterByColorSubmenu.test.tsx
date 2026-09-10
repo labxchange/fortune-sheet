@@ -30,6 +30,24 @@ const dataWithColors = [
   },
 ];
 
+/**
+ * The same sheet with no cell colouring, which is what a spreadsheet looks
+ * like by default. `bgColors` and `fcColors` both come back under two, so the
+ * submenu renders its one-colour tip and holds no controls.
+ */
+const dataWithoutColors = [
+  {
+    name: "Sheet1",
+    celldata: [
+      { r: 0, c: 0, v: text("Name") },
+      { r: 1, c: 0, v: text("a") },
+      { r: 2, c: 0, v: text("b") },
+      { r: 3, c: 0, v: text("c") },
+    ],
+    filter_select: { row: [0, 3], column: [0, 0] },
+  },
+];
+
 const SUBMENU_ID = "fortune-filter-bycolor-submenu";
 
 const funnels = () =>
@@ -111,6 +129,95 @@ describe("Filter by color submenu", () => {
     expect(rows.length).toBeGreaterThan(0);
     await waitFor(() => expect(document.activeElement).toBe(rows[0]));
     expect(submenu()!.contains(document.activeElement)).toBe(true);
+  });
+
+  /**
+   * The route assistive technology actually takes. VoiceOver's VO+Space
+   * activates a control by dispatching a click and never a keydown, so gating
+   * the focus move on "was this a keydown" opened the submenu and left the
+   * screen-reader user outside it — the defect filed against Filter by Color.
+   * Activation focuses; only hover declines, which the case below pins.
+   */
+  it("moves focus into the submenu when activated by a click", async () => {
+    await openFilterMenu();
+
+    act(() => {
+      trigger().focus();
+      fireEvent.click(trigger());
+    });
+
+    await waitFor(() => expect(colorRows().length).toBeGreaterThan(0));
+    await waitFor(() => expect(document.activeElement).toBe(colorRows()[0]));
+    expect(submenu()!.contains(document.activeElement)).toBe(true);
+  });
+
+  /**
+   * The branch every uncoloured sheet takes, and the one the three-colour
+   * fixture above exists to avoid. With fewer than two colours the panel
+   * renders a tip instead of colour rows, so `autoFocusSelector` matched
+   * nothing at all and `focus()` was a silent no-op: the panel opened and the
+   * screen-reader user stayed on the trigger. That is T12 on any sheet with no
+   * cell colouring — i.e. most of them — which is why the ticket kept failing
+   * in the ear while this suite was green.
+   */
+  describe("a column with fewer than two colours", () => {
+    const openPlainFilterMenu = async () => {
+      render(<Workbook lang="en" data={dataWithoutColors} />);
+      await waitFor(() => expect(funnels().length).toBeGreaterThan(0));
+      const [first] = funnels();
+      act(() => {
+        first.focus();
+        fireEvent.keyDown(first, { key: "Enter" });
+      });
+      await waitFor(() => screen.getByText("Filter by color"));
+    };
+
+    it("has no colour rows to focus — the premise of the case below", async () => {
+      await openPlainFilterMenu();
+
+      act(() => {
+        trigger().focus();
+        fireEvent.click(trigger());
+      });
+      await waitFor(() => expect(submenu()).not.toBeNull());
+
+      expect(colorRows()).toEqual([]);
+      expect(
+        screen.getByText("This column contains only one color")
+      ).toBeTruthy();
+    });
+
+    it("still takes focus into the panel, onto the tip", async () => {
+      await openPlainFilterMenu();
+
+      act(() => {
+        trigger().focus();
+        fireEvent.click(trigger());
+      });
+      await waitFor(() => expect(submenu()).not.toBeNull());
+
+      const tip = submenu()!.querySelector<HTMLElement>('[role="note"]')!;
+      expect(tip).toBeTruthy();
+      // -1, so it is a programmatic focus target and not a Tab stop.
+      expect(tip.tabIndex).toBe(-1);
+      await waitFor(() => expect(document.activeElement).toBe(tip));
+      expect(submenu()!.contains(document.activeElement)).toBe(true);
+    });
+
+    it("declines focus on a hover-open here too", async () => {
+      await openPlainFilterMenu();
+      const row = trigger();
+      act(() => {
+        row.focus();
+      });
+
+      act(() => {
+        fireEvent.mouseEnter(row.parentElement!);
+      });
+      await waitFor(() => expect(submenu()).not.toBeNull());
+
+      expect(document.activeElement).toBe(row);
+    });
   });
 
   it("does not move focus when opened by hover", async () => {
