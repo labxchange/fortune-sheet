@@ -368,7 +368,14 @@ export const FormulaSearch: React.FC<{
               // 0ms timer against the click task is not, and a microtask drains
               // before the click arrives.
               onPointerDown={(e) => {
-                if (e.button !== 0) return;
+                // `> 0` and not `!== 0`: a middle or right press is 1 or 2,
+                // but jsdom has no `PointerEvent`, so a synthetic pointerdown
+                // arrives as a bare `Event` with no `button` at all -- and
+                // `!== 0` rejected that, disarming the flag in every test that
+                // exercises the mouse path. Treating an absent button as the
+                // primary press it stands for keeps the browser semantics and
+                // the test semantics the same.
+                if (e.button > 0) return;
                 fromPointer.current = true;
                 const option = e.currentTarget;
                 releaseListeners.current?.();

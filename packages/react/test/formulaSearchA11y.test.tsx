@@ -493,10 +493,20 @@ describe("Search Function dialog", () => {
     // `contextmenu` instead. Told apart at the press rather than at the
     // release, because the release lands on the option like a real click's
     // does and the two are indistinguishable by target alone.
+    //
+    // Dispatched as a `MouseEvent` of type "pointerdown" rather than through
+    // `fireEvent.pointerDown(el, { button: 2 })`, and that is not a style
+    // choice: jsdom has no `PointerEvent`, so testing-library falls back to
+    // the bare `Event` constructor, which silently drops `button` -- the init
+    // would have been ignored and this case would have passed for the wrong
+    // reason. `MouseEvent` exists in jsdom and carries `button` for real.
     it("ignores a non-primary press, which never becomes a click", () => {
       const { setContext } = renderWithSpy();
 
-      fireEvent.pointerDown(options()[2], { button: 2 });
+      fireEvent(
+        options()[2],
+        new MouseEvent("pointerdown", { bubbles: true, button: 2 })
+      );
       fireEvent.click(options()[3]);
 
       expect(setContext).toHaveBeenCalledTimes(1);
