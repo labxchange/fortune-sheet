@@ -335,13 +335,13 @@
   z-index: 2000;
 }
 
-/* The OK button's ring sat directly on the button's own #0188fb, where the DS
-   blue is 1.66:1 — the "focus not visible / under 3:1" the audit reports for
-   this control. Offsetting it clear of the button puts it on the white panel
-   instead, at 5.88:1, without changing the ring itself. Scoped to the two
-   colour popups rather than applied to the shared .button-basic: the other
-   eight consumers of that class were not audited, and moving every focus ring
-   in the workbook is not this ticket. */
+/* The OK button's ring sat directly on the button's own fill -- the "focus not
+   visible / under 3:1" the audit reports for this control. Offsetting it clear
+   of the button puts it on the white panel behind instead, where the black
+   primary ring set further down measures 21:1. Scoped to the two colour popups
+   rather than applied to the shared .button-basic: the other eight consumers
+   of that class were not audited, and moving every focus ring in the workbook
+   is not this ticket. */
 #fortune-custom-color .button-basic:focus-visible {
   outline-offset: 2px;
 }
@@ -451,6 +451,11 @@
 /* Same reasoning as Dialog/index.css's primary-button ring: the shared
    .button-basic ring above is #0063c3, which is now the primary fill, so on a
    primary button it would be 1.00:1. Black is 3.57:1 on that fill.
+
+   That figure is for the consumers whose fill is #0063c3, which is all of them
+   bar one: the filter menu's primaries swap to #00509e on :focus-visible,
+   where black is 2.64:1, and ContextMenu/index.css overrides them to a white
+   ring in the same file that sets that fill.
 
    Colour only -- no outline-offset here. Several .button-basic consumers sit
    in containers that clip an outset ring, which is why CustomSort, CustomColor

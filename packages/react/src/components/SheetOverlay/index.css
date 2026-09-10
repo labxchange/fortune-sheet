@@ -5,6 +5,27 @@
   outline-style: none;
 }
 
+/* The root is the grid's tab stop now (see index.tsx), and the
+   `outline-style: none` above kills the UA ring, so this is the only focus
+   indicator it has (WCAG 2.4.7).
+
+   `[data-focus-visible]` alongside `:focus-visible`, for the same reason
+   `Toolbar/index.css` matches both: the Ctrl+Alt+S region jump is a
+   programmatic focus, and Chrome withholds `:focus-visible` from one that
+   follows a mouse interaction -- which is T15's symptom, in the region this
+   change just turned into a tab stop.
+
+   Inset, because an outward ring here is clipped by the toolbar above it.
+   That is also the offset LabXchange's own override for this element already
+   uses; being more specific, the host rule still wins in the embed, which
+   simply gains the marker half. */
+.fortune-sheet-overlay:focus-visible,
+.fortune-sheet-overlay[data-focus-visible] {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+  outline-offset: calc(-1 * var(--border_focus_outer, 3px));
+}
+
 .fortune-cell-area {
   border-collapse: collapse;
   position: relative;

@@ -189,6 +189,23 @@
   background: #00509e;
 }
 
+/* These buttons carry `button-basic button-primary`, so the shared black
+   primary ring in `Toolbar/index.css` reaches them -- but the rule above
+   darkens their fill to #00509e *on :focus-visible*, so that ring is drawn
+   flush against #00509e and measures 2.64:1, under 1.4.11's 3:1. White is
+   7.95:1 there. Every other consumer of the shared rule keeps a #0063c3 fill
+   and its 3.57:1 black ring.
+
+   Not a regression being fixed so much as an improvement completed: the
+   #0063c3 ring this replaced measured 1.35:1 on the same fill. The genuinely
+   odd thing here is a focus indicator that moves the surface it is measured
+   against; changing that is a bigger conversation than this ticket, and the
+   white ring is correct either way. */
+.luckysheet-filter-bycolor-submenu .button-basic.button-primary:focus-visible,
+.fortune-filter-menu .button-basic.button-primary:focus-visible {
+  outline-color: #fff;
+}
+
 .fortune-filter-menu .button-danger {
   color: white;
   /* DS destructive tokens — white text on #be2a27 is ~5.9:1 (WCAG 1.4.3 pass) */
