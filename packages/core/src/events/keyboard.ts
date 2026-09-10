@@ -1,5 +1,6 @@
 import _ from "lodash";
 import { hideCRCount, removeActiveImage } from "..";
+import { autoFillCell } from "../api/cell";
 import { GRID_ROOT_CLASS } from "../constants";
 import { Context, getFlowdata } from "../context";
 import { updateCell, cancelNormalSelected, mergeBorder } from "../modules/cell";
@@ -577,35 +578,22 @@ export function handleWithCtrlOrMetaKey(
     if (!row || !column) return;
     if (!isAllowEdit(ctx)) return;
 
-    // Loop through selected columns
-    for (let col = column[0]; col <= column[1]; col += 1) {
-      const sourceCell = flowdata?.[row[0]]?.[col];
+    // Nothing below the source row means nothing to fill.
+    if (row[1] <= row[0]) return;
 
-      if (!sourceCell) continue;
-
-      const sourceValue = sourceCell.v;
-      const sourceFormula = sourceCell.f;
-
-      for (let r = row[0] + 1; r <= row[1]; r += 1) {
-        if (sourceFormula) {
-          // Adjust formula for new row references
-          const newFormula = sourceFormula.replace(
-            /(\$?[A-Z]+)(\$?)(\d+)/g,
-            (match, colRef, dollar, rowNum) => {
-              return dollar
-                ? match
-                : `${colRef}${parseInt(rowNum, 10) + (r - row[0])}`;
-            }
-          );
-
-          updateCell(ctx, r, col, null, newFormula);
-        } else {
-          updateCell(ctx, r, col, null, sourceValue);
-        }
-      }
-    }
-
-    jfrefreshgrid(ctx, null, undefined);
+    // Delegated for the same reason as Ctrl+R below: one fill implementation,
+    // shared with the fill handle. Fill down did not show the reported
+    // corruption — its regex emitted the column verbatim, so `$B` survived —
+    // but it carried the same blind spots (a `$` before the row was the only
+    // anchor it honoured, and references inside string literals were rewritten
+    // like any other), and keeping a second implementation alive is what let
+    // the two directions drift apart in the first place.
+    autoFillCell(
+      ctx,
+      { row: [row[0], row[0]], column: [column[0], column[1]] },
+      { row: [row[0] + 1, row[1]], column: [column[0], column[1]] },
+      "down"
+    );
   } else if (e.code === "KeyR") {
     if (
       !ctx.luckysheet_select_save ||
@@ -623,35 +611,23 @@ export function handleWithCtrlOrMetaKey(
     if (!row || !column) return;
     if (!isAllowEdit(ctx)) return;
 
-    // Loop through selected rows
-    for (let r = row[0]; r <= row[1]; r += 1) {
-      const sourceCell = flowdata?.[r]?.[column[0]];
+    // Nothing to the right of the source column means nothing to fill.
+    if (column[1] <= column[0]) return;
 
-      if (!sourceCell) continue;
-
-      const sourceValue = sourceCell.v;
-      const sourceFormula = sourceCell.f;
-
-      for (let c = column[0] + 1; c <= column[1]; c += 1) {
-        if (sourceFormula) {
-          // Adjust formula for new column references
-          const newFormula = sourceFormula.replace(
-            /(\$?[A-Z]+)(\$?)(\d+)/g,
-            (match, colRef, dollar, rowNum) => {
-              if (dollar) return match; // Keep absolute column references unchanged
-              const colIndex = colRef.charCodeAt(0) - 65 + (c - column[0]); // Convert column to index (A=0, B=1, ...)
-              return `${String.fromCharCode(65 + colIndex)}${rowNum}`; // Convert index back to column letter
-            }
-          );
-
-          updateCell(ctx, r, c, null, newFormula);
-        } else {
-          updateCell(ctx, r, c, null, sourceValue);
-        }
-      }
-    }
-
-    jfrefreshgrid(ctx, null, undefined);
+    // Delegate to the same path the fill handle drags through instead of
+    // rewriting references here. Hand-rolling that offset is exactly what broke
+    // this shortcut: shifting column letters by character code turned `$B2`
+    // into `%2` and stepped Z to `[` rather than AA, and the "absolute" guard
+    // tested the row anchor, so `C$2` never moved at all. `autoFillCell` runs
+    // the engine's own `formula.functionCopy`, so the keyboard and the fill
+    // handle now agree by construction — on `$` anchors, multi-letter columns
+    // and ranges alike.
+    autoFillCell(
+      ctx,
+      { row: [row[0], row[1]], column: [column[0], column[0]] },
+      { row: [row[0], row[1]], column: [column[0] + 1, column[1]] },
+      "right"
+    );
   }
 
   e.preventDefault();
