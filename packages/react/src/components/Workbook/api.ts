@@ -122,10 +122,19 @@ export function generateAPIs(
      * Move keyboard focus to the cell grid, ready to navigate.
      *
      * Deliberately not `focusRegion`: the grid root contains focusable controls
-     * of its own (the select-all corner, the filter funnels), and landing on
+     * of its own (the select-all corner, the filter funnels), and `focusRegion`
+     * picks the first `[tabindex="0"]` it finds inside the region -- landing on
      * one of those makes `handleGlobalKeyDown`'s grid guard classify focus as
-     * *outside* the grid, so the arrow keys would move nothing. The root itself
-     * carries tabIndex -1 for exactly this purpose.
+     * *outside* the grid, so the arrow keys would move nothing.
+     *
+     * This used to be justified by the root carrying tabIndex -1, which made it
+     * the only element `focusRegion` could not have chosen. The root is now a
+     * real tab stop (tabIndex 0, `SheetOverlay/index.tsx`), so that particular
+     * argument is spent -- but the conclusion is unchanged and now matters
+     * more, not less: `focusRegion` would still prefer a control *inside* the
+     * grid over the root, and the root is now exactly where Tab and Ctrl+Alt+S
+     * both land, so this API has to agree with them. Focusing the root
+     * directly is what keeps all three routes on one element.
      */
     focusSpreadsheet: () => {
       const grid = workbookContainer.current?.querySelector<HTMLElement>(

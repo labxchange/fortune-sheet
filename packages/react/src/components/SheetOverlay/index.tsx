@@ -819,7 +819,27 @@ const SheetOverlay: React.FC = () => {
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
       onBlur={onGridBlur}
-      tabIndex={-1}
+      /*
+       * The grid's single tab stop, and deliberately the *root* rather than
+       * anything inside it (WCAG 2.4.3). This used to be -1, which left the
+       * grid with no forward tab stop of its own -- so Tab from the toolbar
+       * ran past the name box and the fx input and landed on the cell editor,
+       * the one focusable node the grid does render. That editor is
+       * `contenteditable`, so the browser put a caret in it and a screen
+       * reader announced an editable textbox: entering the sheet forwards
+       * started an edit, while entering it backwards or via Ctrl+Alt+S did
+       * not. Same region, two different states, decided by which direction
+       * the user arrived from.
+       *
+       * Making the root itself the stop collapses the two routes onto one
+       * element -- the same element `focusSpreadsheet` and the Ctrl+Alt+S
+       * region jump already target, and the one `handleGlobalKeyDown`'s grid
+       * guard already carves out so the arrow keys keep working for whoever
+       * lands here. The idle cell editor drops out of the tab order to match
+       * (`InputBox.tsx`), so no route can park a caret in a cell nobody asked
+       * to edit.
+       */
+      tabIndex={0}
       style={{
         width: context.luckysheetTableContentHW[0],
         height: context.luckysheetTableContentHW[1],

@@ -9,10 +9,10 @@ import Workbook, { WorkbookInstance } from "../src/components/Workbook";
 describe("Region focus", () => {
   describe("imperative API", () => {
     it("enters the grid at its root, not at a control inside it", () => {
-      // The grid root holds tabIndex -1 for this. Landing on the select-all
-      // corner or a filter funnel instead makes handleGlobalKeyDown's grid
-      // guard classify focus as outside the grid, and the arrow keys then move
-      // nothing — the shortcut would look like it worked and do nothing useful.
+      // Landing on the select-all corner or a filter funnel instead makes
+      // handleGlobalKeyDown's grid guard classify focus as outside the grid,
+      // and the arrow keys then move nothing — the shortcut would look like it
+      // worked and do nothing useful.
       const ref = React.createRef<WorkbookInstance>();
       const { container } = render(
         <Workbook ref={ref} data={[{ name: "Sheet1" }]} />
@@ -22,9 +22,15 @@ describe("Region focus", () => {
 
       const grid = container.querySelector(`.${GRID_ROOT_CLASS}`);
       expect(document.activeElement).toBe(grid);
-      expect(
-        (document.activeElement as HTMLElement).getAttribute("tabindex")
-      ).toBe("-1");
+      // This asserted tabindex "-1", on the reasoning that the root being
+      // unreachable by Tab was itself the proof `focusRegion` could not have
+      // picked it. That witness is spent: the root is now a real tab stop, so
+      // that Tab and Ctrl+Alt+S enter the grid at the same element this API
+      // does instead of running on into the cell editor and opening an edit.
+      // The contract it stood for got stronger, not weaker — all three routes
+      // must agree — so the assertion is inverted rather than dropped, and it
+      // still goes red if the root stops being the element focus lands on.
+      expect(grid!.getAttribute("tabindex")).toBe("0");
     });
 
     it("enters the toolbar", () => {

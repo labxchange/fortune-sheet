@@ -626,6 +626,24 @@ const InputBox: React.FC = () => {
           aria-controls={
             candidateCount > 0 ? formulaSuggestionsListboxId(idBase) : undefined
           }
+          // A tab stop only while a cell is actually being edited. This element
+          // is `contenteditable` and permanently mounted -- it is never
+          // unmounted or hidden between edits, only parked behind the grid
+          // (`z-index: -1`) or off-canvas at -10000 -- and neither of those
+          // takes a node out of the tab order. It was therefore the grid's only
+          // forward tab stop, so Tab from the toolbar ended with a caret
+          // blinking in a cell the user had not asked to edit, while arriving
+          // by Ctrl+Alt+S did not. See the grid root's tabIndex in
+          // `SheetOverlay/index.tsx`, which is the stop that replaces it.
+          //
+          // -1, not `contentEditable={false}`: the element still has to be a
+          // real, named textbox during an edit, core writes into it directly,
+          // and toggling `contenteditable` on the focused node can drop focus
+          // mid-interaction -- the change the comment on `canEditCell` above
+          // deliberately stays away from. -1 also keeps every programmatic
+          // `.focus()` working, which is how an edit, a commit and the
+          // toolbar's focus-return all reach this element.
+          tabIndex={_.isEmpty(context.luckysheetCellUpdate) ? -1 : 0}
           style={{
             transform: `scale(${context.zoomRatio})`,
             transformOrigin: "left top",

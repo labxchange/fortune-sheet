@@ -68,7 +68,13 @@ const ContentEditable: React.FC<ContentEditableProps> = ({ ...props }) => {
         root.current = e;
         innerRef?.(e);
       }}
-      tabIndex={0}
+      // Defaulted here rather than hardcoded, because this literal sits
+      // *after* the prop spread above and therefore silently beat any
+      // `tabIndex` a caller passed -- the attribute went in and was overwritten
+      // one line later. Every existing call site passes none and still gets 0,
+      // so this changes nothing for them; `InputBox` needs -1 while no edit is
+      // open, which was unreachable before.
+      tabIndex={props.tabIndex ?? 0}
       onInput={fnEmitChange}
       onBlur={(e) => {
         fnEmitChange(null, true);

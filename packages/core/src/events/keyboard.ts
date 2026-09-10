@@ -1060,14 +1060,15 @@ export function handleGlobalKeyDown(
     const gridRoot = target.closest(`.${GRID_ROOT_CLASS}`);
     // Two of the things that can match that selector *are* the grid rather
     // than something rendered around it, so both are carved out:
-    //   - the cell input, which `ContentEditable` may give a tabIndex of 0;
-    //   - the grid root itself. It carries tabIndex -1 today (rendered in
-    //     SheetOverlay/index.tsx), so `control` never actually equals it in
-    //     production -- this clause is defensive, not currently reachable.
-    //     Without it, a future change that makes the root itself the tab stop
-    //     (tabIndex 0, so Tab enters the grid there instead of at the first
-    //     control inside it) would silently stop the arrow keys from moving
-    //     anything for anyone who landed on it.
+    //   - the cell input, which `ContentEditable` gives a tabIndex of 0 while
+    //     an edit is open (-1 otherwise, so an idle grid has no tab stop
+    //     inside it at all);
+    //   - the grid root itself, which now carries tabIndex 0 (rendered in
+    //     SheetOverlay/index.tsx) so that Tab enters the grid there rather
+    //     than at the first control inside it. This clause was written while
+    //     the root was still -1 and was documented then as defensive and
+    //     unreachable; it is now the ordinary case, and it is the only reason
+    //     the arrow keys keep moving the selection for someone who tabbed in.
     const inGrid =
       !!gridRoot &&
       (!control || !!cellInput?.contains(control) || control === gridRoot);
@@ -1395,7 +1396,26 @@ export function handleGlobalKeyDown(
     }
   }
 
-  if (cellInput !== document.activeElement) {
+  // Only pull focus into the cell editor when there is an edit to type into.
+  //
+  // This used to be unconditional, and it is the tail of the handler every
+  // handled key falls through to -- including a plain arrow press with no edit
+  // session open. So navigating the grid moved focus into a `contenteditable`
+  // on the very first arrow, which is why entering the grid at its root and
+  // pressing Right left the user with a caret in a cell they were only
+  // stepping over. Making the root a tab stop would have been undone one
+  // keystroke later without this.
+  //
+  // `luckysheetCellUpdate` is the edit session, and every branch that starts
+  // one sets it *above* this line -- type-to-edit at the bottom of the `else`,
+  // F2, and the Enter path -- so all three still land focus in the editor
+  // exactly as before. What changes is the case where no branch started an
+  // edit: focus is left where the user put it, which for grid navigation is
+  // the grid root.
+  if (
+    ctx.luckysheetCellUpdate.length > 0 &&
+    cellInput !== document.activeElement
+  ) {
     cellInput?.focus();
   }
 
