@@ -107,6 +107,38 @@ describe("keyboard auto-fill formula references", () => {
       .map((cells) => cells[column]?.f);
   };
 
+  /**
+   * Seed one formula per row into `column` and fill the whole block rightwards
+   * across `[column, lastColumn]`, returning a row-per-entry array of the
+   * formulas the fill produced.
+   */
+  const fillRightBlock = (formulas, { column = 1, lastColumn = 4 } = {}) => {
+    const { cellInput } = buildDom();
+    const data = emptyGrid();
+    formulas.forEach((formula, row) => {
+      data[row][column] = { v: 0, f: formula };
+    });
+
+    const ctx = contextFactory({
+      luckysheetCellUpdate: [],
+      luckysheet_select_save: selectionFactory(
+        [0, formulas.length - 1],
+        [column, lastColumn],
+        0,
+        column
+      ),
+    });
+    ctx.luckysheetfile[0].data = data;
+
+    press(ctx, cellInput, { key: "r", code: "KeyR", ctrlKey: true });
+
+    return ctx.luckysheetfile[0].data
+      .slice(0, formulas.length)
+      .map((cells) =>
+        cells.slice(column, lastColumn + 1).map((cell) => cell?.f)
+      );
+  };
+
   afterEach(() => {
     document.body.innerHTML = "";
   });
@@ -127,6 +159,20 @@ describe("keyboard auto-fill formula references", () => {
     const filled = fillRight("=B2/$B2", { lastColumn: 27 });
 
     expect(filled.slice(-3)).toEqual(["=Z2/$B2", "=AA2/$B2", "=AB2/$B2"]);
+  });
+
+  // The reported sim task fills a multi-row block (B18:B32 -> AF18:AF32) rather
+  // than a single row, and a block takes a different grouping route through
+  // `getCopyData`. Each row has to offset from its own source formula instead of
+  // the block being treated as one series.
+  test("fill right offsets each row of a block from its own formula", () => {
+    expect(
+      fillRightBlock(["=A1*2", "=A2+1", "=A3-3"], { lastColumn: 3 })
+    ).toEqual([
+      ["=A1*2", "=B1*2", "=C1*2"],
+      ["=A2+1", "=B2+1", "=C2+1"],
+      ["=A3-3", "=B3-3", "=C3-3"],
+    ]);
   });
 
   // A `$` on the row anchors the row, and says nothing about the column, so a
@@ -160,6 +206,30 @@ describe("keyboard auto-fill formula references", () => {
 
   test("fill down leaves a row-anchored reference fixed", () => {
     expect(fillDown("=B$1", { lastRow: 2 })).toEqual(["=B$1", "=B$1", "=B$1"]);
+  });
+
+  // Sharing the fill handle's path means an empty source clears the range it
+  // fills instead of leaving it alone, which is what Excel, Google Sheets and
+  // dragging the handle all do, and undo recovers it. Pinned so the behaviour
+  // is a decision rather than an accident.
+  test("fill down from an empty source clears the cells below it", () => {
+    const { cellInput } = buildDom();
+    const data = emptyGrid();
+    data[1][1] = { v: 1, m: "1", ct: { fa: "General", t: "n" } };
+    data[2][1] = { v: 2, m: "2", ct: { fa: "General", t: "n" } };
+    data[3][1] = { v: 3, m: "3", ct: { fa: "General", t: "n" } };
+
+    const ctx = contextFactory({
+      luckysheetCellUpdate: [],
+      luckysheet_select_save: selectionFactory([0, 3], [1, 1], 0, 1),
+    });
+    ctx.luckysheetfile[0].data = data;
+
+    press(ctx, cellInput, { key: "d", code: "KeyD", ctrlKey: true });
+
+    expect(
+      ctx.luckysheetfile[0].data.slice(0, 4).map((cells) => cells[1])
+    ).toEqual([null, null, null, null]);
   });
 
   // Auto-fill also carries plain values, and a single seed cell must be copied
