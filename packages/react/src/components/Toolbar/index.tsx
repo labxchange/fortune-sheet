@@ -47,7 +47,11 @@ import "./index.css";
 import Button from "./Button";
 import { MORE_ITEMS_ID } from "./MoreItemsContainer";
 import Divider, { MenuDivider } from "./Divider";
-import Combo, { ComboExclusivity, useComboExclusivityOwner } from "./Combo";
+import Combo, {
+  ComboExclusivity,
+  ComboExclusivityValue,
+  useComboExclusivityOwner,
+} from "./Combo";
 import Select, { Option } from "./Select";
 import SVGIcon from "../SVGIcon";
 import { useAdjacentSubmenuPosition } from "../../hooks/useAdjacentSubmenuPosition";
@@ -175,14 +179,24 @@ const MoreFormatOption: React.FC<{
 const Toolbar: React.FC<{
   setMoreItems: React.Dispatch<React.SetStateAction<React.ReactNode>>;
   moreItemsOpen: boolean;
-}> = ({ setMoreItems, moreItemsOpen }) => {
+  /**
+   * The one owner of "which dropdown is open", held by `Workbook` because the
+   * overflow popup is rendered there and not here. Optional so a `Toolbar`
+   * mounted on its own -- a story, a test harness -- still owns its own.
+   */
+  comboOwner?: ComboExclusivityValue;
+}> = ({ setMoreItems, moreItemsOpen, comboOwner: hoistedComboOwner }) => {
   const { context, setContext, refs, settings, handleUndo, handleRedo } =
     useContext(WorkbookContext);
   const contextRef = useRef(context);
   const containerRef = useRef<HTMLDivElement>(null);
-  // Held here rather than inside the provider so the "More" button below can
-  // also clear it -- see its onMouseDown.
-  const comboOwner = useComboExclusivityOwner();
+  // Held above the provider so the "More" button below can also clear it --
+  // see its onMouseDown. Supplied by `Workbook` in the real app: the strip and
+  // the overflow popup have to share ONE owner or the invariant only holds
+  // within each of them, and the popup is not rendered in this subtree. The
+  // local fallback is for a standalone mount.
+  const ownedComboOwner = useComboExclusivityOwner();
+  const comboOwner = hoistedComboOwner ?? ownedComboOwner;
   // Chosen here rather than inside the dialog, so two workbooks on one page
   // cannot collide on it -- see FormulaSearch's own note.
   const formulaSearchTitleId = useId();
@@ -2027,18 +2041,32 @@ const Toolbar: React.FC<{
                   // root container) stops the native event before it reaches
                   // `document`.
                   comboOwner.setOpenId(null);
-                  // The overflow items get their OWN owner, not the strip's.
-                  // They are rendered by `Workbook`, a sibling of this
-                  // component, so a provider in the tree above cannot reach
-                  // them -- and an owner captured into this element would go
-                  // stale the moment a dropdown opened. A fresh one per popup
-                  // is right anyway: nothing is open when it opens.
+                  // No provider around these: `Workbook` wraps the popup's
+                  // container in one holding the SAME owner as the strip, and
+                  // React resolves context from where an element is rendered
+                  // rather than where it was created -- so these inherit it
+                  // there.
+                  //
+                  // A second owner here is what this used to do, and it left a
+                  // seam: this trigger's mousedown calls stopPropagation, so
+                  // the popup's document-level `useOutsideClick` never fires,
+                  // and a strip dropdown could open alongside an overflow one
+                  // with both `aria-expanded="true"`. jsdom cannot see it --
+                  // no layout means `toolbarWrapIndex` is -1 and this button
+                  // never renders -- so `toolbarDropdowns.test.tsx` passed
+                  // throughout. Sharing the owner closes it by construction
+                  // instead of by a second close call that the next dropdown
+                  // added here would have to remember.
+                  //
+                  // Capturing the owner into this element would NOT work, and
+                  // that is why it was two owners in the first place: the value
+                  // is re-memoised on every `openId` change, so the copy frozen
+                  // into this stored element would go stale the moment anything
+                  // opened. Inheriting by render position has no such copy.
                   setMoreItems(
-                    <ComboExclusivity>
-                      {settings.toolbarItems
-                        .slice(toolbarWrapIndex + 1)
-                        .map((name, i) => getToolbarItem(name, i))}
-                    </ComboExclusivity>
+                    settings.toolbarItems
+                      .slice(toolbarWrapIndex + 1)
+                      .map((name, i) => getToolbarItem(name, i))
                   );
                 }
               }}

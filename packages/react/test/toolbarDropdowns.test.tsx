@@ -1,5 +1,6 @@
 import { render, fireEvent } from "@testing-library/react";
 import React from "react";
+import { locale } from "@fortune-sheet/core";
 import Workbook from "../src/components/Workbook";
 
 // Toolbar dropdown exclusivity. Every `Combo` used to own a private
@@ -36,6 +37,28 @@ const triggers = (container: HTMLElement) =>
 
 const expandedFlags = (container: HTMLElement) =>
   triggers(container).map((t) => t.getAttribute("aria-expanded"));
+
+const { toolbar } = locale({ lang: "en" } as any);
+
+/** The strip only -- the overflow popup is rendered outside `.fortune-toolbar`. */
+const stripTriggers = (container: HTMLElement) =>
+  Array.from(
+    container.querySelectorAll<HTMLElement>(
+      ".fortune-toolbar .fortune-toolbar-combo-button[aria-expanded]"
+    )
+  );
+
+const overflowTriggers = (container: HTMLElement) =>
+  Array.from(
+    container.querySelectorAll<HTMLElement>(
+      ".fortune-toolbar-more-container .fortune-toolbar-combo-button[aria-expanded]"
+    )
+  );
+
+const moreButton = (container: HTMLElement) =>
+  container.querySelector<HTMLElement>(
+    `.fortune-toolbar-button[aria-label="${toolbar.toolMore}"]`
+  );
 
 describe("toolbar dropdown exclusivity", () => {
   it("has at least two dropdowns to be exclusive about", () => {
@@ -103,5 +126,93 @@ describe("toolbar dropdown exclusivity", () => {
     fireEvent.mouseDown(first);
 
     expect(first.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  // The seam every case above is blind to. The wrap index is measured from
+  // `getBoundingClientRect` and `clientWidth`, both 0 in jsdom, so
+  // `toolbarWrapIndex` stays -1, the "More" button never renders and the
+  // overflow popup -- which used to own a SECOND exclusivity owner -- is never
+  // exercised. Faking just enough layout brings the one route where the
+  // invariant actually broke into jest, rather than leaving it to a browser
+  // pass that would have to be repeated on every change.
+  //
+  // Why it broke: the strip trigger's mousedown calls stopPropagation, so the
+  // popup's document-level `useOutsideClick` never fires, and with two owners
+  // neither knew about the other's open dropdown.
+  describe("across the More overflow seam", () => {
+    const ITEM_WIDTH = 40;
+    const CONTAINER_WIDTH = 300;
+    let getRect: jest.SpyInstance;
+
+    const domRect = (left: number, width: number) =>
+      ({
+        left,
+        width,
+        right: left + width,
+        top: 0,
+        bottom: 0,
+        height: 0,
+        x: left,
+        y: 0,
+        toJSON: () => {},
+      } as DOMRect);
+
+    beforeEach(() => {
+      getRect = jest
+        .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+        .mockImplementation(function mockRect(this: HTMLElement) {
+          if (!this.classList.contains("fortune-toolbar-item")) {
+            return domRect(0, CONTAINER_WIDTH);
+          }
+          const siblings = Array.from(
+            this.parentElement?.querySelectorAll(".fortune-toolbar-item") ?? []
+          );
+          return domRect(siblings.indexOf(this) * ITEM_WIDTH, ITEM_WIDTH);
+        });
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+        configurable: true,
+        value: CONTAINER_WIDTH,
+      });
+    });
+
+    afterEach(() => {
+      getRect.mockRestore();
+      delete (HTMLElement.prototype as any).clientWidth;
+    });
+
+    // The positive control, and it guards the case below rather than the file:
+    // without a wrap index there is no More button, no popup and nothing to be
+    // exclusive across, and the assertions would hold vacuously.
+    it("renders the More button once the faked layout overflows the strip", () => {
+      const { container } = renderSheet();
+
+      expect(moreButton(container)).not.toBeNull();
+    });
+
+    it("closes an overflow dropdown when a strip dropdown is opened", () => {
+      const { container } = renderSheet();
+
+      fireEvent.mouseDown(moreButton(container)!);
+      const [overflow] = overflowTriggers(container);
+      // Second positive control: the popup has to contain a dropdown for the
+      // rest of this to mean anything.
+      expect(overflow).not.toBeUndefined();
+
+      fireEvent.mouseDown(overflow);
+      expect(overflow.getAttribute("aria-expanded")).toBe("true");
+
+      const [strip] = stripTriggers(container);
+      fireEvent.mouseDown(strip);
+
+      expect(strip.getAttribute("aria-expanded")).toBe("true");
+      expect(overflow.getAttribute("aria-expanded")).toBe("false");
+      // ...and the invariant itself, counted across both regions at once,
+      // which is the form the seam could break without either side noticing.
+      expect(
+        [...stripTriggers(container), ...overflowTriggers(container)].filter(
+          (t) => t.getAttribute("aria-expanded") === "true"
+        )
+      ).toHaveLength(1);
+    });
   });
 });

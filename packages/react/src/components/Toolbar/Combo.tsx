@@ -33,7 +33,7 @@ import WorkbookContext from "../../context";
  * A `Combo` rendered with no provider above it keeps its own local state, so it
  * still works standalone.
  */
-type ComboExclusivityValue = {
+export type ComboExclusivityValue = {
   openId: string | null;
   setOpenId: React.Dispatch<React.SetStateAction<string | null>>;
 };

@@ -1,6 +1,6 @@
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, act } from "@testing-library/react";
 import React from "react";
-import Workbook from "../src/components/Workbook";
+import Workbook, { WorkbookInstance } from "../src/components/Workbook";
 
 // The formula bar is the THIRD path that commits an edit and then moves the
 // caret. The grid's Enter and Tab branches (`core/events/keyboard.ts`) were
@@ -16,8 +16,10 @@ describe("Formula bar commit refused by data verification", () => {
   // `type: "dropdown"` with `prohibitInput`, matching the core fixture: its
   // failure text is a fixed string, so no `optionLabel_*` table is needed.
   const setup = () => {
+    const ref = React.createRef<WorkbookInstance>();
     const { container } = render(
       <Workbook
+        ref={ref}
         lang="en"
         data={[
           {
@@ -45,8 +47,26 @@ describe("Formula bar commit refused by data verification", () => {
     )!;
     const nameBox = () =>
       container.querySelector<HTMLInputElement>(".fortune-name-box")!;
-    return { container, fx, nameBox };
+    return { fx, nameBox, ref };
   };
+
+  // `SheetOverlay` turns `ctx.warnDialog` into a dialog from inside a 240ms
+  // timeout, so nothing has rendered when the keydown returns. Same helper as
+  // `warnDialogRepeat.test.tsx`, which is where the delay is explained.
+  const flushDialog = async () => {
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 300);
+      });
+    });
+  };
+
+  // The dialog is portalled out of the workbook's own subtree, so it has to be
+  // queried from the document rather than from `render`'s container -- and it
+  // is found by role, the thing an AT would use. There is no
+  // `.fortune-message-box` class in this package; only
+  // `.fortune-message-box-button`, on the buttons inside it.
+  const dialog = () => document.querySelector<HTMLElement>('[role="dialog"]');
 
   const commitFromFormulaBar = (fx: HTMLElement, text: string) => {
     // Pointer-then-focus is what opens an edit session from the formula bar;
@@ -80,13 +100,19 @@ describe("Formula bar commit refused by data verification", () => {
 
   // Paired with the assertion above so it cannot pass against a formula bar
   // that refuses every write: the cell must be genuinely unwritten, and the
-  // user must have been told why.
-  it("does not write the refused value, and warns", () => {
-    const { container, fx } = setup();
+  // user must have been told why. The value is read back through the workbook
+  // API rather than off the formula bar, which shows the rejected text and so
+  // says nothing about what was stored.
+  it("does not write the refused value, and warns", async () => {
+    const { fx, ref } = setup();
 
     commitFromFormulaBar(fx, "maybe");
+    await flushDialog();
 
-    expect(container.querySelector(".fortune-message-box")).toBeTruthy();
-    expect(fx.innerText).not.toBe("");
+    expect(ref.current!.getCellValue(0, 0)).toBe("yes");
+    expect(dialog()).toBeTruthy();
+    expect(dialog()!.textContent).toContain(
+      "what you selected is not an option in the drop-down list"
+    );
   });
 });

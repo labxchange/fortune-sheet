@@ -34,8 +34,11 @@
   z-index: 2000;
 }
 
-/* See the matching rule in Toolbar/index.css: the ring sat on the button's own
-   #0188fb at 1.66:1, so it is offset clear of the button onto the white panel. */
+/* See the matching rule in Toolbar/index.css: a flush ring sits on the button's
+   own fill, so it is offset clear of the button onto the white panel, where
+   #0063c3 measures 5.88:1. Written when that fill was #0188fb and the flush
+   ring measured 1.66:1; the fill is #0063c3 now, which changes the arithmetic
+   and not the remedy. */
 #fortune-change-color .button-basic:focus-visible {
   outline-offset: 2px;
 }
@@ -88,9 +91,13 @@
   user-select: none;
 }
 
+/* WCAG 1.4.3: white on #0188fb is 3.55:1, against the 4.5:1 normal text needs.
+   #0063c3 is the same DS action blue at 5.88:1 -- the remedy
+   `ContextMenu/index.css` already shipped for the filter menu's own copy of
+   this rule, propagated here rather than re-derived. */
 .button-primary {
-  background: #0188fb;
-  border: 1px solid #0188fb;
+  background: #0063c3;
+  border: 1px solid #0063c3;
   color: #fff;
   margin-right: -4px;
 }

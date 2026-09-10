@@ -50,6 +50,7 @@ import ContextMenu from "../ContextMenu";
 import SVGDefines from "../SVGDefines";
 import SheetTabContextMenu from "../ContextMenu/SheetTab";
 import MoreItemsContaier from "../Toolbar/MoreItemsContainer";
+import { ComboExclusivity, useComboExclusivityOwner } from "../Toolbar/Combo";
 import { enterRegion, generateAPIs } from "./api";
 import { ModalProvider } from "../../context/modal";
 import FilterMenu from "../ContextMenu/FilterMenu";
@@ -119,6 +120,13 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
 
     const [moreToolbarItems, setMoreToolbarItems] =
       useState<React.ReactNode>(null);
+
+    // One owner of "which toolbar dropdown is open", for the strip and the
+    // overflow popup together -- see the provider around `MoreItemsContaier`
+    // below. It lives here rather than in `Toolbar` because the popup is
+    // rendered here, and two owners left a seam the toolbar's own tests could
+    // not reach.
+    const comboOwner = useComboExclusivityOwner();
 
     const [calInfo, setCalInfo] = useState<{
       numberC: number;
@@ -1003,6 +1011,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
                 <Toolbar
                   moreItemsOpen={moreToolbarItems !== null}
                   setMoreItems={setMoreToolbarItems}
+                  comboOwner={comboOwner}
                 />
               )}
               {mergedSettings.showFormulaBar && <FxEditor />}
@@ -1013,9 +1022,18 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             <FilterMenu />
             <SheetTabContextMenu />
             {context.showSheetList && <SheetList />}
+            {/* The overflow popup shares the toolbar strip's exclusivity
+                owner, so "at most one dropdown is expanded" holds across the
+                seam between them and not just inside each. Held here because
+                this is the nearest component that renders both; the provider
+                is evaluated on every render, so -- unlike an owner captured
+                into the stored popup element -- it is never stale. Renders no
+                DOM node. */}
             {moreToolbarItems && (
               <MoreItemsContaier onClose={onMoreToolbarItemsClose}>
-                {moreToolbarItems}
+                <ComboExclusivity value={comboOwner}>
+                  {moreToolbarItems}
+                </ComboExclusivity>
               </MoreItemsContaier>
             )}
             {!_.isEmpty(context.contextMenu) && (

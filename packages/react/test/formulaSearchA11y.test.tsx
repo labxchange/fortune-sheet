@@ -1,11 +1,19 @@
 import React, { useEffect, useMemo } from "react";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  within,
+  act,
+  createEvent,
+} from "@testing-library/react";
 import {
   defaultContext,
   defaultSettings,
   locale,
   Context,
 } from "@fortune-sheet/core";
+import { virtual } from "@guidepup/virtual-screen-reader";
 import WorkbookContext from "../src/context";
 import { ModalProvider } from "../src/context/modal";
 import { useDialog } from "../src/hooks/useDialog";
@@ -105,6 +113,12 @@ const OpenDialog: React.FC = () => {
 const options = () =>
   within(screen.getByRole("listbox")).getAllByRole("option");
 
+// The active option is named by id, not by focus, so this is the witness for
+// "which entry is the user on" throughout.
+const activeId = () =>
+  screen.getByRole("listbox").getAttribute("aria-activedescendant");
+const active = () => document.getElementById(activeId()!);
+
 describe("Search Function dialog", () => {
   describe("rendered directly", () => {
     beforeEach(() => {
@@ -148,15 +162,34 @@ describe("Search Function dialog", () => {
       expect(options().length).toBeGreaterThan(20);
     });
 
-    // The heart of the ticket: every entry carried tabIndex={0}, so Tab could
-    // not get past the list. Exactly one entry is tabbable now, and the count
-    // must not scale with the number of functions.
-    it("is a single tab stop however many functions it lists", () => {
-      const tabbable = options().filter(
-        (o) => o.getAttribute("tabindex") === "0"
-      );
+    // The heart of the ticket, in its own words: "non-interactive function
+    // entries should not receive keyboard focus". Not one of them is
+    // focusable -- no tabindex at all, not a roving 0/-1 -- and the count does
+    // not scale with the number of functions.
+    it("makes no function entry focusable", () => {
+      const focusable = options().filter((o) => o.hasAttribute("tabindex"));
 
-      expect(tabbable).toHaveLength(1);
+      expect(focusable).toHaveLength(0);
+    });
+
+    // ...and the other half of the same sentence: removing that focus must not
+    // put the list out of reach. The list itself is the tab stop, and it is a
+    // named region, so Tab arrives somewhere that announces what it is.
+    it("makes the list itself the one tab stop, and names it", () => {
+      const list = screen.getByRole("listbox", {
+        name: exact(formulaMore.selectFunctionTitle),
+      });
+
+      expect(list.getAttribute("tabindex")).toBe("0");
+    });
+
+    // `aria-activedescendant` has to resolve, or the list announces nothing at
+    // all. Asserted by looking the id up in the document rather than by
+    // comparing strings, which is the failure an attribute check misses.
+    it("points aria-activedescendant at a real option", () => {
+      expect(active()).toBeTruthy();
+      expect(active()!.getAttribute("role")).toBe("option");
+      expect(active()!.getAttribute("aria-selected")).toBe("true");
     });
 
     it("marks exactly one option selected", () => {
@@ -175,20 +208,107 @@ describe("Search Function dialog", () => {
       fireEvent.click(second);
 
       expect(second.getAttribute("aria-selected")).toBe("true");
-      expect(second.getAttribute("tabindex")).toBe("0");
+      expect(activeId()).toBe(second.id);
     });
 
-    // Selection follows focus, so the arrow keys move the selected option
-    // rather than decoupling it from the one the dialog would insert.
-    it("moves the selection with the arrow keys", () => {
-      const [first] = options();
-      first.focus();
+    // The arrow keys are handled by the list, and they must move the active
+    // option WITHOUT moving focus -- that is the whole point of
+    // activedescendant, and the assertion on `document.activeElement` is what
+    // stops a future "simplification" back to `.focus()` on the option.
+    it("moves the active option with the arrow keys, without moving focus", () => {
+      const list = screen.getByRole("listbox");
+      act(() => {
+        list.focus();
+      });
 
-      fireEvent.keyDown(first, { key: "ArrowDown" });
+      fireEvent.keyDown(list, { key: "ArrowDown" });
 
       const after = options();
       expect(after[0].getAttribute("aria-selected")).toBe("false");
       expect(after[1].getAttribute("aria-selected")).toBe("true");
+      expect(activeId()).toBe(after[1].id);
+      expect(document.activeElement).toBe(list);
+    });
+
+    // Home/End are the rest of the listbox contract, and the reason the
+    // ticket's fourth line is satisfied: a ~55-entry list stays traversable
+    // without 55 tab stops.
+    it("jumps to the last and first entries with End and Home", () => {
+      const list = screen.getByRole("listbox");
+      act(() => {
+        list.focus();
+      });
+
+      fireEvent.keyDown(list, { key: "End" });
+      expect(activeId()).toBe(options()[options().length - 1].id);
+
+      fireEvent.keyDown(list, { key: "Home" });
+      expect(activeId()).toBe(options()[0].id);
+    });
+
+    // The reported trap. With VoiceOver on, ArrowDown at the last entry
+    // returned to the first, so arrow navigation was a closed ring with no
+    // exit. The boundary now stops -- ARIA's listbox contract, and what makes
+    // the end of the list discoverable.
+    it("stops at the last function instead of wrapping to the first", () => {
+      const list = screen.getByRole("listbox");
+      act(() => {
+        list.focus();
+      });
+      fireEvent.keyDown(list, { key: "End" });
+      const lastId = activeId();
+
+      fireEvent.keyDown(list, { key: "ArrowDown" });
+
+      expect(activeId()).toBe(lastId);
+      expect(options()[0].getAttribute("aria-selected")).toBe("false");
+    });
+
+    it("stops at the first function instead of wrapping to the last", () => {
+      const list = screen.getByRole("listbox");
+      act(() => {
+        list.focus();
+      });
+
+      fireEvent.keyDown(list, { key: "ArrowUp" });
+
+      expect(activeId()).toBe(options()[0].id);
+    });
+
+    // The counter-path for both boundaries: a list that stops must not be a
+    // list that stopped moving. Without this, the two cases above would pass
+    // just as well against arrow keys that had been broken outright.
+    it("still moves backward from that last function", () => {
+      const list = screen.getByRole("listbox");
+      act(() => {
+        list.focus();
+      });
+      fireEvent.keyDown(list, { key: "End" });
+
+      fireEvent.keyDown(list, { key: "ArrowUp" });
+
+      const all = options();
+      expect(activeId()).toBe(all[all.length - 2].id);
+    });
+
+    // A boundary key that changes nothing must not be swallowed either: the
+    // event stays uncancelled so the browser -- or the AT driving it -- can
+    // still do whatever it would have done with that keystroke. The paired
+    // `true` is the positive control; without it this would pass against a
+    // handler that had stopped cancelling anything at all.
+    it("leaves a boundary key uncancelled, but claims one that moves", () => {
+      const list = screen.getByRole("listbox");
+      act(() => {
+        list.focus();
+      });
+
+      const atStart = createEvent.keyDown(list, { key: "ArrowUp" });
+      fireEvent(list, atStart);
+      expect(atStart.defaultPrevented).toBe(false);
+
+      const moves = createEvent.keyDown(list, { key: "ArrowDown" });
+      fireEvent(list, moves);
+      expect(moves.defaultPrevented).toBe(true);
     });
 
     // These were focusable <div>s with an onClick and no keyboard handler at
@@ -206,10 +326,12 @@ describe("Search Function dialog", () => {
       expect(cancel.tagName).toBe("BUTTON");
     });
 
-    // Typing used to leave the index pointing into the old, longer list: the
-    // dialog then had no tabbable option and OK dereferenced an entry that was
-    // no longer there.
-    it("keeps exactly one tabbable option after filtering the list", () => {
+    // Typing used to leave the index pointing into the old, longer list, which
+    // left the dialog with no active option at all and made OK dereference an
+    // entry that was no longer there. Under activedescendant the witness is
+    // the same requirement one layer over: the id still has to resolve, to an
+    // option that is actually in the filtered list.
+    it("keeps the active option pointing into the filtered list", () => {
       fireEvent.change(
         screen.getByRole("textbox", {
           name: exact(formulaMore.findFunctionTitle),
@@ -219,10 +341,246 @@ describe("Search Function dialog", () => {
         }
       );
 
-      const tabbable = options().filter(
-        (o) => o.getAttribute("tabindex") === "0"
+      const remaining = options();
+      expect(remaining.length).toBeGreaterThan(0);
+      expect(remaining.length).toBeLessThan(20);
+      expect(activeId()).toBe(remaining[0].id);
+      expect(active()).toBeTruthy();
+    });
+  });
+
+  // Reaching the right entry is only half of operability -- acting on it is the
+  // other half, and the list had no way to do that: Enter did nothing, and a
+  // screen reader's activate did nothing, so a keyboard or AT user could walk
+  // to SUMIF and then had to leave the list to find a button.
+  //
+  // All three routes end in the same `onConfirm`, so these cases assert that
+  // they *reach* it rather than re-testing what it does. `setContext` is the
+  // witness: `onConfirm` calls it unconditionally, and nothing else in this
+  // dialog does on these gestures.
+  describe("activating the active entry", () => {
+    const renderWithSpy = () => {
+      const setContext = jest.fn();
+      const value = {
+        context: makeContext(),
+        setContext,
+        settings: defaultSettings,
+        refs: makeRefs() as any,
+        handleUndo: () => {},
+        handleRedo: () => {},
+      };
+      render(
+        <WorkbookContext.Provider value={value as any}>
+          <ModalProvider>
+            <FormulaSearch onCancel={() => {}} titleId={TITLE_ID} />
+          </ModalProvider>
+        </WorkbookContext.Provider>
       );
-      expect(tabbable).toHaveLength(1);
+      return { setContext };
+    };
+
+    it("inserts on Enter, the same way OK does", () => {
+      const { setContext } = renderWithSpy();
+      const list = screen.getByRole("listbox");
+      act(() => {
+        list.focus();
+      });
+
+      fireEvent.keyDown(list, { key: "Enter" });
+
+      expect(setContext).toHaveBeenCalledTimes(1);
+    });
+
+    // The parity the request was actually about: whatever OK does, Enter does.
+    // Asserted as "the same number of calls to the same producer" rather than
+    // by reimplementing the insertion, because both go through one function.
+    it("reaches the same producer OK reaches", () => {
+      const { setContext } = renderWithSpy();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: exact(button.confirm) })
+      );
+
+      expect(setContext).toHaveBeenCalledTimes(1);
+    });
+
+    // VoiceOver passes Space through to the focused element when it is not
+    // consuming the key itself, and the focused element is the listbox.
+    it("inserts on Space as well as Enter", () => {
+      const { setContext } = renderWithSpy();
+      const list = screen.getByRole("listbox");
+      act(() => {
+        list.focus();
+      });
+
+      fireEvent.keyDown(list, { key: " " });
+
+      expect(setContext).toHaveBeenCalledTimes(1);
+    });
+
+    // The other AT route: VO-Space, NVDA's browse-mode Enter and a touch
+    // reader's double-tap arrive as a click with no pointer event before it.
+    // Dispatched here as a bare click for exactly that reason -- the absence
+    // of the pointerdown IS the signal being tested.
+    it("inserts when a screen reader activates an option", () => {
+      const { setContext } = renderWithSpy();
+
+      fireEvent.click(options()[2]);
+
+      expect(setContext).toHaveBeenCalledTimes(1);
+    });
+
+    // The counter-path, and the whole reason the routes are told apart: this
+    // dialog has an OK button, so a real mouse click has to keep meaning
+    // "select this one" and must not insert and close. The full pointer
+    // sequence is what makes it a mouse click; wiring the click straight to
+    // onConfirm would pass every other case above.
+    it("only selects, and does not insert, on a real mouse click", () => {
+      const { setContext } = renderWithSpy();
+
+      fireEvent.pointerDown(options()[2]);
+      fireEvent.click(options()[2]);
+
+      expect(setContext).not.toHaveBeenCalled();
+      expect(options()[2].getAttribute("aria-selected")).toBe("true");
+    });
+
+    // A second mouse click must behave like the first -- the flag is consumed
+    // by the click that follows the press, not left set. Without the reset a
+    // pointer press would poison every later AT activation, which is the
+    // failure mode that would only show up after a user had touched the list
+    // with the mouse once.
+    it("keeps selecting, not inserting, on a second mouse click", () => {
+      const { setContext } = renderWithSpy();
+
+      fireEvent.pointerDown(options()[2]);
+      fireEvent.click(options()[2]);
+      fireEvent.pointerDown(options()[3]);
+      fireEvent.click(options()[3]);
+
+      expect(setContext).not.toHaveBeenCalled();
+    });
+
+    // ...and the converse: an AT activation still works after a mouse click.
+    it("still activates for a screen reader after a mouse click", () => {
+      const { setContext } = renderWithSpy();
+
+      fireEvent.pointerDown(options()[2]);
+      fireEvent.click(options()[2]);
+      fireEvent.click(options()[3]);
+
+      expect(setContext).toHaveBeenCalledTimes(1);
+    });
+
+    // Every case above pairs a press with a click, which is the pairing the
+    // discriminator was written against. The gap is a press that produces no
+    // click on the option at all -- released somewhere else, so the browser
+    // fires `click` on the nearest common ancestor (`.formulaList`, which has
+    // no handler) and nothing consumes the flag. Left set, it makes the next
+    // activation dead, and the user who hits that is the one who touched the
+    // list with the mouse before reaching for the screen reader.
+    it("still activates for a screen reader after a press that produced no click", () => {
+      const { setContext } = renderWithSpy();
+
+      fireEvent.pointerDown(options()[2]);
+      fireEvent.pointerUp(document.body);
+      fireEvent.click(options()[3]);
+
+      expect(setContext).toHaveBeenCalledTimes(1);
+    });
+
+    // The other release that emits no click: a right-press, which produces
+    // `contextmenu` instead. Told apart at the press rather than at the
+    // release, because the release lands on the option like a real click's
+    // does and the two are indistinguishable by target alone.
+    it("ignores a non-primary press, which never becomes a click", () => {
+      const { setContext } = renderWithSpy();
+
+      fireEvent.pointerDown(options()[2], { button: 2 });
+      fireEvent.click(options()[3]);
+
+      expect(setContext).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // The ticket's fourth line is about a screen reader, and every case above
+  // asserts one layer removed from that: which attributes are set, not what
+  // gets announced. `@guidepup/virtual-screen-reader` resolves the
+  // accessibility tree and composes the announcement the way the ARIA spec
+  // says to, which is what settles "is the list still traversable" mechanically
+  // rather than by reading the spec and asserting the reading.
+  //
+  // It models the spec, not VoiceOver, so it does not replace the manual pass
+  // -- it means the manual pass confirms platform behaviour instead of
+  // discovering that the list was never traversable in the tree at all.
+  describe("what a screen reader gets", () => {
+    afterEach(async () => {
+      await virtual.stop();
+    });
+
+    it("announces the list as a named listbox and reads the active option", async () => {
+      render(
+        <Harness>
+          <FormulaSearch onCancel={() => {}} titleId={TITLE_ID} />
+        </Harness>
+      );
+      const list = screen.getByRole("listbox");
+
+      await virtual.start({ container: list });
+      const spoken = await virtual.lastSpokenPhrase();
+      await virtual.stop();
+
+      expect(spoken).toContain("listbox");
+      expect(spoken).toContain(formulaMore.selectFunctionTitle);
+    });
+
+    // The trap, read from the tree rather than from the DOM: arrowing to the
+    // end must leave the reader on the last entry, not back at the first.
+    it("walks to the last entry and stays there", async () => {
+      render(
+        <Harness>
+          <FormulaSearch onCancel={() => {}} titleId={TITLE_ID} />
+        </Harness>
+      );
+      const list = screen.getByRole("listbox");
+      const all = options();
+      // The function name alone, from the first of the option's two child
+      // divs -- not the option's whole `textContent`, which runs the name and
+      // the description together with no separator ("PRODUCTResult of...")
+      // while the reader composes an accessible name with one. Matching the
+      // name is what this case is about anyway.
+      const lastName = all[all.length - 1].querySelector("div")!.textContent!;
+
+      act(() => {
+        list.focus();
+      });
+      fireEvent.keyDown(list, { key: "End" });
+      fireEvent.keyDown(list, { key: "ArrowDown" });
+
+      await virtual.start({ container: list });
+      const spokenAll: string[] = [];
+      // Generous, and deliberately not tuned to the list length: each option
+      // yields several phrases (enter, name, description, exit), so a cap set
+      // near the option count silently truncates the walk before the last
+      // entry and the assertion below then fails for the wrong reason. The
+      // loop exits on its own when the reader stops moving.
+      for (let i = 0; i < 1000; i += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        const phrase = await virtual.lastSpokenPhrase();
+        if (spokenAll.length && phrase === spokenAll[spokenAll.length - 1])
+          break;
+        spokenAll.push(phrase);
+        // eslint-disable-next-line no-await-in-loop
+        await virtual.next();
+      }
+      await virtual.stop();
+
+      // Every entry is reachable in the tree -- the list is traversable, which
+      // is the half of the ticket that removing focus could have broken.
+      expect(spokenAll.length).toBeGreaterThan(all.length);
+      expect(spokenAll.join(" | ")).toContain(lastName!.replace(/\s+/g, " "));
+      // ...and the boundary held: the active option is still the last one.
+      expect(activeId()).toBe(all[all.length - 1].id);
     });
   });
 

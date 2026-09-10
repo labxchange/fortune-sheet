@@ -66,70 +66,38 @@
  * at 5.63:1. See the note at `SearchReplace/index.css:34` for why not the
  * lighter #6b67e0 (4.52:1 leaves nothing for a future tweak).
  *
- * Copying that fix wholesale is NOT enough here, and the ring rule below is
- * why: the shared #0063c3 focus ring is 1.04:1 on a #5b57d1 fill.
+ * This fill is the only marker of which option is active, because focus never
+ * lands on an option -- so it does double duty and 5.63:1 against the list's
+ * white is what carries it. An earlier version also drew a per-option focus
+ * ring here, which had to be two-tone: the shared #0063c3 ring is 1.04:1 on
+ * #5b57d1. That rule is gone; the ring is on the container now.
  */
 .listBox.on {
   background-color: #5b57d1;
   color: #fff;
 }
 
-/* The options had no focus style of their own: they were clickable divs, so
-   focus landed on them with nothing to show for it. Inset, because
-   .formulaList is an overflow-y:scroll box and an outset ring on the first or
-   last option is clipped by it -- the same reason
-   .fortune-toolbar-select-option uses a negative offset. */
-/* Two-tone, and it has to be. Selection follows focus, so a focused option is
-   ALWAYS the selected one -- the ring never renders on the list's white
-   background, only on the selected fill. That is the trap fs#20 fell into:
-   measure against white, ship a ring that only ever paints on the fill.
-   Neither tone alone clears 3:1 there:
-     #0063c3 on #5b57d1 -> 1.04:1      #fff on #5b57d1 -> 5.63:1
-     #0063c3 on #8c89fe -> 1.99:1      near-black on #5b57d1 -> 3.03:1, no margin
-   So the indicator carries its own contrast internally: two 3px bands, one
-   #0063c3 and one white, within the option's outer 6px. #0063c3 against white
-   is 5.88:1 and white against the #5b57d1 fill is 5.63:1, so every boundary
-   clears 3:1 with margin whichever band the browser paints outermost -- and
-   whatever the fill later becomes.
+/* Focus lands on the list, never on an option -- `aria-activedescendant`
+   moves the active option without moving DOM focus -- so the ring belongs
+   here. Inset, because `.formulaList` is an `overflow-y: scroll` box and an
+   outset ring on a scrolling container is clipped by its own scroll area.
 
-   Both bands are INSET: `.formulaList` is `overflow-y: scroll`, so anything
-   drawn outside the first or last option's box is clipped. */
-.formulaList [role="option"]:focus-visible {
+   The earlier `[role="option"]:focus-visible` rule this replaces had to be
+   two-tone: selection follows the active option, so a per-option ring only
+   ever painted on the selected fill and never on white. A ring on the
+   container has no such problem -- it is always on the dialog's white
+   background at 5.88:1 -- and `.listBox.on` above carries the separate job of
+   marking which option is active, at 5.63:1 against the list. */
+.formulaList:focus-visible {
   outline: var(--border_focus_outer, 3px) solid
     var(--color_border_focus_outer, #0063c3);
   outline-offset: -3px;
-  box-shadow: inset 0 0 0 6px #fff;
 }
 
-/* 1.4.11, and the reason this needs its own colour rather than an offset.
- *
- * The shared ring is `#0063c3`. Against `.button-primary`'s `#0188fb` fill that
- * is **1.66:1** (measured). `outline-offset` alone was the first attempt: the
- * dialog really is `background: white` (`Dialog/index.css:6`), so a 2px gap
- * does give the ring a 5.88:1 neighbour and passes 1.4.11 read strictly as
- * "adjacent colours". It failed re-test anyway, because an auditor measuring
- * the indicator against the control it encloses reads the 1.66:1 -- and that
- * reading is not unreasonable for a 2px gap nobody can see.
- *
- * Darkening the fill instead cannot work: for `#0063c3` to clear 3:1 the fill
- * must be either lighter than L=0.486 (which fails white body text at 4.5:1) or
- * darker than L=0.010 (which is not a primary blue). There is no fill that
- * satisfies both.
- *
- * So the ring colour changes, for this dialog only. `rgb(38, 42, 51)` is the
- * package's existing dark ink (`Dialog/index.css:52` and three other files) and
- * measures 4.05:1 on `#0188fb`, 14.4:1 on white -- it passes on either reading,
- * on both button variants, and whether or not an ancestor clips an outward
- * ring (`.fortune-dialog` is `overflow: scroll`).
- *
- * Scoped, not global: `.fortune-message-box-button` has 10 more instances
- * across `Dialog`, `SearchReplace` and `FormatSearch` that this ticket did not
- * audit. They keep the shared ring and keep the 1.66:1 on their own primary
- * buttons -- a real defect, stated rather than silently inherited.
- *
- * The offset stays: "insufficient spacing around it" was the other half of the
- * same report. */
-#luckysheet-search-formula .fortune-message-box-button:focus-visible {
-  outline: var(--border_focus_outer, 3px) solid rgb(38, 42, 51);
-  outline-offset: 2px;
-}
+/* The OK button's ring and fill are NOT set here any more. Both were local
+   overrides while `Dialog/index.css` was out of scope; that file now carries
+   the fix for every dialog's primary button -- a #0063c3 fill so the white
+   label clears 1.4.3, and a black ring so the indicator clears 1.4.11 against
+   that fill. Keeping a second copy here would put this one dialog's ring on a
+   different colour from every other ring in the product, which is the cost
+   the scoped version was recorded as carrying. */

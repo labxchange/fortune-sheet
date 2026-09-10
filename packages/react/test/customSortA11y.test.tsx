@@ -627,9 +627,13 @@ describe("the rule that governs the Sort button's focus ring", () => {
   };
 
   it("pushes the ring off the button's own fill", () => {
-    // #0063c3 on the #0188fb .button-primary fill is 1.66:1 and fails 1.4.11.
-    // Any positive offset moves it onto the white dialog panel, where the same
-    // colour measures 5.88:1; 2px matches the filter menu's buttons.
+    // A flush ring lands on the button's own .button-primary fill; any positive
+    // offset moves it onto the white dialog panel, where #0063c3 measures
+    // 5.88:1. 2px matches the filter menu's buttons.
+    //
+    // Deliberately asserts the offset and not the colour: the fill became
+    // #0063c3 in this same change, so the "1.66:1 against #0188fb" figure this
+    // case was written from is gone, while the reason for the offset is not.
     const body = ruleBody(
       read("../src/components/CustomSort/index.css"),
       ".fortune-sort-button .button-basic:focus-visible",

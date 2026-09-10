@@ -448,9 +448,26 @@
   user-select: none;
 }
 
+/* Same reasoning as Dialog/index.css's primary-button ring: the shared
+   .button-basic ring above is #0063c3, which is now the primary fill, so on a
+   primary button it would be 1.00:1. Black is 3.57:1 on that fill.
+
+   Colour only -- no outline-offset here. Several .button-basic consumers sit
+   in containers that clip an outset ring, which is why CustomSort, CustomColor
+   and ChangeColor each add the offset in their own scope rather than to the
+   shared rule; at 3.57:1 a flush ring already clears 1.4.11, so this does not
+   reopen that. */
+.button-basic.button-primary:focus-visible {
+  outline-color: #000;
+}
+
+/* WCAG 1.4.3: white on #0188fb is 3.55:1, against the 4.5:1 normal text needs.
+   #0063c3 is the same DS action blue at 5.88:1 -- the remedy
+   `ContextMenu/index.css` already shipped for the filter menu's own copy of
+   this rule, propagated here rather than re-derived. */
 .button-primary {
-  background: #0188fb;
-  border: 1px solid #0188fb;
+  background: #0063c3;
+  border: 1px solid #0063c3;
   color: #fff;
   margin-right: -4px;
 }
