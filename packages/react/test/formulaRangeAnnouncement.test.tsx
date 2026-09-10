@@ -149,11 +149,13 @@ describe("formula range announcement", () => {
       const region = document.getElementById("sr-formulaRange");
 
       expect(region).not.toBeNull();
+      // One assertion, because one attribute carries both properties:
+      // `role="alert"` implies aria-live="assertive" and aria-atomic="true".
+      // The atomicity matters here specifically -- read incrementally, a
+      // reference changing C1 -> C10 is announced as a diff rather than whole
+      // -- and it comes from the role, not from a spelled-out aria-atomic,
+      // which `srLiveRegionSpelling.test.tsx` now rules out repo-wide.
       expect(region!.getAttribute("role")).toBe("alert");
-      expect(region!.getAttribute("aria-live")).toBe("assertive");
-      // Without this the region is read incrementally, and a reference that
-      // changes from C1 to C10 would be announced as a diff rather than whole.
-      expect(region!.getAttribute("aria-atomic")).toBe("true");
     });
 
     // The counter-path, and the reason it is here: the neighbouring regions

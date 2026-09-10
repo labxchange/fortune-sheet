@@ -1329,13 +1329,7 @@ const SheetOverlay: React.FC = () => {
           `sr-virtual.test.tsx` asserts it survives a focus move that way. The
           full reasoning, including the double-speak question the two mechanisms
           raise together, is in useContextMenuAnnouncements. */}
-      <div
-        id={contextMenuRegionId}
-        className="sr-only"
-        role="alert"
-        aria-live="assertive"
-        aria-atomic="true"
-      >
+      <div id={contextMenuRegionId} className="sr-only" role="alert">
         {contextMenuAnnouncement}
       </div>
       {/* A toolbar command edits the cell in place rather than navigating to
@@ -1349,14 +1343,13 @@ const SheetOverlay: React.FC = () => {
           context-menu region above is assertive to survive. A polite
           announcement queued there risks the same VoiceOver fate that
           region's own comment describes: the newly-focused element's own
-          announcement discards a polite message queued in the same moment. */}
-      <div
-        id="sr-toolbarFocusReturn"
-        className="sr-only"
-        role="alert"
-        aria-live="assertive"
-        aria-atomic="true"
-      >
+          announcement discards a polite message queued in the same moment.
+
+          `role="alert"` alone, with no `aria-live` or `aria-atomic` beside it:
+          the role implies both, and spelling them out is the odd-one-out
+          variant `Toolbar/index.tsx` already recorded a decision against.
+          `srLiveRegionSpelling.test.tsx` holds every region to it. */}
+      <div id="sr-toolbarFocusReturn" className="sr-only" role="alert">
         {toolbarFocusReturnAnnouncement}
       </div>
       {/* Picking a cell reference during formula entry moves an overlay
@@ -1383,13 +1376,7 @@ const SheetOverlay: React.FC = () => {
           `#sr-formulaSuggestions` regions (`FxEditor/index.tsx`,
           `InputBox.tsx`) that speak during formula entry on this same editor.
           Both are audible-only and neither is visible to jest. */}
-      <div
-        id="sr-formulaRange"
-        className="sr-only"
-        role="alert"
-        aria-live="assertive"
-        aria-atomic="true"
-      >
+      <div id="sr-formulaRange" className="sr-only" role="alert">
         {formulaRangeAnnouncement}
       </div>
     </main>

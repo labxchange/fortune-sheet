@@ -298,9 +298,11 @@ describe("context-menu action status announcements", () => {
     // the cell input, and VoiceOver *discards* a polite message queued alongside
     // the focus utterance. Verified in a browser — Copy spoke only "text entry
     // area, blank". Assertive interrupts instead of being dropped.
+    // Carried by `role="alert"` alone, which implies both
+    // aria-live="assertive" and aria-atomic="true"; the explicit pair this
+    // once also asserted is the redundancy `srLiveRegionSpelling.test.tsx`
+    // now rules out repo-wide. "status" here would still fail.
     expect(region!.getAttribute("role")).toBe("alert");
-    expect(region!.getAttribute("aria-live")).toBe("assertive");
-    expect(region!.getAttribute("aria-atomic")).toBe("true");
     expect(region!.className).toContain("sr-only");
   });
 
