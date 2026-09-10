@@ -1,5 +1,7 @@
-import { renderHook } from "@testing-library/react";
+import React from "react";
+import { render, renderHook } from "@testing-library/react";
 import { Context, FormulaCache, locale } from "@fortune-sheet/core";
+import Workbook from "../src/components/Workbook";
 import { useFormulaRangeAnnouncement } from "../src/hooks/useFormulaRangeAnnouncement";
 
 const { info } = locale({ lang: "en" } as unknown as Context);
@@ -119,5 +121,59 @@ describe("formula range announcement", () => {
     rerender(buildContext(false, undefined));
 
     expect(result.current).toBe("");
+  });
+
+  // The hook only produces the string. Whether that string is *spoken in time*
+  // is a property of the region it lands in, and the region is where the
+  // WCAG 4.1.2 half of this ticket actually lives -- a polite region is
+  // dropped rather than queued while other speech is in progress, so the
+  // reference was arriving only after the placeholder noise had drained.
+  //
+  // Asserted on the rendered tree rather than by reading the source, because
+  // the attributes are the contract with the screen reader and a source regex
+  // would still pass if the region stopped being rendered at all.
+  describe("the region the announcement lands in", () => {
+    const renderSheet = () =>
+      render(
+        <Workbook
+          lang="en"
+          data={[
+            { name: "Sheet1", id: "s1", celldata: [], row: 10, column: 6 },
+          ]}
+        />
+      );
+
+    it("is assertive, so it can pre-empt speech already in progress", () => {
+      renderSheet();
+
+      const region = document.getElementById("sr-formulaRange");
+
+      expect(region).not.toBeNull();
+      expect(region!.getAttribute("role")).toBe("alert");
+      expect(region!.getAttribute("aria-live")).toBe("assertive");
+      // Without this the region is read incrementally, and a reference that
+      // changes from C1 to C10 would be announced as a diff rather than whole.
+      expect(region!.getAttribute("aria-atomic")).toBe("true");
+    });
+
+    // The counter-path, and the reason it is here: the neighbouring regions
+    // were left polite on purpose. Each of them fires *after* a selection move,
+    // where assertive would cut off the cell announcement the user navigated to
+    // hear -- the reasoning the formula region shipped with and no longer
+    // shares, because during point mode the real selection never moves. A
+    // blanket sweep to assertive would pass the case above and break those.
+    it("leaves its polite neighbours polite", () => {
+      renderSheet();
+
+      expect(
+        document.getElementById("sr-selectionMode")!.getAttribute("role")
+      ).toBe("status");
+      expect(
+        document.getElementById("sr-selectAll")!.getAttribute("role")
+      ).toBe("status");
+      expect(
+        document.getElementById("sr-filterRegion")!.getAttribute("role")
+      ).toBe("status");
+    });
   });
 });

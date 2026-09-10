@@ -1341,8 +1341,35 @@ const SheetOverlay: React.FC = () => {
       </div>
       {/* Picking a cell reference during formula entry moves an overlay
           rectangle and rewrites text inside a contenteditable — both invisible
-          to a screen reader. Polite, for the same reason as above. */}
-      <div id="sr-formulaRange" className="sr-only" role="status">
+          to a screen reader.
+
+          Assertive, unlike its polite neighbours above, and this reverses the
+          reasoning this region shipped with. That reasoning was: `#sr-selection`
+          is an alert, so an assertive message here would cut off the cell
+          announcement the user navigated to hear. It does not apply during
+          point mode — the real selection never moves while a reference is being
+          picked, so `#sr-selection` is not speaking and there is nothing polite
+          to protect. What an assertive message interrupts here is the
+          placeholder noise WebKit produces while re-reading the mutated
+          contenteditable, which is the whole point.
+
+          A polite region loses that race by design: it is dropped rather than
+          queued while other speech is in progress, so the reference arrived
+          only once the noise had drained — "3-4 times before eventually
+          announcing the actual cell reference".
+
+          The overlap to watch is the FIRST arrow press, which can land while an
+          entry announcement is still in flight, and the two polite
+          `#sr-formulaSuggestions` regions (`FxEditor/index.tsx`,
+          `InputBox.tsx`) that speak during formula entry on this same editor.
+          Both are audible-only and neither is visible to jest. */}
+      <div
+        id="sr-formulaRange"
+        className="sr-only"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+      >
         {formulaRangeAnnouncement}
       </div>
     </main>
