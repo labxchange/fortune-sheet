@@ -258,11 +258,20 @@ const FilterMenu: React.FC = () => {
   const { showAlert } = useAlert();
   const mouseHoverSubMenu = useRef<boolean>(false);
   /**
-   * Whether the colour submenu's current open came from Enter/Space rather than
-   * the pointer. Set by `openColorSubMenu` on every open, and read once when the
-   * submenu's Escape layer mounts, to decide whether focus follows.
+   * Whether the colour submenu's current open should take focus with it. Set by
+   * `openColorSubMenu` on every open, and read once when the submenu's Escape
+   * layer mounts.
+   *
+   * The distinction is **deliberate activation vs. hover**, not keyboard vs.
+   * pointer. It used to be the latter, keyed on which handler fired — and that
+   * silently excluded screen-reader users, because VoiceOver's VO+Space
+   * activates a control by dispatching a click and never a keydown, so it took
+   * the pointer path and focus stayed outside the submenu it had just opened.
+   * Anyone who *asks* for this submenu — by click, by Enter/Space, or through
+   * assistive technology — is taken into it; only a pointer drifting across the
+   * row is not, which is the case that would actually be harmed.
    */
-  const keyboardOpenRef = useRef<boolean>(false);
+  const focusOnOpenRef = useRef<boolean>(false);
   contextRef.current = context;
 
   /**
@@ -368,11 +377,17 @@ const FilterMenu: React.FC = () => {
     open: showSubMenu,
     onClose: () => setShowSubMenu(false),
     containerRef: subMenuRef,
-    autoFocus: keyboardOpenRef.current,
+    autoFocus: focusOnOpenRef.current,
     // The default selector wants role="button"/tabindex="0"; the colour rows are
     // role="checkbox" and the footer controls are real <button>s. Document order
     // picks the first colour row, or the footer button when there is none.
-    autoFocusSelector: '[role="checkbox"], button',
+    //
+    // `[role="note"]` is the one-colour tip, and it is what stops this branch
+    // being a dead end: with fewer than two colours the panel holds no
+    // controls, so without it the selector matched nothing, `focus()` no-oped,
+    // and focus stayed on the trigger — the whole of T12 on any sheet without
+    // cell colouring.
+    autoFocusSelector: '[role="checkbox"], button, [role="note"]',
   });
   useRovingFocus({
     containerRef,
@@ -748,14 +763,14 @@ const FilterMenu: React.FC = () => {
             );
           }
           if (name === "filter-by-color") {
-            // `fromKeyboard` is recorded on every open, not only the keyboard
-            // one: leaving a stale `true` behind meant a later hover-open pulled
-            // focus into the submenu under the pointer.
-            const openColorSubMenu = (fromKeyboard = false) => {
+            // Recorded on every open, not only the focusing ones: leaving a
+            // stale `true` behind meant a later hover-open pulled focus into
+            // the submenu under the pointer.
+            const openColorSubMenu = (focusOnOpen = false) => {
               if (!containerRef.current || !filterContextMenu) {
                 return;
               }
-              keyboardOpenRef.current = fromKeyboard;
+              focusOnOpenRef.current = focusOnOpen;
               setShowSubMenu(true);
               const rect = byColorMenuRef.current?.getBoundingClientRect();
               if (rect == null) return;
@@ -790,6 +805,7 @@ const FilterMenu: React.FC = () => {
                  * mounts while open.
                  */
                 aria-owns={showSubMenu ? BY_COLOR_SUBMENU_ID : undefined}
+                // Hover alone must not pull focus off whatever the user is on.
                 onMouseEnter={() => openColorSubMenu()}
                 onMouseLeave={delayHideSubMenu}
               >
@@ -801,8 +817,12 @@ const FilterMenu: React.FC = () => {
                   // marked keyboard-initiated — that is what decides whether
                   // focus follows. `onActivate` keeps the same
                   // target === currentTarget and repeat guards as the default.
+                  // Both routes focus the submenu: activating a disclosure is
+                  // a request to go into it. The click path covers assistive
+                  // technology too, which reaches this as a click and never as
+                  // a keydown.
                   onKeyDown={onActivate(() => openColorSubMenu(true))}
-                  onClick={() => openColorSubMenu()}
+                  onClick={() => openColorSubMenu(true)}
                 >
                   <div className="filter-bycolor-container">
                     {filter.filterByColor}
@@ -891,7 +911,12 @@ const FilterMenu: React.FC = () => {
                       >
                         {filter.filterValueByAllBtn}
                       </button>
-                      {" - "}
+                      {/* Decorative. Each of these three is already a named
+                          button, so the hyphen between them carries nothing —
+                          but as a bare text node it was its own stop for a
+                          screen-reader cursor, announcing "-" between the
+                          controls (WCAG 1.3.1). */}
+                      <span aria-hidden="true">{" - "}</span>
                       <button
                         type="button"
                         className="fortune-byvalue-btn"
@@ -899,7 +924,12 @@ const FilterMenu: React.FC = () => {
                       >
                         {filter.filterValueByClearBtn}
                       </button>
-                      {" - "}
+                      {/* Decorative. Each of these three is already a named
+                          button, so the hyphen between them carries nothing —
+                          but as a bare text node it was its own stop for a
+                          screen-reader cursor, announcing "-" between the
+                          controls (WCAG 1.3.1). */}
+                      <span aria-hidden="true">{" - "}</span>
                       <button
                         type="button"
                         className="fortune-byvalue-btn"
@@ -1092,7 +1122,20 @@ const FilterMenu: React.FC = () => {
         >
           {filterColors.bgColors.length < 2 &&
           filterColors.fcColors.length < 2 ? (
-            <div className="one-color-tip">
+            /* Focusable, and the only thing in this branch that can be.
+               When the column has fewer than two colours there are no colour
+               rows, so `autoFocus` had nothing to aim at and `focus()` was a
+               silent no-op — activating "Filter by color" opened a panel and
+               left the user outside it (WCAG 2.4.3). That is the *ordinary*
+               case, not an edge one: a sheet with no cell colouring at all
+               lands here every time.
+
+               `role="note"` because that is what this is — ancillary text
+               explaining why there is nothing to choose — and it gives the
+               selector below something role-based to match rather than a
+               class name. `-1`, so it takes focus programmatically without
+               becoming a Tab stop. */
+            <div className="one-color-tip" role="note" tabIndex={-1}>
               {filter.filterContainerOneColorTip}
             </div>
           ) : (

@@ -191,6 +191,14 @@ const CustomBorder: React.FC<Props> = ({ onPick, onColorPicked }) => {
           // `aria-controls` is the complete disclosure relationship on its own.
           aria-expanded={openSubmenu === "color"}
           aria-controls={colorMenuId}
+          // Without an onClick this could not be opened by assistive
+          // technology at all: VO+Space dispatches a click and never a keydown,
+          // and the row otherwise opens only on hover. Activating it also takes
+          // focus into the panel.
+          onClick={() => {
+            setOpenedBy("keyboard");
+            setOpenSubmenu("color");
+          }}
           onKeyDown={onActivate(() => {
             setOpenedBy("keyboard");
             setOpenSubmenu("color");
@@ -258,6 +266,14 @@ const CustomBorder: React.FC<Props> = ({ onPick, onColorPicked }) => {
           aria-haspopup="menu"
           aria-expanded={openSubmenu === "style"}
           aria-controls={styleMenuId}
+          // Without an onClick this could not be opened by assistive
+          // technology at all: VO+Space dispatches a click and never a keydown,
+          // and the row otherwise opens only on hover. Activating it also takes
+          // focus into the panel.
+          onClick={() => {
+            setOpenedBy("keyboard");
+            setOpenSubmenu("style");
+          }}
           onKeyDown={onActivate(() => {
             setOpenedBy("keyboard");
             setOpenSubmenu("style");

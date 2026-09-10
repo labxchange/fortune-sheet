@@ -14,7 +14,7 @@ import { useAlert } from "../../hooks/useAlert";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
-import { onActivate, returnFocusToCell } from "../../utils/keyboardActivation";
+import { focusAfterCommit, onActivate } from "../../utils/keyboardActivation";
 import { ChangeColor } from "../ChangeColor";
 import SVGIcon from "../SVGIcon";
 import Divider from "./Divider";
@@ -36,9 +36,15 @@ const SheetTabContextMenu: React.FC = () => {
   const [position, setPosition] = useState({ x: -1, y: -1 });
   const [isShowChangeColor, setIsShowChangeColor] = useState<boolean>(false);
   const [isShowInputColor, setIsShowInputColor] = useState<boolean>(false);
-  const [changeColorOpenedBy, setChangeColorOpenedBy] = useState<
-    "pointer" | "keyboard"
-  >("pointer");
+  /**
+   * Whether opening the colour submenu should take focus into it.
+   *
+   * Deliberate activation vs. hover — not keyboard vs. pointer. Keying it on
+   * which handler fired excluded screen-reader users, whose VO+Space arrives as
+   * a click and never as a keydown, so they opened the panel and stayed outside
+   * it. Only a pointer drifting across the row declines focus.
+   */
+  const [focusColorOnOpen, setFocusColorOnOpen] = useState<boolean>(false);
   const { showAlert, hideAlert } = useAlert();
   const changeColorMenuId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,18 +59,34 @@ const SheetTabContextMenu: React.FC = () => {
 
   /**
    * Confirm applied the colour, so the menu has done its job: collapse it and
-   * put the user back on the sheet.
+   * put the user back on the control that opened it — the sheet's own options
+   * caret (WCAG 2.4.3).
    *
-   * Deferred through `returnFocusToCell` because closing unmounts the control
-   * that currently holds focus — setting focus inline would be undone by
-   * `useEscapeToClose`'s own restore as the submenu tears down, and a focus
-   * left on a detached node silently falls back to `<body>`.
+   * This used to return focus to the cell input, on the rule #27 generalised:
+   * "put focus back on the cells a command acted on". That rule does not reach
+   * this command, which recoloured a *sheet tab* and touched no cell — so it
+   * sent the user to an object the command never changed, several stops away
+   * from where they were working. Escape out of this same submenu already
+   * restores focus to the opener (see `useEscapeToClose` below); OK doing
+   * something different was the inconsistency the audit filed.
+   *
+   * Still deferred, for the original reason: closing unmounts the control that
+   * currently holds focus, so setting focus inline would be undone by
+   * `useEscapeToClose`'s own restore as the submenu tears down, and focus left
+   * on a detached node silently falls back to `<body>`. The target is resolved
+   * inside the deferral, against the settled DOM, with the cell input as the
+   * fallback for the case where the strip is gone by then.
    */
   const confirmColor = useCallback(() => {
     setIsShowChangeColor(false);
     close();
-    returnFocusToCell(refs.cellInput.current);
-  }, [close, refs.cellInput]);
+    focusAfterCommit(
+      () =>
+        refs.workbookContainer.current?.querySelector<HTMLElement>(
+          ".luckysheet-sheets-item-active .luckysheet-sheets-item-function"
+        ) ?? refs.cellInput.current
+    );
+  }, [close, refs.cellInput, refs.workbookContainer]);
 
   useLayoutEffect(() => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -88,8 +110,8 @@ const SheetTabContextMenu: React.FC = () => {
     open: isShowChangeColor,
     onClose: () => setIsShowChangeColor(false),
     containerRef: changeColorMenuRef,
-    autoFocus: changeColorOpenedBy === "keyboard",
-    restoreFocus: changeColorOpenedBy === "keyboard",
+    autoFocus: focusColorOnOpen,
+    restoreFocus: focusColorOnOpen,
   });
 
   useAdjacentSubmenuPosition({
@@ -302,8 +324,22 @@ const SheetTabContextMenu: React.FC = () => {
               key={name}
               ref={changeColorRowRef}
               style={{ position: "relative" }}
+              /*
+               * Ties the panel to this row in the accessibility tree, so a
+               * screen-reader cursor finds it beside the control that opened it
+               * rather than wherever it lands structurally. `aria-owns` is
+               * global, so it is valid on this roleless wrapper — and keeping it
+               * here rather than on the `Menu` keeps the panel out of that
+               * button's presentational subtree.
+               *
+               * Conditional because an `aria-owns` naming an id that is not in
+               * the document is invalid and axe reports it; the panel only
+               * mounts while open.
+               */
+              aria-owns={isShowChangeColor ? changeColorMenuId : undefined}
               onMouseEnter={() => {
-                setChangeColorOpenedBy("pointer");
+                // Hover opens it, but must not pull focus off the user.
+                setFocusColorOnOpen(false);
                 setIsShowChangeColor(true);
               }}
               onMouseLeave={() => {
@@ -321,12 +357,15 @@ const SheetTabContextMenu: React.FC = () => {
                 // relationship, which is the argument `Combo` makes for the
                 // same shape.
                 controls={changeColorMenuId}
+                // Both routes take focus into the panel: activating a
+                // disclosure is a request to go into it, and assistive
+                // technology reaches this as a click, never as a keydown.
                 onClick={() => {
-                  setChangeColorOpenedBy("pointer");
+                  setFocusColorOnOpen(true);
                   setIsShowChangeColor(true);
                 }}
                 onKeyDown={onActivate(() => {
-                  setChangeColorOpenedBy("keyboard");
+                  setFocusColorOnOpen(true);
                   setIsShowChangeColor(true);
                 })}
               >
@@ -347,6 +386,14 @@ const SheetTabContextMenu: React.FC = () => {
                   // filter-by-colour submenu answers the same question the
                   // same way (`ContextMenu/Menu.tsx`).
                   role="group"
+                  // Named, and that is load-bearing rather than tidy: an
+                  // unnamed group is routinely flattened away by VoiceOver, so
+                  // the panel was reachable by Tab — focusability does not
+                  // depend on the tree — and skipped by the VO cursor, which is
+                  // how a keyboard-operable panel came to be unnavigable with a
+                  // screen reader. The filter-by-colour submenu, which does not
+                  // have this problem, names its group the same way.
+                  aria-label={sheetconfig.changeColor}
                   ref={changeColorMenuRef}
                   style={{ position: "absolute" }}
                 >

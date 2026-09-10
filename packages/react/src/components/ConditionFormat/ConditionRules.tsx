@@ -274,6 +274,12 @@ const ConditionRules: React.FC<{ type: string }> = ({ type }) => {
             <input
               type="color"
               className="condition-rules-select-color"
+              // Named from the string the adjacent <label> already renders,
+              // rather than a new key: the swatch and its checkbox are the same
+              // rule, and the role tells them apart. An unnamed colour input
+              // announces only as "color picker" (WCAG 4.1.2) — these two were
+              // the last unnamed ones in the repo.
+              aria-label={conditionformat.textColor}
               value={colorRules.textColor}
               onChange={(e) => {
                 const { value } = e.target;
@@ -306,6 +312,12 @@ const ConditionRules: React.FC<{ type: string }> = ({ type }) => {
             <input
               type="color"
               className="condition-rules-select-color"
+              // Named from the string the adjacent <label> already renders,
+              // rather than a new key: the swatch and its checkbox are the same
+              // rule, and the role tells them apart. An unnamed colour input
+              // announces only as "color picker" (WCAG 4.1.2) — these two were
+              // the last unnamed ones in the repo.
+              aria-label={conditionformat.cellColor}
               value={colorRules.cellColor}
               onChange={(e) => {
                 const { value } = e.target;

@@ -67,6 +67,14 @@ const ConditionFormatSubmenuOption: React.FC<{
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}
+        // Without an onClick this could not be opened by assistive technology
+        // at all: VO+Space dispatches a click and never a keydown, and the row
+        // otherwise opens only on hover. Activating it also takes focus into
+        // the panel, as the filter and sheet-tab pickers do.
+        onClick={() => {
+          setOpenedBy("keyboard");
+          setOpen(true);
+        }}
         onKeyDown={onActivate(() => {
           setOpenedBy("keyboard");
           setOpen(true);

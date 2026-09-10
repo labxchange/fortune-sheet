@@ -314,6 +314,18 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
       onKeyDown={activateOnEnterOrSpace}
       onContextMenu={(e) => {
         if (isDropPlaceholder) return;
+        // Shift+F10 and the ContextMenu key raise `contextmenu` on the focused
+        // element with no pointer behind it. That opens the sheet-options menu
+        // from the tab itself, alongside the caret's own Tab stop, on the
+        // platforms that bind those keys. `button` is 2 for a real right-click
+        // and 0 for the keyboard, and the pointer coordinates are meaningless
+        // in the second case — so hand off to the same toggle the caret uses,
+        // which already anchors to the trigger's own rect for that reason.
+        if (e.button !== 2) {
+          e.preventDefault();
+          toggleOptionsMenu();
+          return;
+        }
         const rect = refs.workbookContainer.current!.getBoundingClientRect();
         const { pageX, pageY } = e;
         setContext((ctx) => {

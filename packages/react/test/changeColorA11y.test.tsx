@@ -77,8 +77,41 @@ describe("Change Color accessibility", () => {
     });
   });
 
+  /**
+   * The panel was reachable by Tab and skipped by a screen-reader cursor —
+   * focusability does not depend on the accessibility tree, and an unnamed
+   * `role="group"` inside a `role="menu"` gets flattened away. Naming it, and
+   * owning it from the row, is what puts it back in the tree beside the control
+   * that opened it.
+   */
+  describe("the panel's exposure in the accessibility tree", () => {
+    it("is a named group", () => {
+      const { getByRole, getByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      const { submenu } = openChangeColor(getByRole, getByText);
+
+      expect(submenu.getAttribute("role")).toBe("group");
+      expect(submenu.getAttribute("aria-label")).toBe("Change color");
+    });
+
+    it("is owned by the row that discloses it", () => {
+      const { getByRole, getByText } = render(
+        <Workbook data={[{ name: "Sheet1" }]} />
+      );
+      const { colorRow, submenu } = openChangeColor(getByRole, getByText);
+
+      // `aria-owns` sits on the roleless wrapper, not the role="button" row —
+      // a button takes presentational children, which would strip the panel
+      // out again.
+      const owner = colorRow.closest("[aria-owns]") as HTMLElement;
+      expect(owner).not.toBeNull();
+      expect(owner.getAttribute("aria-owns")).toBe(submenu.id);
+    });
+  });
+
   describe("Confirm", () => {
-    it("announces the colour, closes the menu, and returns focus to the sheet", async () => {
+    it("announces the colour, closes the menu, and returns focus to Sheet options", async () => {
       let sheets: any;
       const { container, getByRole, getByText } = render(
         <Workbook
@@ -105,8 +138,15 @@ describe("Change Color accessibility", () => {
       expect(sheets?.[0]?.color).toBe("#000000");
 
       await tick();
+      // Back to the control that opened this, not to the grid. The rule #27
+      // generalised — put focus back on the cells a command acted on — does not
+      // reach a command that recoloured a *sheet tab* and touched no cell; the
+      // audit filed the resulting jump, and Escape out of this same submenu
+      // already returned focus here, so OK differing was the inconsistency.
       expect(document.activeElement).toBe(
-        container.querySelector(".luckysheet-cell-input")
+        container.querySelector(
+          ".luckysheet-sheets-item-active .luckysheet-sheets-item-function"
+        )
       );
     });
 
