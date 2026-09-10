@@ -267,6 +267,25 @@ export type GlobalCache = {
    * two accept routes are in different components.
    */
   ignoreNextInput?: boolean;
+  /**
+   * The keydown that opened an edit session from the grid, handed to `InputBox`
+   * because it never saw the event itself.
+   *
+   * Type-to-edit is dispatched to whatever had focus in the grid -- the grid
+   * root, since it became the grid's tab stop -- not to the cell editor. So
+   * `InputBox.onKeyDown` does not run for that first keystroke, and its
+   * `onChange` has no key to attribute the resulting `input` event to: it reads
+   * `lastKeyDownEventRef`, which is either empty or still holding a key from
+   * the *previous* edit session. Either way the typing pipeline is skipped for
+   * exactly the character that decides whether the cell is a formula.
+   *
+   * Consumed by the first `onChange` that sees it, and dropped by a keydown
+   * that does land on the editor, so it can never be applied to a later
+   * keystroke. Lives here rather than in a ref for the same reason
+   * `ignoreNextInput` does: the producer and the consumer are in different
+   * layers.
+   */
+  editStartKeyEvent?: KeyboardEvent;
   recentTextColor?: string;
   recentBackgroundColor?: string;
   visibleColumnsUnique?: number[];

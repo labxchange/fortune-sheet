@@ -1382,6 +1382,25 @@ export function handleGlobalKeyDown(
 
         ctx.luckysheetCellUpdate = [row_index, col_index];
         cache.overwriteCell = true;
+        // Hand this keydown to `InputBox`, which cannot see it.
+        //
+        // The call below runs *before* the browser has inserted the character,
+        // so the editor is still empty here and this is not the pass that
+        // tokenises the formula -- that happens when the resulting `input`
+        // event reaches `InputBox.onChange`. And that handler identifies the
+        // keystroke from a keydown it captured itself, which for type-to-edit
+        // it never receives: the event is dispatched to whatever had focus in
+        // the grid, and since the grid root became the grid's tab stop that is
+        // no longer the cell editor. Left to guess, it either bails (no key at
+        // all) or reads the key from the previous edit session (an `Enter`
+        // commit, which its own gate then filters out), and the first
+        // character of the edit is dropped from the typing pipeline. For "=",
+        // that character is the whole formula: no span markup, no formula bar
+        // mirror, and `rangestart` never armed, so the arrow keys never enter
+        // point mode.
+        //
+        // See `GlobalCache.editStartKeyEvent` for the handoff's lifetime.
+        cache.editStartKeyEvent = e;
 
         // if (kstr === "Backspace") {
         //   $("#luckysheet-rich-text-editor").html("<br/>");

@@ -38,7 +38,25 @@ const ContentEditable: React.FC<ContentEditableProps> = ({ ...props }) => {
       if (root.current != null) {
         html = root.current.innerHTML;
       }
-      if (onChange && html !== lastHtml.current) {
+      // The unchanged-markup test applies to the blur path only.
+      //
+      // `input` fires for user edits exclusively -- assigning `innerHTML` does
+      // not raise it -- so on that path there is nothing for this test to
+      // suppress, and `lastHtml` is actively wrong for it: the editor is
+      // rewritten programmatically between edit sessions (`InputBox` clears
+      // it, core re-tokenises it), none of which updates the ref. It therefore
+      // still holds the string recorded during a *previous* edit, and typing
+      // the first character of a new one into the cleared editor reproduces it
+      // exactly: every formula begins "=", so the second and every later
+      // formula in a session had its opening keystroke dropped as a no-op --
+      // no tokenised markup, no formula bar mirror, and no span for
+      // `israngeseleciton` to place a reference against, so the arrow keys
+      // could not enter point mode.
+      //
+      // Blur is the path that needs it, because it fires whether or not
+      // anything was typed, and `onChange` treats an `isBlur` change as a
+      // commit-shaped event.
+      if (onChange && (!isBlur || html !== lastHtml.current)) {
         onChange(html || "", isBlur);
       }
       lastHtml.current = html || "";
