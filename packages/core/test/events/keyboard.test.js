@@ -818,6 +818,20 @@ describe("keyboard", () => {
   // drive the KEYBOARD gesture on purpose: the drag path was never broken, and
   // an earlier attempt to clear this ticket tested the drag path and so found
   // nothing wrong.
+  // These cover the fill that `autoFillCell` performs -- the hand-rolled
+  // regexes these cases were written against were deleted upstream in #36,
+  // which delegates both directions to the same engine helper. The cases
+  // survived that change unaltered, which is the useful part: they were written
+  // as behaviour, not as a description of the loop.
+  //
+  // Trimmed to what `test/events/autoFillFormulaRefs.test.js` does NOT assert.
+  // What is left is the lower-case reference in both directions -- #36 has no
+  // lower-case case at all, and a case-sensitive predicate was the whole of T6
+  // -- plus the two inverse guards: an upper-case formula unchanged, and a
+  // plain value still filled as a value rather than promoted to a formula.
+  // Dropped as genuine duplicates: a multi-letter column (#36 crosses the
+  // Z -> AA boundary, which is strictly stronger than starting at AA) and an
+  // absolute-vs-relative column (#36 pins both anchors, separately).
   describe("keyboard fill (ctrl+d / ctrl+r)", () => {
     const fillEvent = (code) =>
       new KeyboardEvent("keydown", {
@@ -917,24 +931,10 @@ describe("keyboard", () => {
     // character, so any reference past column Z mis-offset -- and past the
     // 26th column it produced non-letters. `functionCopy` goes through
     // `columnCharToIndex`/`indexToColumnChar`, which are width-agnostic.
-    test("ctrl+r offsets a multi-letter column reference", () => {
-      const ctx = fillContext({ v: 1, f: "=AA2+1" }, [0, 0], [0, 1]);
-
-      fill(ctx, "KeyR");
-
-      expect(getFlowdata(ctx)[0][1].f).toBe("=AB2+1");
-    });
 
     // Ctrl+R's regex tested capture group 2 -- the `$` in front of the ROW --
     // to decide whether to move the COLUMN, so it had absolute handling
     // exactly backwards: `$A1` was offset and `A$1` was pinned.
-    test("ctrl+r pins an absolute column and moves a relative one", () => {
-      const ctx = fillContext({ v: 1, f: "=$A2+A$2" }, [0, 0], [0, 1]);
-
-      fill(ctx, "KeyR");
-
-      expect(getFlowdata(ctx)[0][1].f).toBe("=$A2+B$2");
-    });
   });
 
   // A write refused by data verification used to set `warnDialog` and return
