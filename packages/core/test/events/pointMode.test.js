@@ -326,6 +326,46 @@ describe("formula point mode", () => {
       expect(textNodeBefore.nodeValue).toBe("C1");
     });
 
+    // T24, the other half. The bar was rebuilt from the editor on every press
+    // -- `$copyTo.innerHTML = $editor.innerHTML` -- which replaced every node
+    // in a second `role="textbox"`. Removing the bar entirely silenced the
+    // placeholder, which is what identified it; the pick is now repeated
+    // surgically instead.
+    //
+    // Seeded in step with the editor on purpose: that is the real
+    // precondition, because typing `=` runs `handleFormulaInput`, which writes
+    // both sides. Out of step, the mirror is designed to decline and fall back
+    // to the wholesale write, and this case would then prove nothing.
+    test("a further arrow mirrors into the formula bar without rebuilding it", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      editFormula("=SUM(");
+      fxInput.innerHTML = cellInput.innerHTML;
+
+      pressArrow(ctx, "ArrowUp", cellInput); // C2 -- created on both sides
+      const mirrored = fxInput.querySelector(
+        "span.fortune-formula-functionrange-cell"
+      );
+      // Positive control: the identity assertions below would hold vacuously on
+      // two nulls if the bar were never mirrored at all.
+      expect(mirrored).not.toBeNull();
+      const mirroredText = mirrored.firstChild;
+
+      pressArrow(ctx, "ArrowUp", cellInput); // C1
+
+      // Re-queried from the bar rather than reused: a wholesale rebuild leaves
+      // the old element detached but intact, so asserting on the stale handle
+      // would pass while every node in the document had been replaced.
+      const after = fxInput.querySelector(
+        "span.fortune-formula-functionrange-cell"
+      );
+      expect(after).toBe(mirrored);
+      expect(after.firstChild).toBe(mirroredText);
+      // ...and it actually updated, rather than surviving by doing nothing.
+      expect(mirroredText.nodeValue).toBe("C1");
+      expect(fxInput.textContent).toBe("=SUM(C1");
+    });
+
     test("the reference stops at the edge of the sheet, key still consumed", () => {
       const ctx = getContext();
       ctx.luckysheetCellUpdate = [2, 2];
