@@ -231,8 +231,14 @@ export const FormulaSearch: React.FC<{
       else if (e.key === "ArrowUp") next = Math.max(selectedFuncIndex - 1, 0);
       else if (e.key === "Home") next = 0;
       else if (e.key === "End") next = last;
-      if (next == null || next === selectedFuncIndex) return;
+      if (next == null) return;
+      // Claimed whether or not the selection moves. A boundary key -- ArrowUp
+      // at the first option, ArrowDown at the last, Home/End when already
+      // there -- belongs to the listbox, and letting it through scrolls the
+      // list's own `overflow-y: scroll` box and then the page behind the
+      // dialog. Same reasoning as `useRovingFocus`, which has the measurement.
       e.preventDefault();
+      if (next === selectedFuncIndex) return;
       setSelectedFuncIndex(next);
     },
     [filteredFunctionList, selectedFuncIndex, onConfirm]

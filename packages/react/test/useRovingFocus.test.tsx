@@ -165,17 +165,21 @@ describe("useRovingFocus", () => {
     expect(document.activeElement).toBe(row1);
   });
 
-  // `loop: false` on its own would have traded a wrap for a dead key: `step`
-  // clamps to the index already focused, and the handler then cancelled the
-  // event and re-focused the same element. The keystroke is consumed and
-  // nothing replaces it, so no browser or AT fallback can run either. The
-  // guard is `if (next === current) return;` -- remove it and the first two
-  // expectations below flip to true.
+  // A boundary key resolves to the index already focused -- `loop: false` at
+  // either end, where `step` clamps, and Home at the first item / End at the
+  // last on any list. The widget still owns that keystroke, so it has to be
+  // claimed: uncancelled, it reaches the browser, which scrolls the nearest
+  // scrollable ancestor and drags the whole strip out of view while focus
+  // stays behind on it.
   //
-  // The third is the positive control: a key that does move focus must still
-  // be claimed, or these would pass equally against a handler that had stopped
-  // cancelling anything at all.
-  it("leaves a key that moves nothing uncancelled", () => {
+  // Only the redundant re-focus is skipped, which is why each case also
+  // asserts where focus ended up: nothing observable is supposed to have
+  // happened beyond the cancellation.
+  //
+  // The last case is the positive control -- a key that does move focus must
+  // be claimed too, or these would pass equally against a handler that
+  // cancelled every key it saw and moved nothing.
+  it("claims a boundary key that moves nothing", () => {
     const { getByText } = render(<NonLoopingList />);
     const row1 = getByText("Row 1");
     const row2 = getByText("Row 2");
@@ -183,14 +187,16 @@ describe("useRovingFocus", () => {
     row2.focus();
     const atEnd = createEvent.keyDown(row2, { key: "ArrowDown" });
     fireEvent(row2, atEnd);
-    expect(atEnd.defaultPrevented).toBe(false);
+    expect(atEnd.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(row2);
 
     // Reachable a second way, and on a looping list too: Home at the first
     // item and End at the last also resolve to the index already focused.
     row1.focus();
     const homeAtStart = createEvent.keyDown(row1, { key: "Home" });
     fireEvent(row1, homeAtStart);
-    expect(homeAtStart.defaultPrevented).toBe(false);
+    expect(homeAtStart.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(row1);
 
     row1.focus();
     const moves = createEvent.keyDown(row1, { key: "ArrowDown" });

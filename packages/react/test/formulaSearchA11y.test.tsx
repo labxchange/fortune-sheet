@@ -291,24 +291,31 @@ describe("Search Function dialog", () => {
       expect(activeId()).toBe(all[all.length - 2].id);
     });
 
-    // A boundary key that changes nothing must not be swallowed either: the
-    // event stays uncancelled so the browser -- or the AT driving it -- can
-    // still do whatever it would have done with that keystroke. The paired
-    // `true` is the positive control; without it this would pass against a
-    // handler that had stopped cancelling anything at all.
-    it("leaves a boundary key uncancelled, but claims one that moves", () => {
+    // A boundary key that changes nothing is still the listbox's key. Left
+    // uncancelled it reaches the browser, which scrolls the list's own
+    // `overflow-y: scroll` box and then the page behind the dialog -- so
+    // ArrowUp at the first option has to be claimed exactly like one that
+    // moves. The selection assertion is the other half: claiming the key must
+    // not be mistaken for acting on it.
+    //
+    // The second case is the positive control; without it this would pass
+    // against a handler that cancelled every key and moved nothing.
+    it("claims a boundary key, and one that moves", () => {
       const list = screen.getByRole("listbox");
       act(() => {
         list.focus();
       });
+      const first = activeId();
 
       const atStart = createEvent.keyDown(list, { key: "ArrowUp" });
       fireEvent(list, atStart);
-      expect(atStart.defaultPrevented).toBe(false);
+      expect(atStart.defaultPrevented).toBe(true);
+      expect(activeId()).toBe(first);
 
       const moves = createEvent.keyDown(list, { key: "ArrowDown" });
       fireEvent(list, moves);
       expect(moves.defaultPrevented).toBe(true);
+      expect(activeId()).not.toBe(first);
     });
 
     // These were focusable <div>s with an onClick and no keyboard handler at
