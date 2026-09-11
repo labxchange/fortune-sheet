@@ -16,6 +16,7 @@ import {
   createFilterOptions,
   getSheetIndex,
   GRID_ROOT_CLASS,
+  moveToEnd,
   Sheet,
   CellMatrix,
   CellWithRowAndCol,
@@ -135,14 +136,51 @@ export function generateAPIs(
      * grid over the root, and the root is now exactly where Tab and Ctrl+Alt+S
      * both land, so this API has to agree with them. Focusing the root
      * directly is what keeps all three routes on one element.
+     *
+     * With an edit already open, the editor is where focus belongs instead.
+     * That is not a departure from the paragraph above: the rule it states is
+     * that no route may park a caret in a cell *nobody asked to edit*, and an
+     * open edit is one the user did ask for -- which is why `InputBox` gives
+     * the editor tabIndex 0 in exactly this state and -1 otherwise. Landing on
+     * the root mid-edit left the edit painted but unusable: the printable-key
+     * and point-mode-arrow branches of `handleGlobalKeyDown` both return before
+     * the tail that parks focus on the editor, so no key pressed in the grid
+     * could recover it (WCAG 2.1.1, 2.4.3). See `onGridFocus` in
+     * `SheetOverlay/index.tsx` for the same restoration on the routes that do
+     * not come through here.
      */
     focusSpreadsheet: () => {
       const grid = workbookContainer.current?.querySelector<HTMLElement>(
         `.${GRID_ROOT_CLASS}`
       );
+      if (cellInput && context.luckysheetCellUpdate.length > 0) {
+        // `preventScroll` for the reason `focusAfterCommit` gives: `InputBox`
+        // parks this element at `left: -10000` whenever it has no selection to
+        // sit on, so a plain focus lets the browser scroll an embedder's layout
+        // sideways. The caret because focus alone is not enough -- an editor
+        // focused with no caret in its text still accepts nothing.
+        cellInput.focus({ preventScroll: true });
+        if (document.activeElement !== cellInput) return false;
+        moveToEnd(cellInput);
+        // No arrival announcement while editing: landing on the editor already
+        // announces the cell, that it is editable, and the text entered so far.
+        return true;
+      }
       if (!grid) return false;
       grid.focus();
-      return document.activeElement === grid;
+      if (document.activeElement !== grid) return false;
+      // Arrival moves focus without moving the selection, so `#sr-selection`
+      // renders the text it already held and never fires. Bumping a counter is
+      // what tells the arrival region a return happened -- see
+      // `spreadsheetFocusReturnCount`.
+      setContext(
+        (draftCtx) => {
+          draftCtx.spreadsheetFocusReturnCount =
+            (draftCtx.spreadsheetFocusReturnCount ?? 0) + 1;
+        },
+        { noHistory: true }
+      );
+      return true;
     },
 
     /** Move keyboard focus to the toolbar. */
