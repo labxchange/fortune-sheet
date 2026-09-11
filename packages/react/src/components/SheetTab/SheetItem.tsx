@@ -18,7 +18,7 @@ import SVGIcon from "../SVGIcon";
 import {
   activateOnEnterOrSpace,
   focusAfterCommit,
-  mouseDownToggleHandlers,
+  menuButtonToggleHandlers,
 } from "../../utils/keyboardActivation";
 import { announce } from "../../hooks/useContextMenuAnnouncements";
 import { SHEET_TAB_MENU_ID } from "../ContextMenu/SheetTab";
@@ -389,7 +389,7 @@ const SheetItem: React.FC<Props> = ({ sheet, isDropPlaceholder }) => {
         // that closed the menu a moment before click reopened it, which is why
         // a second press appeared to do nothing. Enter/Space call the toggle
         // directly for the same reason.
-        {...mouseDownToggleHandlers(toggleOptionsMenu)}
+        {...menuButtonToggleHandlers(toggleOptionsMenu, optionsMenuOpen)}
         // follows the tab's own roving tabindex, or the strip would still cost
         // one Tab stop per sheet via the carets
         tabIndex={isActiveSheet ? 0 : -1}
