@@ -328,6 +328,44 @@ export function menuButtonToggleHandlers<T extends HTMLElement = HTMLElement>(
   const base = mouseDownToggleHandlers<T>(onToggle, disabled);
   return {
     ...base,
+    /**
+     * The pointer half of the same contract.
+     *
+     * `useEscapeToClose` runs its `autoFocus` from a passive effect, and React
+     * flushes that inside the discrete mousedown — so focus is already on the
+     * popup's first item by the time the browser applies mousedown's *default*
+     * action and focuses the pressed element. That second move is a focusout
+     * from the popup, and `closeOnFocusOut` closes on it.
+     *
+     * It stays invisible wherever the default lands somewhere the widget
+     * recognises: a trigger that is focusable and carries `aria-controls` is
+     * matched by `controlsPopup`, so the focusout reads as "still inside" and
+     * nothing happens. A trigger that is *not* focusable has no such luck —
+     * the browser walks up to the nearest focusable ancestor instead. An
+     * embedder that has one (LabXchange's spreadsheet sim wraps the workbook
+     * in a `tabIndex={-1}` container, as the landing place after a graph is
+     * removed) therefore hands the handler a real node outside the popup, and
+     * the menu closes before it ever paints. This package's own Storybook has
+     * no focusable ancestor, so focus goes nowhere, `relatedTarget` is null,
+     * and the focusout handler returns early — which is why the bug only ever
+     * reproduced in the embedder, and why a merged `Combo` caret (demoted to
+     * `aria-hidden` with no tabindex and no `aria-controls`) was the one shape
+     * that could not survive its own opening press.
+     *
+     * Preventing the default drops that second focus move and leaves
+     * `autoFocus`'s placement standing, which is where APG wants focus anyway.
+     * `click` still fires, so the toggle-shut-on-second-press behaviour that
+     * the mousedown-not-click design exists to protect is untouched.
+     *
+     * Disabled bails first, for the reason `mouseDownToggleHandlers` gives: a
+     * disabled trigger must stay out of the way entirely, and that includes
+     * leaving the default action alone.
+     */
+    onMouseDown: (e) => {
+      if (disabled) return;
+      e.preventDefault();
+      base.onMouseDown(e);
+    },
     onKeyDown: (e) => {
       if (e.key !== "ArrowDown" && e.key !== "ArrowUp") {
         base.onKeyDown(e);
