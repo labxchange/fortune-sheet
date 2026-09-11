@@ -294,7 +294,7 @@ export function returnFocusToCell(
  * A trigger carrying `aria-haspopup` promises the APG menu-button contract,
  * and Down Arrow opening the popup is part of that contract — it is the
  * gesture a screen reader trains its user to reach for, and the one a
- * keyboard user tries after Enter. Four triggers here made the promise and
+ * keyboard user tries after Enter. Six triggers here made the promise and
  * implemented only Enter/Space, so the documented key did nothing at all.
  *
  * Claiming the key matters as much as acting on it. The grid's own
