@@ -100,8 +100,12 @@ describe("Toolbar commands return focus to the cells they act on", () => {
   it("announces the focus return assertively, not politely", () => {
     const { container } = setup();
     const region = container.querySelector("#sr-toolbarFocusReturn")!;
+    // `role="alert"` is the whole assertion: it implies aria-live="assertive"
+    // and aria-atomic="true", and this region used to spell both out beside it
+    // -- the redundancy `srLiveRegionSpelling.test.tsx` now holds every region
+    // away from. Flipping the role to "status" still turns this red, which is
+    // the regression the note above is guarding against.
     expect(region.getAttribute("role")).toBe("alert");
-    expect(region.getAttribute("aria-live")).toBe("assertive");
   });
 
   // The sentence itself, asserted on the builder rather than through a driven

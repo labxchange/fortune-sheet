@@ -59,9 +59,46 @@
 
 .fortune-toolbar-button:focus-visible,
 .fortune-toolbar-combo-button:focus-visible,
-.fortune-toolbar-combo-arrow:focus-visible {
+.fortune-toolbar-combo-arrow:focus-visible,
+/* `[data-focus-visible]` is set by `focusRegion` (Workbook/api.ts) when the
+   region shortcut moves focus here programmatically. The browser withholds
+   :focus-visible from a programmatic focus that follows a mouse interaction,
+   so without this the shortcut moved focus invisibly. */
+.fortune-toolbar-button[data-focus-visible],
+.fortune-toolbar-combo-button[data-focus-visible],
+.fortune-toolbar-combo-arrow[data-focus-visible] {
   outline: var(--border_focus_outer, 3px) solid
     var(--color_border_focus_outer, #0063c3);
+}
+
+/* The caret is a SIBLING of the focusable button, both inside
+   .fortune-toolbar-combo -- so a ring drawn on the button alone stops short of
+   the caret. Where the caret is decoration (the button owns the popup, the
+   caret is aria-hidden with no tab stop), the two are one control and the ring
+   must enclose both, which means drawing it on the box that contains them.
+
+   Deliberately in its own rule rather than added to the list above: a browser
+   without :has() support drops these two rules whole and keeps the button's
+   own ring, so the fallback is today's behaviour rather than no ring at all. */
+.fortune-toolbar-combo[data-single-control]:has(
+    > .fortune-toolbar-combo-button:focus-visible
+  ),
+.fortune-toolbar-combo[data-single-control]:has(
+    > .fortune-toolbar-combo-button[data-focus-visible]
+  ) {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+}
+
+.fortune-toolbar-combo[data-single-control]:has(
+    > .fortune-toolbar-combo-button:focus-visible
+  )
+  > .fortune-toolbar-combo-button,
+.fortune-toolbar-combo[data-single-control]:has(
+    > .fortune-toolbar-combo-button[data-focus-visible]
+  )
+  > .fortune-toolbar-combo-button {
+  outline: none;
 }
 
 .fortune-toolbar-button:hover,
@@ -298,13 +335,13 @@
   z-index: 2000;
 }
 
-/* The OK button's ring sat directly on the button's own #0188fb, where the DS
-   blue is 1.66:1 — the "focus not visible / under 3:1" the audit reports for
-   this control. Offsetting it clear of the button puts it on the white panel
-   instead, at 5.88:1, without changing the ring itself. Scoped to the two
-   colour popups rather than applied to the shared .button-basic: the other
-   eight consumers of that class were not audited, and moving every focus ring
-   in the workbook is not this ticket. */
+/* The OK button's ring sat directly on the button's own fill -- the "focus not
+   visible / under 3:1" the audit reports for this control. Offsetting it clear
+   of the button puts it on the white panel behind instead, where the black
+   primary ring set further down measures 21:1. Scoped to the two colour popups
+   rather than applied to the shared .button-basic: the other eight consumers
+   of that class were not audited, and moving every focus ring in the workbook
+   is not this ticket. */
 #fortune-custom-color .button-basic:focus-visible {
   outline-offset: 2px;
 }
@@ -411,9 +448,31 @@
   user-select: none;
 }
 
+/* Same reasoning as Dialog/index.css's primary-button ring: the shared
+   .button-basic ring above is #0063c3, which is now the primary fill, so on a
+   primary button it would be 1.00:1. Black is 3.57:1 on that fill.
+
+   That figure is for the consumers whose fill is #0063c3, which is all of them
+   bar one: the filter menu's primaries swap to #00509e on :focus-visible,
+   where black is 2.64:1, and ContextMenu/index.css overrides them to a white
+   ring in the same file that sets that fill.
+
+   Colour only -- no outline-offset here. Several .button-basic consumers sit
+   in containers that clip an outset ring, which is why CustomSort, CustomColor
+   and ChangeColor each add the offset in their own scope rather than to the
+   shared rule; at 3.57:1 a flush ring already clears 1.4.11, so this does not
+   reopen that. */
+.button-basic.button-primary:focus-visible {
+  outline-color: #000;
+}
+
+/* WCAG 1.4.3: white on #0188fb is 3.55:1, against the 4.5:1 normal text needs.
+   #0063c3 is the same DS action blue at 5.88:1 -- the remedy
+   `ContextMenu/index.css` already shipped for the filter menu's own copy of
+   this rule, propagated here rather than re-derived. */
 .button-primary {
-  background: #0188fb;
-  border: 1px solid #0188fb;
+  background: #0063c3;
+  border: 1px solid #0063c3;
   color: #fff;
   margin-right: -4px;
 }

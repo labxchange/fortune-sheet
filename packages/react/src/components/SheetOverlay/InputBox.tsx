@@ -241,6 +241,12 @@ const InputBox: React.FC = () => {
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       lastKeyDownEventRef.current = new KeyboardEvent(e.type, e.nativeEvent);
       preText.current = inputRef.current!.innerText;
+      // A keydown that reached the editor supersedes any handoff left by the
+      // grid, so a stale one can never be attributed to this keystroke. Both
+      // are set for a single key when focus was already in the editor (a click
+      // parks it there): this handler runs first, then the event bubbles to the
+      // workbook and core sets the handoff again, so the two agree.
+      delete refs.globalCache.editStartKeyEvent;
       // if (
       //   $("#luckysheet-modal-dialog-mask").is(":visible") ||
       //   $(event.target).hasClass("luckysheet-mousedown-cancel") ||
@@ -310,6 +316,7 @@ const InputBox: React.FC = () => {
     [
       context.luckysheetCellUpdate.length,
       moveSuggestion,
+      refs.globalCache,
       selectActiveFormula,
       setContext,
     ]
@@ -329,7 +336,15 @@ const InputBox: React.FC = () => {
       // the last typed character's code and would otherwise pass it.
       if (refs.globalCache.ignoreNextInput) return;
       // setInputHTML(html);
-      const e = lastKeyDownEventRef.current;
+      // The keydown that started this edit from the grid, if core had to hand
+      // it over -- it is dispatched to the grid root, never to this editor, so
+      // `lastKeyDownEventRef` is empty on the first edit of a session and
+      // holding the *previous* session's key on every one after it. It takes
+      // priority for that reason, and it is one-shot: whichever branch reads
+      // it, this dispatch is the whole of its life.
+      const handoff = refs.globalCache.editStartKeyEvent;
+      if (handoff) delete refs.globalCache.editStartKeyEvent;
+      const e = handoff ?? lastKeyDownEventRef.current;
       if (!e) return;
       const kcode = e.keyCode;
       if (!kcode) return;
@@ -373,7 +388,14 @@ const InputBox: React.FC = () => {
             refs.fxInput.current,
             refs.cellInput.current!,
             kcode,
-            preText.current
+            // Empty for a handed-over keystroke, not `preText.current`. That
+            // ref is captured in this component's own `onKeyDown`, which did
+            // not run, so it still holds the text of the cell edited before
+            // this one -- and `handleFormulaInput` uses it as the "text before
+            // this input" that its caret restore is computed against. The
+            // editor really was empty when the edit opened: type-to-edit sets
+            // `overwriteCell`, so the value effect wrote "" into it.
+            handoff ? "" : preText.current
           );
           // clearSearchItemActiveClass();
           // formula.functionInputHanddler(
@@ -626,6 +648,24 @@ const InputBox: React.FC = () => {
           aria-controls={
             candidateCount > 0 ? formulaSuggestionsListboxId(idBase) : undefined
           }
+          // A tab stop only while a cell is actually being edited. This element
+          // is `contenteditable` and permanently mounted -- it is never
+          // unmounted or hidden between edits, only parked behind the grid
+          // (`z-index: -1`) or off-canvas at -10000 -- and neither of those
+          // takes a node out of the tab order. It was therefore the grid's only
+          // forward tab stop, so Tab from the toolbar ended with a caret
+          // blinking in a cell the user had not asked to edit, while arriving
+          // by Ctrl+Alt+S did not. See the grid root's tabIndex in
+          // `SheetOverlay/index.tsx`, which is the stop that replaces it.
+          //
+          // -1, not `contentEditable={false}`: the element still has to be a
+          // real, named textbox during an edit, core writes into it directly,
+          // and toggling `contenteditable` on the focused node can drop focus
+          // mid-interaction -- the change the comment on `canEditCell` above
+          // deliberately stays away from. -1 also keeps every programmatic
+          // `.focus()` working, which is how an edit, a commit and the
+          // toolbar's focus-return all reach this element.
+          tabIndex={_.isEmpty(context.luckysheetCellUpdate) ? -1 : 0}
           style={{
             transform: `scale(${context.zoomRatio})`,
             transformOrigin: "left top",

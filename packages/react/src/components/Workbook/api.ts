@@ -25,6 +25,64 @@ import { applyPatches } from "immer";
 import _ from "lodash";
 import { SetContextOptions } from "../../context";
 
+/**
+ * Enter a region at its single keyboard entry point, and make the focus ring
+ * visible whatever the last input modality was.
+ *
+ * Module-level and shared by two callers on purpose. `focusRegion` below backs
+ * the `focusToolbar`/`focusSheetTabs` APIs; `Workbook/index.tsx` backs the
+ * Ctrl/Cmd+Alt+T/S/B shortcuts. Those were two independent copies of this
+ * logic, and the forced-visible marker below was added to only one of them --
+ * so the shortcut, which is the route the report is actually about, went on
+ * moving focus invisibly. One function, so a fix cannot reach one route and
+ * miss the other.
+ *
+ * The toolbar and the sheet tabs are roving-tabindex composites, so the element
+ * to land on is whichever item currently holds tabIndex 0 -- falling back to
+ * the container itself, so the shortcut still moves focus even before a region
+ * has been visited.
+ *
+ * `atRoot` enters at the container instead. The grid needs that: landing on one
+ * of the controls inside it (the select-all corner, a filter funnel) makes
+ * `handleGlobalKeyDown`'s grid guard classify focus as outside the grid, and
+ * the arrow keys then move nothing.
+ */
+export function enterRegion(region: HTMLElement, atRoot = false): boolean {
+  const target = atRoot
+    ? region
+    : region.querySelector<HTMLElement>(
+        '[tabindex="0"]:not([aria-disabled="true"])'
+      ) ?? region;
+  target.focus();
+  // Report whether focus landed, not merely that a target was found. The
+  // browser refuses to focus anything inside a display:none / inert subtree
+  // and leaves activeElement alone; an embedder that trusts a bare true
+  // swallows the keystroke and denies this workbook its own chance at it.
+  const landed = document.activeElement === target;
+  // Force the focus ring on, because the browser will not.
+  //
+  // Chrome grants `:focus-visible` by last input modality, so a programmatic
+  // `.focus()` after a MOUSE interaction does not match it and no ring paints
+  // -- while the same call after a keyboard interaction does. That asymmetry is
+  // the reported defect: reach a cell by mouse, press the region shortcut, and
+  // focus moves invisibly.
+  //
+  // A region jump is explicit keyboard intent, so it must paint either way.
+  // Marking the target and having the CSS match `[data-focus-visible]`
+  // alongside `:focus-visible` does that without restyling onto bare `:focus`,
+  // which would put a ring on every mouse click on a toolbar control -- a
+  // visible regression, and the reason `:focus-visible` exists.
+  if (landed && !target.hasAttribute("data-focus-visible")) {
+    target.setAttribute("data-focus-visible", "");
+    target.addEventListener(
+      "blur",
+      () => target.removeAttribute("data-focus-visible"),
+      { once: true }
+    );
+  }
+  return landed;
+}
+
 export function generateAPIs(
   context: Context,
   setContext: (
@@ -45,10 +103,9 @@ export function generateAPIs(
   };
 
   /**
-   * Focus a region's single keyboard entry point. The toolbar and the sheet
-   * tabs are roving-tabindex composites, so the element to land on is whichever
-   * item currently holds tabIndex 0 — falling back to the container itself, so
-   * the shortcut still moves focus even before a region has been visited.
+   * Focus a region's single keyboard entry point, resolved from a selector.
+   * Thin wrapper over `enterRegion` — see its note for why that is a shared,
+   * module-level function rather than logic inlined here.
    */
   const focusRegion = (containerSelector: string) => {
     // `.current` is read here, at call time, not captured when this memo runs:
@@ -57,16 +114,7 @@ export function generateAPIs(
     const region =
       workbookContainer.current?.querySelector<HTMLElement>(containerSelector);
     if (!region) return false;
-    const target =
-      region.querySelector<HTMLElement>(
-        '[tabindex="0"]:not([aria-disabled="true"])'
-      ) ?? region;
-    target.focus();
-    // Report whether focus landed, not merely that a target was found. The
-    // browser refuses to focus anything inside a display:none / inert subtree
-    // and leaves activeElement alone; an embedder that trusts a bare true
-    // swallows the keystroke and denies this workbook its own chance at it.
-    return document.activeElement === target;
+    return enterRegion(region);
   };
 
   return {
@@ -74,10 +122,19 @@ export function generateAPIs(
      * Move keyboard focus to the cell grid, ready to navigate.
      *
      * Deliberately not `focusRegion`: the grid root contains focusable controls
-     * of its own (the select-all corner, the filter funnels), and landing on
+     * of its own (the select-all corner, the filter funnels), and `focusRegion`
+     * picks the first `[tabindex="0"]` it finds inside the region -- landing on
      * one of those makes `handleGlobalKeyDown`'s grid guard classify focus as
-     * *outside* the grid, so the arrow keys would move nothing. The root itself
-     * carries tabIndex -1 for exactly this purpose.
+     * *outside* the grid, so the arrow keys would move nothing.
+     *
+     * This used to be justified by the root carrying tabIndex -1, which made it
+     * the only element `focusRegion` could not have chosen. The root is now a
+     * real tab stop (tabIndex 0, `SheetOverlay/index.tsx`), so that particular
+     * argument is spent -- but the conclusion is unchanged and now matters
+     * more, not less: `focusRegion` would still prefer a control *inside* the
+     * grid over the root, and the root is now exactly where Tab and Ctrl+Alt+S
+     * both land, so this API has to agree with them. Focusing the root
+     * directly is what keeps all three routes on one element.
      */
     focusSpreadsheet: () => {
       const grid = workbookContainer.current?.querySelector<HTMLElement>(

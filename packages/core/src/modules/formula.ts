@@ -2884,12 +2884,94 @@ export function functionStrChange(
   return function_str;
 }
 
+/**
+ * The child-index path from `root` down to `node`, or null if `node` is not a
+ * descendant. Used to find the formula bar's counterpart of a node in the cell
+ * editor: the two are kept structurally identical, so the same path resolves to
+ * the same place in both.
+ */
+function childPath(root: Node, node: Node): number[] | null {
+  const path: number[] = [];
+  let current: Node | null = node;
+  while (current && current !== root) {
+    const parent: Node | null = current.parentNode;
+    if (!parent) return null;
+    path.unshift(Array.prototype.indexOf.call(parent.childNodes, current));
+    current = parent;
+  }
+  return current === root ? path : null;
+}
+
+function nodeAtPath(root: Node, path: number[]): Node | null {
+  return path.reduce<Node | null>(
+    (current, index) => current?.childNodes[index] ?? null,
+    root
+  );
+}
+
+/**
+ * Apply one reference pick to the formula bar by repeating the operation there,
+ * instead of assigning the editor's whole `innerHTML` over it.
+ *
+ * The wholesale assignment reparsed and replaced the bar's entire subtree on
+ * every arrow press, and the bar is a second `role="textbox"` -- so each press
+ * posted a text-changed notification for a field the screen reader then re-read
+ * across element boundaries, which is where the embedded-object placeholder
+ * comes from. Verified by removing the bar entirely (`showFormulaBar: false`),
+ * which silences the placeholder.
+ *
+ * Returns false when it cannot prove the two are in step, and the caller then
+ * falls back to the wholesale write. That fallback is not a formality: the bar
+ * is deliberately kept byte-identical to the editor, and assigning `innerHTML`
+ * self-heals any desync while a surgical edit would quietly compound one.
+ */
+function mirrorPickedRange(
+  $copyTo: HTMLDivElement,
+  $editor: HTMLDivElement,
+  rangeIndex: number,
+  created: boolean
+): boolean {
+  const source = $editor.querySelector(`span[rangeindex='${rangeIndex}']`);
+  if (!source) return false;
+
+  if (!created) {
+    // A later pick: the span exists on both sides, so only its text moved.
+    const target = $copyTo.querySelector(`span[rangeindex='${rangeIndex}']`);
+    const targetText = target?.firstChild;
+    if (!target || targetText?.nodeType !== Node.TEXT_NODE) return false;
+    targetText.nodeValue = source.textContent;
+    return true;
+  }
+
+  // A first pick: the span is new, and it is not always a direct child of the
+  // editor -- an autocompleted formula nests it under the `(` token's parent.
+  // So mirror it at the same path rather than at the same top-level offset.
+  const path = childPath($editor, source);
+  if (!path?.length) return false;
+  const sourceParent = source.parentNode;
+  const targetParent = nodeAtPath($copyTo, path.slice(0, -1));
+  if (!sourceParent || !targetParent) return false;
+  // The bar must be exactly one node behind at that level, or the clone would
+  // land somewhere the editor never put it.
+  if (targetParent.childNodes.length !== sourceParent.childNodes.length - 1) {
+    return false;
+  }
+  targetParent.insertBefore(
+    source.cloneNode(true),
+    targetParent.childNodes[path[path.length - 1]] ?? null
+  );
+  return true;
+}
+
 export function rangeSetValue(
   ctx: Context,
   cellInput: HTMLDivElement,
   selected: any,
   fxInput?: HTMLDivElement | null
 ) {
+  // Set by whichever branch below performs the pick, and read by the mirror at
+  // the end: which reference span changed, and whether it had to be created.
+  let picked: { rangeIndex: number; created: boolean } | null = null;
   let $editor = cellInput;
   let $copyTo = fxInput;
   if (document.activeElement?.id === "luckysheet-functionbox-cell") {
@@ -3036,8 +3118,45 @@ export function rangeSetValue(
       `span[rangeindex='${ctx.formulaCache.rangechangeindex}']`
     ) as HTMLSpanElement;
     if (span) {
-      span.innerHTML = range;
-      setCaretPosition(ctx, span, 0, range.length);
+      // Mutate the existing text node rather than reparsing the span's HTML.
+      // `innerHTML = range` destroys the text node the caret is anchored in and
+      // builds a fresh one on every arrow press. That invalidates the text
+      // markers VoiceOver is holding, so WebKit re-reads the field across an
+      // element boundary and the placeholder for an embedded object is what
+      // comes back -- the "object replacement character" the ticket reports.
+      // A character-data change on the surviving node is the same visual
+      // result without the subtree churn.
+      //
+      // The field's accessible value is plain text throughout (measured:
+      // `=SUM(D5`, no U+FFFC), which is what rules out the spans themselves
+      // being exposed as embedded objects and points at the mutation instead.
+      const textNode = span.firstChild;
+      if (textNode?.nodeType === Node.TEXT_NODE) {
+        textNode.nodeValue = range;
+      } else {
+        span.textContent = range;
+      }
+
+      // ...and do not re-seat a caret that is already where it would be put.
+      // `removeAllRanges()` + `addRange()` is a selection change whether or not
+      // the selection actually moves, and each one is another notification for
+      // the screen reader to speak over.
+      //
+      // Checked AFTER the mutation, because the browser clamps the offset to
+      // the new text length: `D5` -> `D6` leaves the caret already correct,
+      // while `D5` -> `D10` does not.
+      const selection = window.getSelection();
+      const caretAlreadyAtEnd =
+        selection?.isCollapsed &&
+        selection.anchorNode === span.firstChild &&
+        selection.anchorOffset === range.length;
+      if (!caretAlreadyAtEnd) {
+        setCaretPosition(ctx, span, 0, range.length);
+      }
+      picked = {
+        rangeIndex: ctx.formulaCache.rangechangeindex!,
+        created: false,
+      };
     }
     //   }
   } else {
@@ -3070,10 +3189,22 @@ export function rangeSetValue(
     ) as HTMLSpanElement;
 
     setCaretPosition(ctx, span, 0, range.length);
+    picked = {
+      rangeIndex: ctx.formulaCache.rangechangeindex!,
+      created: true,
+    };
     functionHTMLIndex += 1;
   }
 
-  if ($copyTo) $copyTo.innerHTML = $editor.innerHTML;
+  if ($copyTo) {
+    // Mirror the pick rather than assigning the editor's whole innerHTML over
+    // the bar -- see `mirrorPickedRange`. The fallback keeps the byte-identical
+    // invariant self-healing for every path that is not a pick at all.
+    const mirrored =
+      picked !== null &&
+      mirrorPickedRange($copyTo, $editor, picked.rangeIndex, picked.created);
+    if (!mirrored) $copyTo.innerHTML = $editor.innerHTML;
+  }
 }
 
 /**

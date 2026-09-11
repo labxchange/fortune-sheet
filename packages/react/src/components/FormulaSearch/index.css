@@ -59,7 +59,45 @@
   border-bottom: 1px solid #d4d4d4;
 }
 
+/*
+ * #8c89fe carried white text at 2.95:1, against the 4.5:1 WCAG 1.4.3 asks for,
+ * and it is the only thing marking the selected function. Identical defect to
+ * the Find-and-Replace tabs, so the identical remedy: #5b57d1 is the same hue
+ * at 5.63:1. See the note at `SearchReplace/index.css:34` for why not the
+ * lighter #6b67e0 (4.52:1 leaves nothing for a future tweak).
+ *
+ * This fill is the only marker of which option is active, because focus never
+ * lands on an option -- so it does double duty and 5.63:1 against the list's
+ * white is what carries it. An earlier version also drew a per-option focus
+ * ring here, which had to be two-tone: the shared #0063c3 ring is 1.04:1 on
+ * #5b57d1. That rule is gone; the ring is on the container now.
+ */
 .listBox.on {
-  background-color: #8c89fe;
+  background-color: #5b57d1;
   color: #fff;
 }
+
+/* Focus lands on the list, never on an option -- `aria-activedescendant`
+   moves the active option without moving DOM focus -- so the ring belongs
+   here. Inset, because `.formulaList` is an `overflow-y: scroll` box and an
+   outset ring on a scrolling container is clipped by its own scroll area.
+
+   The earlier `[role="option"]:focus-visible` rule this replaces had to be
+   two-tone: selection follows the active option, so a per-option ring only
+   ever painted on the selected fill and never on white. A ring on the
+   container has no such problem -- it is always on the dialog's white
+   background at 5.88:1 -- and `.listBox.on` above carries the separate job of
+   marking which option is active, at 5.63:1 against the list. */
+.formulaList:focus-visible {
+  outline: var(--border_focus_outer, 3px) solid
+    var(--color_border_focus_outer, #0063c3);
+  outline-offset: -3px;
+}
+
+/* The OK button's ring and fill are NOT set here any more. Both were local
+   overrides while `Dialog/index.css` was out of scope; that file now carries
+   the fix for every dialog's primary button -- a #0063c3 fill so the white
+   label clears 1.4.3, and a black ring so the indicator clears 1.4.11 against
+   that fill. Keeping a second copy here would put this one dialog's ring on a
+   different colour from every other ring in the product, which is the cost
+   the scoped version was recorded as carrying. */

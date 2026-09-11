@@ -107,8 +107,23 @@ export function useRovingFocus({
       if (e.key === "End") next = items.length - 1;
 
       if (next == null) return;
+      // The key is this widget's whether or not focus ends up moving, so claim
+      // it before asking. APG gives Home/End to the widget in both the toolbar
+      // and listbox patterns, and "focus is already on the first item" is that
+      // command succeeding, not a dead key. Let it through and the browser
+      // scrolls the nearest scrollable ancestor instead: End on the last item
+      // takes the embedding page to the bottom and leaves focus behind on a
+      // control that is no longer on screen. LabXchange's sims lay out in a
+      // scroll pane, which is the environment this lands in.
       e.preventDefault();
       e.stopPropagation();
+      // Focus is already where the key asks for it -- `loop: false` at either
+      // boundary (`step` clamps to the same index), or Home at index 0 / End
+      // at the last item. Only the re-focus is skipped, not the cancellation
+      // above: `.focus()` on the already-focused element fires nothing at all
+      // -- no focus, blur, focusin or focusout -- so there is nothing here for
+      // an AT to hear either way.
+      if (next === current) return;
       items[next]?.focus();
     };
 

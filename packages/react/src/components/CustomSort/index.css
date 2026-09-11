@@ -59,9 +59,16 @@
 /*
  * The global `.button-basic:focus-visible` (Toolbar/index.css) draws the ring at
  * `outline-offset: 0`, so here it lands flush on the button's own
- * `.button-primary` fill: #0063c3 on #0188fb is 1.66:1 and fails WCAG 1.4.11.
- * 2px out puts it on the white dialog panel instead, at 5.88:1 — same value and
- * reasoning as the filter menu's buttons in ContextMenu/index.css.
+ * `.button-primary` fill. 2px out puts it on the white dialog panel instead, at
+ * 5.88:1 — same value and reasoning as the filter menu's buttons in
+ * ContextMenu/index.css.
+ *
+ * The measurement this was written from (#0063c3 on the old #0188fb fill,
+ * 1.66:1) no longer describes anything: the fill is #0063c3 now, and
+ * Toolbar/index.css's `.button-basic.button-primary:focus-visible` recolours a
+ * flush primary ring to black. The offset is still what this rule is for — it
+ * is the reason a primary ring here reads at 5.88:1 on the panel rather than
+ * 3.57:1 on the fill — so the rule stays; only its arithmetic was stale.
  *
  * Scoped to this dialog rather than fixed globally: `.button-basic` is shared
  * with the Toolbar, ChangeColor, DataVerification and four others, several of

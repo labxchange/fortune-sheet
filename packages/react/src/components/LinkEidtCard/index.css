@@ -195,8 +195,12 @@
   border: 1px solid rgb(235, 235, 235);
 }
 
+/* WCAG 1.4.3: white on #0188fb is 3.55:1, against the 4.5:1 normal text needs.
+   #0063c3 is the same DS action blue at 5.88:1 -- the remedy
+   `ContextMenu/index.css` already shipped for the filter menu's own copy of
+   this rule, propagated here rather than re-derived. */
 .fortune-link-modify-modal .button-primary {
   color: white;
-  background-color: #0188fb;
+  background-color: #0063c3;
   margin-left: 14px;
 }

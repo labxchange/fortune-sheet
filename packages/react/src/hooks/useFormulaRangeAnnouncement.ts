@@ -23,8 +23,18 @@ import {
  * is an ordinary context field, reassigned by the same call that moves the
  * phantom selection, so it is the part of the pick React can actually see.
  *
- * Polite, for the reason `#sr-filterRegion` gives: `#sr-selection` is an alert,
- * and an assertive message here would cut off whatever it is saying.
+ * Assertive, which reverses what this hook originally recorded. The old reason
+ * was `#sr-filterRegion`'s: `#sr-selection` is an alert, and an assertive
+ * message here would cut off whatever it is saying. That holds for a region
+ * that fires *after* a selection move, and this one does not — during point
+ * mode the real selection stays where it was, so `#sr-selection` is silent
+ * throughout and there is nothing to interrupt but the placeholder noise
+ * WebKit emits while re-reading the mutated contenteditable.
+ *
+ * Politeness was also losing the race: a polite region is dropped, not queued,
+ * while other speech is in progress, which is why the reference was heard only
+ * after the noise drained. See the region itself in `SheetOverlay/index.tsx`
+ * for the two overlaps this trades against.
  */
 export function useFormulaRangeAnnouncement(context: Context): string {
   const { info } = locale(context);

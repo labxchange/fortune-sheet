@@ -331,21 +331,31 @@ const FxEditor: React.FC = () => {
               //   );
               // } else {
               const lastCellUpdate = _.clone(draftCtx.luckysheetCellUpdate);
-              updateCell(
+              const { refused } = updateCell(
                 draftCtx,
                 draftCtx.luckysheetCellUpdate[0],
                 draftCtx.luckysheetCellUpdate[1],
                 refs.fxInput.current!
               );
-              draftCtx.luckysheet_select_save = [
-                {
-                  row: [lastCellUpdate[0], lastCellUpdate[0]],
-                  column: [lastCellUpdate[1], lastCellUpdate[1]],
-                  row_focus: lastCellUpdate[0],
-                  column_focus: lastCellUpdate[1],
-                },
-              ];
-              moveHighlightCell(draftCtx, "down", 1, "rangeOfSelect");
+              // The THIRD commit path, and it needs the same hold as the
+              // grid's Enter and Tab branches in `core/events/keyboard.ts`: a
+              // write that data verification refused leaves the caret on the
+              // cell the warning dialog is about. Without this, the reported
+              // defect stayed reachable from the formula bar -- same rejection,
+              // same dialog, caret still stepping down. The guard belongs at
+              // every path that commits and then moves, not at the two that
+              // happened to be found first.
+              if (!refused) {
+                draftCtx.luckysheet_select_save = [
+                  {
+                    row: [lastCellUpdate[0], lastCellUpdate[0]],
+                    column: [lastCellUpdate[1], lastCellUpdate[1]],
+                    row_focus: lastCellUpdate[0],
+                    column_focus: lastCellUpdate[1],
+                  },
+                ];
+                moveHighlightCell(draftCtx, "down", 1, "rangeOfSelect");
+              }
               // }
               e.preventDefault();
               e.stopPropagation();

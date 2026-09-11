@@ -59,7 +59,7 @@ export function handleGlobalEnter(
     //   );
     // } else {
     const lastCellUpdate = _.clone(ctx.luckysheetCellUpdate);
-    updateCell(
+    const { refused } = updateCell(
       ctx,
       ctx.luckysheetCellUpdate[0],
       ctx.luckysheetCellUpdate[1],
@@ -67,15 +67,21 @@ export function handleGlobalEnter(
       undefined,
       canvas
     );
-    ctx.luckysheet_select_save = [
-      {
-        row: [lastCellUpdate[0], lastCellUpdate[0]],
-        column: [lastCellUpdate[1], lastCellUpdate[1]],
-        row_focus: lastCellUpdate[0],
-        column_focus: lastCellUpdate[1],
-      },
-    ];
-    moveHighlightCell(ctx, "down", 1, "rangeOfSelect");
+    // A refused write leaves the caret where it was, so the warning dialog
+    // appears over the cell it is about. Kept in exact parity with the Tab
+    // branch below -- the two commit paths agreeing is worth more than either
+    // one's shape.
+    if (!refused) {
+      ctx.luckysheet_select_save = [
+        {
+          row: [lastCellUpdate[0], lastCellUpdate[0]],
+          column: [lastCellUpdate[1], lastCellUpdate[1]],
+          row_focus: lastCellUpdate[0],
+          column_focus: lastCellUpdate[1],
+        },
+      ];
+      moveHighlightCell(ctx, "down", 1, "rangeOfSelect");
+    }
     // }
 
     // // 若有参数弹出框，隐藏
@@ -1054,14 +1060,15 @@ export function handleGlobalKeyDown(
     const gridRoot = target.closest(`.${GRID_ROOT_CLASS}`);
     // Two of the things that can match that selector *are* the grid rather
     // than something rendered around it, so both are carved out:
-    //   - the cell input, which `ContentEditable` may give a tabIndex of 0;
-    //   - the grid root itself. It carries tabIndex -1 today (rendered in
-    //     SheetOverlay/index.tsx), so `control` never actually equals it in
-    //     production -- this clause is defensive, not currently reachable.
-    //     Without it, a future change that makes the root itself the tab stop
-    //     (tabIndex 0, so Tab enters the grid there instead of at the first
-    //     control inside it) would silently stop the arrow keys from moving
-    //     anything for anyone who landed on it.
+    //   - the cell input, which `ContentEditable` gives a tabIndex of 0 while
+    //     an edit is open (-1 otherwise, so an idle grid has no tab stop
+    //     inside it at all);
+    //   - the grid root itself, which now carries tabIndex 0 (rendered in
+    //     SheetOverlay/index.tsx) so that Tab enters the grid there rather
+    //     than at the first control inside it. This clause was written while
+    //     the root was still -1 and was documented then as defensive and
+    //     unreachable; it is now the ordinary case, and it is the only reason
+    //     the arrow keys keep moving the selection for someone who tabbed in.
     const inGrid =
       !!gridRoot &&
       (!control || !!cellInput?.contains(control) || control === gridRoot);
@@ -1197,7 +1204,7 @@ export function handleGlobalKeyDown(
     if (ctx.luckysheetCellUpdate.length > 0) {
       if (!allowEdit) return;
       const lastCellUpdate = _.clone(ctx.luckysheetCellUpdate);
-      updateCell(
+      const { refused } = updateCell(
         ctx,
         lastCellUpdate[0],
         lastCellUpdate[1],
@@ -1205,6 +1212,14 @@ export function handleGlobalKeyDown(
         undefined,
         canvas
       );
+      if (refused) {
+        // Same hold as the Enter branch. `preventDefault` still runs, so the
+        // browser does not advance focus past a cell the grid is keeping the
+        // caret on. Returning early is what skips the move below -- it sits
+        // outside this block because a Tab with nothing in edit still steps.
+        e.preventDefault();
+        return;
+      }
       ctx.luckysheet_select_save = [
         {
           row: [lastCellUpdate[0], lastCellUpdate[0]],
@@ -1367,6 +1382,25 @@ export function handleGlobalKeyDown(
 
         ctx.luckysheetCellUpdate = [row_index, col_index];
         cache.overwriteCell = true;
+        // Hand this keydown to `InputBox`, which cannot see it.
+        //
+        // The call below runs *before* the browser has inserted the character,
+        // so the editor is still empty here and this is not the pass that
+        // tokenises the formula -- that happens when the resulting `input`
+        // event reaches `InputBox.onChange`. And that handler identifies the
+        // keystroke from a keydown it captured itself, which for type-to-edit
+        // it never receives: the event is dispatched to whatever had focus in
+        // the grid, and since the grid root became the grid's tab stop that is
+        // no longer the cell editor. Left to guess, it either bails (no key at
+        // all) or reads the key from the previous edit session (an `Enter`
+        // commit, which its own gate then filters out), and the first
+        // character of the edit is dropped from the typing pipeline. For "=",
+        // that character is the whole formula: no span markup, no formula bar
+        // mirror, and `rangestart` never armed, so the arrow keys never enter
+        // point mode.
+        //
+        // See `GlobalCache.editStartKeyEvent` for the handoff's lifetime.
+        cache.editStartKeyEvent = e;
 
         // if (kstr === "Backspace") {
         //   $("#luckysheet-rich-text-editor").html("<br/>");
@@ -1381,7 +1415,26 @@ export function handleGlobalKeyDown(
     }
   }
 
-  if (cellInput !== document.activeElement) {
+  // Only pull focus into the cell editor when there is an edit to type into.
+  //
+  // This used to be unconditional, and it is the tail of the handler every
+  // handled key falls through to -- including a plain arrow press with no edit
+  // session open. So navigating the grid moved focus into a `contenteditable`
+  // on the very first arrow, which is why entering the grid at its root and
+  // pressing Right left the user with a caret in a cell they were only
+  // stepping over. Making the root a tab stop would have been undone one
+  // keystroke later without this.
+  //
+  // `luckysheetCellUpdate` is the edit session, and every branch that starts
+  // one sets it *above* this line -- type-to-edit at the bottom of the `else`,
+  // F2, and the Enter path -- so all three still land focus in the editor
+  // exactly as before. What changes is the case where no branch started an
+  // edit: focus is left where the user put it, which for grid navigation is
+  // the grid root.
+  if (
+    ctx.luckysheetCellUpdate.length > 0 &&
+    cellInput !== document.activeElement
+  ) {
     cellInput?.focus();
   }
 

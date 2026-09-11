@@ -9,10 +9,10 @@ import Workbook, { WorkbookInstance } from "../src/components/Workbook";
 describe("Region focus", () => {
   describe("imperative API", () => {
     it("enters the grid at its root, not at a control inside it", () => {
-      // The grid root holds tabIndex -1 for this. Landing on the select-all
-      // corner or a filter funnel instead makes handleGlobalKeyDown's grid
-      // guard classify focus as outside the grid, and the arrow keys then move
-      // nothing — the shortcut would look like it worked and do nothing useful.
+      // Landing on the select-all corner or a filter funnel instead makes
+      // handleGlobalKeyDown's grid guard classify focus as outside the grid,
+      // and the arrow keys then move nothing — the shortcut would look like it
+      // worked and do nothing useful.
       const ref = React.createRef<WorkbookInstance>();
       const { container } = render(
         <Workbook ref={ref} data={[{ name: "Sheet1" }]} />
@@ -22,9 +22,15 @@ describe("Region focus", () => {
 
       const grid = container.querySelector(`.${GRID_ROOT_CLASS}`);
       expect(document.activeElement).toBe(grid);
-      expect(
-        (document.activeElement as HTMLElement).getAttribute("tabindex")
-      ).toBe("-1");
+      // This asserted tabindex "-1", on the reasoning that the root being
+      // unreachable by Tab was itself the proof `focusRegion` could not have
+      // picked it. That witness is spent: the root is now a real tab stop, so
+      // that Tab and Ctrl+Alt+S enter the grid at the same element this API
+      // does instead of running on into the cell editor and opening an edit.
+      // The contract it stood for got stronger, not weaker — all three routes
+      // must agree — so the assertion is inverted rather than dropped, and it
+      // still goes red if the root stops being the element focus lands on.
+      expect(grid!.getAttribute("tabindex")).toBe("0");
     });
 
     it("enters the toolbar", () => {
@@ -38,6 +44,61 @@ describe("Region focus", () => {
         container
           .querySelector(".fortune-toolbar")
           ?.contains(document.activeElement)
+      ).toBe(true);
+    });
+
+    // Chrome grants :focus-visible by last input modality, so a programmatic
+    // .focus() after a MOUSE interaction does not match it and the ring does
+    // not paint -- while the same call after a keyboard interaction does. A
+    // region jump is explicit keyboard intent, so focusRegion marks the target
+    // and the stylesheet matches [data-focus-visible] alongside
+    // :focus-visible.
+    //
+    // jsdom has no modality tracking and no :focus-visible, so what is
+    // asserted here is the marker, which is the part this code owns. Whether
+    // the ring actually paints is a browser check.
+    it("marks the toolbar target so its focus ring is forced visible", () => {
+      const ref = React.createRef<WorkbookInstance>();
+      render(<Workbook ref={ref} data={[{ name: "Sheet1" }]} />);
+
+      ref.current!.focusToolbar();
+
+      expect(
+        (document.activeElement as HTMLElement).hasAttribute(
+          "data-focus-visible"
+        )
+      ).toBe(true);
+    });
+
+    // Paired with the test above so it cannot pass against a marker that is
+    // simply never removed -- a permanent attribute would paint a ring on a
+    // control the user has long since left.
+    it("drops the forced-visible marker when focus leaves", () => {
+      const ref = React.createRef<WorkbookInstance>();
+      render(<Workbook ref={ref} data={[{ name: "Sheet1" }]} />);
+
+      ref.current!.focusToolbar();
+      const target = document.activeElement as HTMLElement;
+      target.blur();
+
+      expect(target.hasAttribute("data-focus-visible")).toBe(false);
+    });
+
+    // The same helper serves the sheet tabs, so the marker lands there too.
+    // That is NOT a ring: `SheetTab/index.css` has no `[data-focus-visible]`
+    // selector, so the tabs get the attribute and no change in appearance --
+    // no regression, no improvement, and one line of CSS away whenever someone
+    // wants it. Pinned here so the attribute cannot quietly stop being set.
+    it("marks the sheet-tab target the same way", () => {
+      const ref = React.createRef<WorkbookInstance>();
+      render(<Workbook ref={ref} data={[{ name: "Sheet1" }]} />);
+
+      ref.current!.focusSheetTabs();
+
+      expect(
+        (document.activeElement as HTMLElement).hasAttribute(
+          "data-focus-visible"
+        )
       ).toBe(true);
     });
 
@@ -89,6 +150,30 @@ describe("Region focus", () => {
           .querySelector(".fortune-toolbar")
           ?.contains(document.activeElement)
       ).toBe(true);
+    });
+
+    // The route the report is actually about: "activate the toolbar shortcut
+    // after placing the cell with the mouse". This chord had its own copy of
+    // the region-entry logic in `Workbook/index.tsx`, so the three API-driven
+    // marker tests above passed while the reported path stayed untouched.
+    // Driving the chord is what proves the shared `enterRegion` is wired to
+    // both callers rather than just to the API.
+    //
+    // jsdom has no modality tracking and no :focus-visible, so the marker is
+    // the part assertable here; whether a ring paints is a browser check.
+    it("Ctrl+Alt+T forces the toolbar focus ring visible", () => {
+      const { container } = render(<Workbook data={[{ name: "Sheet1" }]} />);
+
+      press(container, "KeyT");
+
+      const landed = document.activeElement as HTMLElement;
+      // Paired so this cannot pass on an element outside the toolbar -- if the
+      // chord stopped working, activeElement would be <body> and the attribute
+      // assertion alone would still be a meaningful red, but this says why.
+      expect(
+        container.querySelector(".fortune-toolbar")?.contains(landed)
+      ).toBe(true);
+      expect(landed.hasAttribute("data-focus-visible")).toBe(true);
     });
 
     // AltGr is delivered as Ctrl+Alt on Windows and Linux, so an AltGr-composed

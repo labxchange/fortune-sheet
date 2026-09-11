@@ -811,4 +811,261 @@ describe("keyboard", () => {
       expect(getFlowdata(ctx)[0][3].v).toBe(item.v4);
     });
   });
+
+  // Ctrl/Cmd+D and Ctrl/Cmd+R each carried their own hand-rolled
+  // reference-offsetting regex, `/(\$?[A-Z]+)(\$?)(\d+)/g`. Both now delegate
+  // to `functionCopy`, the helper the drag-fill path already used. The tests
+  // drive the KEYBOARD gesture on purpose: the drag path was never broken, and
+  // an earlier attempt to clear this ticket tested the drag path and so found
+  // nothing wrong.
+  // These cover the fill that `autoFillCell` performs -- the hand-rolled
+  // regexes these cases were written against were deleted upstream in #36,
+  // which delegates both directions to the same engine helper. The cases
+  // survived that change unaltered, which is the useful part: they were written
+  // as behaviour, not as a description of the loop.
+  //
+  // Trimmed to what `test/events/autoFillFormulaRefs.test.js` does NOT assert.
+  // What is left is the lower-case reference in both directions -- #36 has no
+  // lower-case case at all, and a case-sensitive predicate was the whole of T6
+  // -- plus the two inverse guards: an upper-case formula unchanged, and a
+  // plain value still filled as a value rather than promoted to a formula.
+  // Dropped as genuine duplicates: a multi-letter column (#36 crosses the
+  // Z -> AA boundary, which is strictly stronger than starting at AA) and an
+  // absolute-vs-relative column (#36 pins both anchors, separately).
+  describe("keyboard fill (ctrl+d / ctrl+r)", () => {
+    const fillEvent = (code) =>
+      new KeyboardEvent("keydown", {
+        key: code === "KeyD" ? "d" : "r",
+        code,
+        ctrlKey: true,
+        cancelable: true,
+      });
+
+    // `row`/`column` give the sheet a declared extent; without it the fill
+    // handlers bail before reaching the offsetting code.
+    const fillContext = (sourceCell, row, column) =>
+      contextFactory({
+        luckysheet_select_save: [
+          { row, column, row_focus: row[0], column_focus: column[0] },
+        ],
+        luckysheetfile: [
+          {
+            id: "id_1",
+            row: 10,
+            column: 8,
+            data: [
+              [sourceCell, null, null, null, null],
+              [null, null, null, null, null],
+              [null, null, null, null, null],
+              [null, null, null, null, null],
+            ],
+          },
+        ],
+      });
+
+    const fill = (ctx, code) => {
+      ctx.luckysheetCellUpdate = [];
+      handleWithCtrlOrMetaKey(
+        ctx,
+        { ignoreWriteCell: false },
+        fillEvent(code),
+        document.createElement("div"),
+        document.createElement("div"),
+        () => {},
+        () => {}
+      );
+    };
+
+    // The reported defect: `[A-Z]+` never matched a lower-case reference, so
+    // no substitution ran and the source formula was written verbatim into
+    // every target. Asserting on `.f` rather than the rendered value is
+    // deliberate -- a copied value and a correctly offset formula can display
+    // identically, which is how this survived to be audited.
+    test("ctrl+d offsets a lower-case formula's row reference", () => {
+      const ctx = fillContext({ v: 1, f: "=b1+1" }, [0, 2], [0, 0]);
+
+      fill(ctx, "KeyD");
+
+      // `functionCopy` normalises a reference to upper case as it offsets it,
+      // the same way the drag-fill path always has. That normalisation is
+      // itself the proof the delegation ran: the old regex could not match
+      // `b1` at all, so it wrote `=b1+1` through unchanged -- lower case AND
+      // un-offset. Upper case here means the reference was actually parsed.
+      expect(getFlowdata(ctx)[1][0].f).toBe("=B2+1");
+      expect(getFlowdata(ctx)[2][0].f).toBe("=B3+1");
+    });
+
+    // The counter-path, and the whole regression risk of this change: making
+    // the lenient case work must not alter the strict case.
+    test("ctrl+d offsets an upper-case formula exactly as before", () => {
+      const ctx = fillContext({ v: 1, f: "=B1+1" }, [0, 2], [0, 0]);
+
+      fill(ctx, "KeyD");
+
+      expect(getFlowdata(ctx)[1][0].f).toBe("=B2+1");
+      expect(getFlowdata(ctx)[2][0].f).toBe("=B3+1");
+    });
+
+    // The no-op axis: a cell with no formula must still fill as a value, not
+    // acquire one.
+    test("ctrl+d copies a plain value as a value", () => {
+      const ctx = fillContext({ v: "abc" }, [0, 2], [0, 0]);
+
+      fill(ctx, "KeyD");
+
+      expect(getFlowdata(ctx)[1][0].v).toBe("abc");
+      expect(getFlowdata(ctx)[1][0].f).toBeUndefined();
+    });
+
+    test("ctrl+r offsets a lower-case formula's column reference", () => {
+      const ctx = fillContext({ v: 1, f: "=a2+1" }, [0, 0], [0, 2]);
+
+      fill(ctx, "KeyR");
+
+      // Upper-cased as it is offset -- see the ctrl+d case above.
+      expect(getFlowdata(ctx)[0][1].f).toBe("=B2+1");
+      expect(getFlowdata(ctx)[0][2].f).toBe("=C2+1");
+    });
+
+    // Ctrl+R's regex read only `colRef.charCodeAt(0)` and emitted a single
+    // character, so any reference past column Z mis-offset -- and past the
+    // 26th column it produced non-letters. `functionCopy` goes through
+    // `columnCharToIndex`/`indexToColumnChar`, which are width-agnostic.
+
+    // Ctrl+R's regex tested capture group 2 -- the `$` in front of the ROW --
+    // to decide whether to move the COLUMN, so it had absolute handling
+    // exactly backwards: `$A1` was offset and `A$1` was pinned.
+  });
+
+  // A write refused by data verification used to set `warnDialog` and return
+  // with no signal to its caller, so both commit paths overwrote the selection
+  // and stepped away regardless -- moving the user off the cell at the moment
+  // a dialog naming that cell appeared.
+  describe("commit refused by data verification", () => {
+    // `type: "dropdown"` on purpose: its failure text is a fixed string, so the
+    // fixture needs no `ctx.dataVerification.optionLabel_*` lookup table.
+    const withRule = (cellUpdate) => {
+      const ctx = contextFactory({
+        luckysheet_select_save: selectionFactory([0, 0], [0, 0], 0, 0),
+        luckysheetfile: [
+          {
+            id: "id_1",
+            row: 10,
+            column: 8,
+            data: [
+              [{ v: "yes" }, { v: "yes" }],
+              [{ v: "yes" }, { v: "yes" }],
+            ],
+            dataVerification: {
+              "0_0": {
+                type: "dropdown",
+                value1: "yes,no",
+                prohibitInput: true,
+              },
+            },
+          },
+        ],
+      });
+      ctx.luckysheetCellUpdate = cellUpdate;
+      return ctx;
+    };
+
+    const editing = (text) => {
+      const cellInput = document.createElement("div");
+      cellInput.innerText = text;
+      return cellInput;
+    };
+
+    const pressEnter = (ctx, cellInput) =>
+      handleGlobalEnter(
+        ctx,
+        cellInput,
+        new KeyboardEvent("Enter", { key: "Enter", cancelable: true })
+      );
+
+    const pressTab = (ctx, cellInput) =>
+      handleGlobalKeyDown(
+        ctx,
+        cellInput,
+        document.createElement("div"),
+        new KeyboardEvent("keydown", { key: "Tab", cancelable: true }),
+        { undoList: [], redoList: [] },
+        () => {},
+        () => {}
+      );
+
+    test("enter leaves the caret on the refused cell", () => {
+      const ctx = withRule([0, 0]);
+
+      pressEnter(ctx, editing("maybe"));
+
+      // The assertion is about the SELECTION, not about `warnDialog`. The old
+      // code already set the dialog -- that is the symptom, not the fix.
+      expect(ctx.luckysheet_select_save[0].row_focus).toBe(0);
+      expect(ctx.luckysheet_select_save[0].column_focus).toBe(0);
+    });
+
+    test("tab leaves the caret on the refused cell", () => {
+      const ctx = withRule([0, 0]);
+
+      pressTab(ctx, editing("maybe"));
+
+      expect(ctx.luckysheet_select_save[0].column_focus).toBe(0);
+      expect(ctx.luckysheet_select_save[0].row_focus).toBe(0);
+    });
+
+    // Tab's move sits outside the edit-mode branch, so the refusal guard
+    // returns early to skip it. That must not also drop `preventDefault`, or
+    // the browser advances focus past a cell the grid is holding.
+    test("a refused tab still consumes the key", () => {
+      const ctx = withRule([0, 0]);
+      const event = new KeyboardEvent("keydown", {
+        key: "Tab",
+        cancelable: true,
+      });
+
+      handleGlobalKeyDown(
+        ctx,
+        editing("maybe"),
+        document.createElement("div"),
+        event,
+        { undoList: [], redoList: [] },
+        () => {},
+        () => {}
+      );
+
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    // The counter-path pair. Without these two, the tests above would pass
+    // against a commit path that had simply stopped moving altogether.
+    test("an accepted enter still steps down", () => {
+      const ctx = withRule([0, 0]);
+
+      pressEnter(ctx, editing("no"));
+
+      expect(ctx.luckysheet_select_save[0].row_focus).toBe(1);
+    });
+
+    test("an accepted tab still steps right", () => {
+      const ctx = withRule([0, 0]);
+
+      pressTab(ctx, editing("no"));
+
+      expect(ctx.luckysheet_select_save[0].column_focus).toBe(1);
+    });
+
+    // A no-op is a request that SUCCEEDED, so it must still advance. This is
+    // what makes the guard's predicate "refused" rather than "wrote": three of
+    // `updateCell`'s early returns are unchanged-value no-ops, and keying them
+    // to movement would strand the caret whenever a value was re-entered
+    // unchanged.
+    test("re-entering an unchanged value still steps down", () => {
+      const ctx = withRule([0, 1]);
+
+      pressEnter(ctx, editing("yes"));
+
+      expect(ctx.luckysheet_select_save[0].row_focus).toBe(1);
+    });
+  });
 });

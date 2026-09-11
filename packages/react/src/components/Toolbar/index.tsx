@@ -47,7 +47,11 @@ import "./index.css";
 import Button from "./Button";
 import { MORE_ITEMS_ID } from "./MoreItemsContainer";
 import Divider, { MenuDivider } from "./Divider";
-import Combo from "./Combo";
+import Combo, {
+  ComboExclusivity,
+  ComboExclusivityValue,
+  useComboExclusivityOwner,
+} from "./Combo";
 import Select, { Option } from "./Select";
 import SVGIcon from "../SVGIcon";
 import { useAdjacentSubmenuPosition } from "../../hooks/useAdjacentSubmenuPosition";
@@ -175,11 +179,27 @@ const MoreFormatOption: React.FC<{
 const Toolbar: React.FC<{
   setMoreItems: React.Dispatch<React.SetStateAction<React.ReactNode>>;
   moreItemsOpen: boolean;
-}> = ({ setMoreItems, moreItemsOpen }) => {
+  /**
+   * The one owner of "which dropdown is open", held by `Workbook` because the
+   * overflow popup is rendered there and not here. Optional so a `Toolbar`
+   * mounted on its own -- a story, a test harness -- still owns its own.
+   */
+  comboOwner?: ComboExclusivityValue;
+}> = ({ setMoreItems, moreItemsOpen, comboOwner: hoistedComboOwner }) => {
   const { context, setContext, refs, settings, handleUndo, handleRedo } =
     useContext(WorkbookContext);
   const contextRef = useRef(context);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Held above the provider so the "More" button below can also clear it --
+  // see its onMouseDown. Supplied by `Workbook` in the real app: the strip and
+  // the overflow popup have to share ONE owner or the invariant only holds
+  // within each of them, and the popup is not rendered in this subtree. The
+  // local fallback is for a standalone mount.
+  const ownedComboOwner = useComboExclusivityOwner();
+  const comboOwner = hoistedComboOwner ?? ownedComboOwner;
+  // Chosen here rather than inside the dialog, so two workbooks on one page
+  // cannot collide on it -- see FormulaSearch's own note.
+  const formulaSearchTitleId = useId();
   // Arrow-key movement between toolbar buttons, the navigation half of the
   // ARIA toolbar pattern. Purely additive: every button keeps its own tab
   // stop, so Tab behaves exactly as before. Collapsing those into a single
@@ -1328,7 +1348,15 @@ const Toolbar: React.FC<{
                     // changes and the wrapper would only ever decline -- the
                     // same reason keyboard-shortcuts, screenshot and every
                     // Combo trigger are excluded below.
-                    showDialog(<FormulaSearch onCancel={hideDialog} />);
+                    // `labelledBy` or the dialog is unnamed: `Dialog` has
+                    // supported it all along, but this call passed nothing.
+                    showDialog(
+                      <FormulaSearch
+                        onCancel={hideDialog}
+                        titleId={formulaSearchTitleId}
+                      />,
+                      { labelledBy: formulaSearchTitleId }
+                    );
                     setOpen(false);
                   }}
                 >{`${formula.find}...`}</Option>
@@ -1934,6 +1962,7 @@ const Toolbar: React.FC<{
       formula,
       showDialog,
       hideDialog,
+      formulaSearchTitleId,
       merge,
       generalDialog,
       border,
@@ -1966,49 +1995,84 @@ const Toolbar: React.FC<{
         role="toolbar"
         aria-label={toolbar.toolbar}
       >
-        {settings.customToolbarItems.map((n) => {
-          return (
-            <CustomButton
-              tooltip={n.tooltip}
-              onClick={n.onClick}
-              key={n.key}
-              icon={n.icon}
-              iconName={n.iconName}
-            >
-              {n.children}
-            </CustomButton>
-          );
-        })}
-        {settings.customToolbarItems?.length > 0 ? (
-          <Divider key="customDivider" />
-        ) : null}
-        {(toolbarWrapIndex === -1
-          ? settings.toolbarItems
-          : settings.toolbarItems.slice(0, toolbarWrapIndex + 1)
-        ).map((name, i) => getToolbarItem(name, i))}
-        {toolbarWrapIndex !== -1 &&
-        toolbarWrapIndex < settings.toolbarItems.length - 1 ? (
-          <Button
-            iconId="more"
-            tooltip={toolbar.toolMore}
-            // The disclosure pairing this trigger never had. `controls` is also
-            // what lets the More popup's `closeOnFocusOut` recognise this
-            // button as its own trigger rather than as somewhere outside it.
-            expanded={moreItemsOpen}
-            controls={moreItemsOpen ? MORE_ITEMS_ID : undefined}
-            onMouseDown={() => {
-              if (moreItemsOpen) {
-                setMoreItems(null);
-              } else {
-                setMoreItems(
-                  settings.toolbarItems
-                    .slice(toolbarWrapIndex + 1)
-                    .map((name, i) => getToolbarItem(name, i))
-                );
-              }
-            }}
-          />
-        ) : null}
+        {/* One owner of "which dropdown is open" for the whole strip, so
+            opening any Combo closes whichever was open. Renders no DOM node,
+            so the toolbar's child structure -- which `useRovingFocus` queries
+            -- is unchanged. */}
+        <ComboExclusivity value={comboOwner}>
+          {settings.customToolbarItems.map((n) => {
+            return (
+              <CustomButton
+                tooltip={n.tooltip}
+                onClick={n.onClick}
+                key={n.key}
+                icon={n.icon}
+                iconName={n.iconName}
+              >
+                {n.children}
+              </CustomButton>
+            );
+          })}
+          {settings.customToolbarItems?.length > 0 ? (
+            <Divider key="customDivider" />
+          ) : null}
+          {(toolbarWrapIndex === -1
+            ? settings.toolbarItems
+            : settings.toolbarItems.slice(0, toolbarWrapIndex + 1)
+          ).map((name, i) => getToolbarItem(name, i))}
+          {toolbarWrapIndex !== -1 &&
+          toolbarWrapIndex < settings.toolbarItems.length - 1 ? (
+            <Button
+              iconId="more"
+              tooltip={toolbar.toolMore}
+              // The disclosure pairing this trigger never had. `controls` is also
+              // what lets the More popup's `closeOnFocusOut` recognise this
+              // button as its own trigger rather than as somewhere outside it.
+              expanded={moreItemsOpen}
+              controls={moreItemsOpen ? MORE_ITEMS_ID : undefined}
+              onMouseDown={() => {
+                if (moreItemsOpen) {
+                  setMoreItems(null);
+                } else {
+                  // Close any open strip dropdown by hand. `useOutsideClick`
+                  // does not do it for us: it listens on `document` in the
+                  // bubble phase, and this button's shared mousedown handler
+                  // calls stopPropagation, which (React dispatching at the
+                  // root container) stops the native event before it reaches
+                  // `document`.
+                  comboOwner.setOpenId(null);
+                  // No provider around these: `Workbook` wraps the popup's
+                  // container in one holding the SAME owner as the strip, and
+                  // React resolves context from where an element is rendered
+                  // rather than where it was created -- so these inherit it
+                  // there.
+                  //
+                  // A second owner here is what this used to do, and it left a
+                  // seam: this trigger's mousedown calls stopPropagation, so
+                  // the popup's document-level `useOutsideClick` never fires,
+                  // and a strip dropdown could open alongside an overflow one
+                  // with both `aria-expanded="true"`. jsdom cannot see it --
+                  // no layout means `toolbarWrapIndex` is -1 and this button
+                  // never renders -- so `toolbarDropdowns.test.tsx` passed
+                  // throughout. Sharing the owner closes it by construction
+                  // instead of by a second close call that the next dropdown
+                  // added here would have to remember.
+                  //
+                  // Capturing the owner into this element would NOT work, and
+                  // that is why it was two owners in the first place: the value
+                  // is re-memoised on every `openId` change, so the copy frozen
+                  // into this stored element would go stale the moment anything
+                  // opened. Inheriting by render position has no such copy.
+                  setMoreItems(
+                    settings.toolbarItems
+                      .slice(toolbarWrapIndex + 1)
+                      .map((name, i) => getToolbarItem(name, i))
+                  );
+                }
+              }}
+            />
+          ) : null}
+        </ComboExclusivity>
       </div>
       {/* Confirmation for the toolbar actions whose only other feedback is the
           canvas repainting.

@@ -680,6 +680,18 @@ export function cancelNormalSelected(ctx: Context) {
 }
 
 // formula.updatecell
+/**
+ * Why this reports `refused` rather than "did it write": `updateCell` returns
+ * early on several no-op paths too (value unchanged, empty cell left empty).
+ * A no-op is a request that *succeeded*, so a caller keying through the grid
+ * must still advance on it. Only an actively refused write — the user was told
+ * no — may hold the selection in place.
+ */
+export type UpdateCellResult = {
+  refused: boolean;
+  reason?: "dataVerification";
+};
+
 export function updateCell(
   ctx: Context,
   r: number,
@@ -687,11 +699,11 @@ export function updateCell(
   $input?: HTMLDivElement | null,
   value?: any,
   canvas?: CanvasRenderingContext2D
-) {
+): UpdateCellResult {
   let inputText = $input?.innerText;
   const inputHtml = $input?.innerHTML;
   const flowdata = getFlowdata(ctx);
-  if (!flowdata) return;
+  if (!flowdata) return { refused: false };
 
   // if (!_.isNil(rangetosheet) && rangetosheet !== ctx.currentSheetId) {
   //   sheetmanage.changeSheetExec(rangetosheet);
@@ -716,7 +728,7 @@ export function updateCell(
       cancelNormalSelected(ctx);
       ctx.warnDialog = failureText;
 
-      return;
+      return { refused: true, reason: "dataVerification" };
     }
   }
 
@@ -787,14 +799,18 @@ export function updateCell(
   // Hook function
   if (ctx.hooks.beforeUpdateCell?.(r, c, value) === false) {
     cancelNormalSelected(ctx);
-    return;
+    // Deliberately not `refused`. This veto is the embedding application's,
+    // it shows the user no dialog, and hosts use the hook as a silent filter
+    // — so holding the caret here would strand a keyboard user with no
+    // feedback. T23 is scoped to the refusal that does explain itself.
+    return { refused: false };
   }
 
   if (!isCurInline) {
     if (isRealNull(value) && !isPrevInline) {
       if (!curv || (isRealNull(curv.v) && !curv.spl && !curv.f)) {
         cancelNormalSelected(ctx);
-        return;
+        return { refused: false };
       }
     } else if (curv && curv.qp !== 1) {
       if (
@@ -802,11 +818,11 @@ export function updateCell(
         (value === curv.f || value === curv.v || value === curv.m)
       ) {
         cancelNormalSelected(ctx);
-        return;
+        return { refused: false };
       }
       if (value === curv) {
         cancelNormalSelected(ctx);
-        return;
+        return { refused: false };
       }
     }
 
@@ -1088,6 +1104,8 @@ export function updateCell(
 
   setFormulaCellInfo(ctx, { r, c, id: ctx.currentSheetId });
   ctx.formulaCache.execFunctionGlobalData = null;
+
+  return { refused: false };
 }
 
 export function getOrigincell(ctx: Context, r: number, c: number, i: string) {

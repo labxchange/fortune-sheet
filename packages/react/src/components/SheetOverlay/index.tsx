@@ -819,7 +819,27 @@ const SheetOverlay: React.FC = () => {
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
       onBlur={onGridBlur}
-      tabIndex={-1}
+      /*
+       * The grid's single tab stop, and deliberately the *root* rather than
+       * anything inside it (WCAG 2.4.3). This used to be -1, which left the
+       * grid with no forward tab stop of its own -- so Tab from the toolbar
+       * ran past the name box and the fx input and landed on the cell editor,
+       * the one focusable node the grid does render. That editor is
+       * `contenteditable`, so the browser put a caret in it and a screen
+       * reader announced an editable textbox: entering the sheet forwards
+       * started an edit, while entering it backwards or via Ctrl+Alt+S did
+       * not. Same region, two different states, decided by which direction
+       * the user arrived from.
+       *
+       * Making the root itself the stop collapses the two routes onto one
+       * element -- the same element `focusSpreadsheet` and the Ctrl+Alt+S
+       * region jump already target, and the one `handleGlobalKeyDown`'s grid
+       * guard already carves out so the arrow keys keep working for whoever
+       * lands here. The idle cell editor drops out of the tab order to match
+       * (`InputBox.tsx`), so no route can park a caret in a cell nobody asked
+       * to edit.
+       */
+      tabIndex={0}
       style={{
         width: context.luckysheetTableContentHW[0],
         height: context.luckysheetTableContentHW[1],
@@ -1309,13 +1329,7 @@ const SheetOverlay: React.FC = () => {
           `sr-virtual.test.tsx` asserts it survives a focus move that way. The
           full reasoning, including the double-speak question the two mechanisms
           raise together, is in useContextMenuAnnouncements. */}
-      <div
-        id={contextMenuRegionId}
-        className="sr-only"
-        role="alert"
-        aria-live="assertive"
-        aria-atomic="true"
-      >
+      <div id={contextMenuRegionId} className="sr-only" role="alert">
         {contextMenuAnnouncement}
       </div>
       {/* A toolbar command edits the cell in place rather than navigating to
@@ -1329,20 +1343,40 @@ const SheetOverlay: React.FC = () => {
           context-menu region above is assertive to survive. A polite
           announcement queued there risks the same VoiceOver fate that
           region's own comment describes: the newly-focused element's own
-          announcement discards a polite message queued in the same moment. */}
-      <div
-        id="sr-toolbarFocusReturn"
-        className="sr-only"
-        role="alert"
-        aria-live="assertive"
-        aria-atomic="true"
-      >
+          announcement discards a polite message queued in the same moment.
+
+          `role="alert"` alone, with no `aria-live` or `aria-atomic` beside it:
+          the role implies both, and spelling them out is the odd-one-out
+          variant `Toolbar/index.tsx` already recorded a decision against.
+          `srLiveRegionSpelling.test.tsx` holds every region to it. */}
+      <div id="sr-toolbarFocusReturn" className="sr-only" role="alert">
         {toolbarFocusReturnAnnouncement}
       </div>
       {/* Picking a cell reference during formula entry moves an overlay
           rectangle and rewrites text inside a contenteditable — both invisible
-          to a screen reader. Polite, for the same reason as above. */}
-      <div id="sr-formulaRange" className="sr-only" role="status">
+          to a screen reader.
+
+          Assertive, unlike its polite neighbours above, and this reverses the
+          reasoning this region shipped with. That reasoning was: `#sr-selection`
+          is an alert, so an assertive message here would cut off the cell
+          announcement the user navigated to hear. It does not apply during
+          point mode — the real selection never moves while a reference is being
+          picked, so `#sr-selection` is not speaking and there is nothing polite
+          to protect. What an assertive message interrupts here is the
+          placeholder noise WebKit produces while re-reading the mutated
+          contenteditable, which is the whole point.
+
+          A polite region loses that race by design: it is dropped rather than
+          queued while other speech is in progress, so the reference arrived
+          only once the noise had drained — "3-4 times before eventually
+          announcing the actual cell reference".
+
+          The overlap to watch is the FIRST arrow press, which can land while an
+          entry announcement is still in flight, and the two polite
+          `#sr-formulaSuggestions` regions (`FxEditor/index.tsx`,
+          `InputBox.tsx`) that speak during formula entry on this same editor.
+          Both are audible-only and neither is visible to jest. */}
+      <div id="sr-formulaRange" className="sr-only" role="alert">
         {formulaRangeAnnouncement}
       </div>
     </main>

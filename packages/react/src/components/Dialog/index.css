@@ -30,6 +30,12 @@
   padding-bottom: 20px;
 }
 
+/* `font: inherit` first, and it is load-bearing rather than tidy: these are
+   `<button>`s now (FormulaSearch's two, with ten siblings still to convert),
+   and font-family does not inherit into a button -- the UA substitutes its own.
+   As `<div>`s they took the workbook's font. `ContextMenu/index.css` puts
+   `font: inherit` on its own button rules for exactly this reason. The
+   `font-size` below it stays, because the shorthand resets that too. */
 .fortune-message-box-button {
   display: inline-flex;
   align-items: center;
@@ -37,6 +43,7 @@
   margin: 0 8px;
   border: none;
   border-radius: 4px;
+  font: inherit;
   font-size: 14px;
   line-height: 20px;
   outline: none;
@@ -48,15 +55,44 @@
     var(--color_border_focus_outer, #0063c3);
 }
 
+/* The ring cannot stay #0063c3 now that the fill is: that is 1.00:1, the exact
+   shape of the fs#20 defect where a ring was measured against white and
+   shipped onto a fill it vanished into. Black is 3.57:1 on #0063c3 and 21:1 on
+   the white dialog, so it passes whether an auditor measures the indicator
+   against the control it encloses or against the surface beside it -- the two
+   readings that three earlier attempts at this ring split on.
+
+   The package ink rgb(38, 42, 51) was the natural candidate and does not
+   qualify: 2.44:1 on #0063c3. Nor does darkening the fill to keep the old
+   ring -- the fill window satisfying white text at 4.5:1 AND a rgb(38,42,51)
+   ring at 3:1 is L in [0.169, 0.183], and the only palette hex inside it is
+   #6b67e0, which SearchReplace/index.css:34 already rejected for leaving no
+   margin.
+
+   Scoped to .button-primary: .button-default is a white button, where the
+   shared #0063c3 ring is 5.88:1 and correct as it stands.
+
+   The offset is the other half of the Search Function report,
+   "insufficient spacing around it", and it applies to every dialog's primary
+   button rather than to that one dialog's own copy of the rule. */
+.fortune-message-box-button.button-primary:focus-visible {
+  outline-color: #000;
+  outline-offset: 2px;
+}
+
 .fortune-message-box-button.button-default {
   color: rgb(38, 42, 51);
   background-color: rgb(255, 255, 255);
   border: 1px solid rgb(235, 235, 235);
 }
 
+/* WCAG 1.4.3: white on #0188fb is 3.55:1, against the 4.5:1 normal text needs.
+   #0063c3 is the same DS action blue at 5.88:1 -- the remedy
+   `ContextMenu/index.css` already shipped for the filter menu's own copy of
+   this rule, propagated here rather than re-derived. */
 .fortune-message-box-button.button-primary {
   color: white;
-  background-color: #0188fb;
+  background-color: #0063c3;
 }
 
 .fortune-modal-dialog-header {

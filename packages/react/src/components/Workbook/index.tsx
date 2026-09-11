@@ -50,7 +50,8 @@ import ContextMenu from "../ContextMenu";
 import SVGDefines from "../SVGDefines";
 import SheetTabContextMenu from "../ContextMenu/SheetTab";
 import MoreItemsContaier from "../Toolbar/MoreItemsContainer";
-import { generateAPIs } from "./api";
+import { ComboExclusivity, useComboExclusivityOwner } from "../Toolbar/Combo";
+import { enterRegion, generateAPIs } from "./api";
 import { ModalProvider } from "../../context/modal";
 import FilterMenu from "../ContextMenu/FilterMenu";
 import SheetList from "../SheetList";
@@ -119,6 +120,13 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
 
     const [moreToolbarItems, setMoreToolbarItems] =
       useState<React.ReactNode>(null);
+
+    // One owner of "which toolbar dropdown is open", for the strip and the
+    // overflow popup together -- see the provider around `MoreItemsContaier`
+    // below. It lives here rather than in `Toolbar` because the popup is
+    // rendered here, and two owners left a seam the toolbar's own tests could
+    // not reach.
+    const comboOwner = useComboExclusivityOwner();
 
     const [calInfo, setCalInfo] = useState<{
       numberC: number;
@@ -711,20 +719,14 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
               // synchronously, so the gate passes and the deferred re-check
               // declines instead.
               leaveShortcutsDialog();
-              // The grid is entered at its root, which holds tabIndex -1 for
-              // the purpose: landing on one of the controls inside it (the
-              // select-all corner, a filter funnel) makes the grid guard in
-              // handleGlobalKeyDown treat focus as outside the grid, and the
-              // arrow keys then move nothing. The toolbar and the tab strip are
-              // roving-tabindex composites, so those are entered at whichever
-              // item currently holds tabIndex 0.
-              const target =
-                e.code === "KeyS"
-                  ? container
-                  : container.querySelector<HTMLElement>(
-                      '[tabindex="0"]:not([aria-disabled="true"])'
-                    ) ?? container;
-              target.focus();
+              // Shared with the `focusToolbar`/`focusSheetTabs` APIs rather
+              // than reimplemented here. This block used to hold its own copy
+              // of the same target-picking and `.focus()`, and when the
+              // forced-visible focus marker was added it went into the API copy
+              // only -- so this route, the one the shortcut actually takes,
+              // still moved focus invisibly after a mouse interaction. See
+              // `enterRegion` for why the grid is entered at its root.
+              enterRegion(container, e.code === "KeyS");
               return;
             }
           }
@@ -1009,6 +1011,7 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
                 <Toolbar
                   moreItemsOpen={moreToolbarItems !== null}
                   setMoreItems={setMoreToolbarItems}
+                  comboOwner={comboOwner}
                 />
               )}
               {mergedSettings.showFormulaBar && <FxEditor />}
@@ -1019,9 +1022,18 @@ const Workbook = React.forwardRef<WorkbookInstance, Settings & AdditionalProps>(
             <FilterMenu />
             <SheetTabContextMenu />
             {context.showSheetList && <SheetList />}
+            {/* The overflow popup shares the toolbar strip's exclusivity
+                owner, so "at most one dropdown is expanded" holds across the
+                seam between them and not just inside each. Held here because
+                this is the nearest component that renders both; the provider
+                is evaluated on every render, so -- unlike an owner captured
+                into the stored popup element -- it is never stale. Renders no
+                DOM node. */}
             {moreToolbarItems && (
               <MoreItemsContaier onClose={onMoreToolbarItemsClose}>
-                {moreToolbarItems}
+                <ComboExclusivity value={comboOwner}>
+                  {moreToolbarItems}
+                </ComboExclusivity>
               </MoreItemsContaier>
             )}
             {!_.isEmpty(context.contextMenu) && (

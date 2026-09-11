@@ -1,4 +1,4 @@
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, createEvent } from "@testing-library/react";
 import React, { useRef } from "react";
 import { useRovingFocus } from "../src/hooks/useRovingFocus";
 
@@ -51,6 +51,24 @@ const ListWithTextEntry: React.FC = () => {
       </div>
       <div role="button" tabIndex={0}>
         Tab 2
+      </div>
+    </div>
+  );
+};
+
+// `loop` defaults to true, which is right for a menu -- a closed ring of a
+// dozen items -- and wrong for a long listbox, where wrapping leaves the arrow
+// keys no exit at all. `FormulaSearch` passes `loop: false` for that reason.
+const NonLoopingList: React.FC = () => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  useRovingFocus({ containerRef, orientation: "vertical", loop: false });
+  return (
+    <div ref={containerRef}>
+      <div role="button" tabIndex={0}>
+        Row 1
+      </div>
+      <div role="button" tabIndex={0}>
+        Row 2
       </div>
     </div>
   );
@@ -131,6 +149,60 @@ describe("useRovingFocus", () => {
     expect(document.activeElement).toBe(tab2);
     fireEvent.keyDown(tab2, { key: "Home" });
     expect(document.activeElement).toBe(tab1);
+  });
+
+  it("clamps at the ends instead of wrapping when loop is false", () => {
+    const { getByText } = render(<NonLoopingList />);
+    const row1 = getByText("Row 1");
+    const row2 = getByText("Row 2");
+
+    row2.focus();
+    fireEvent.keyDown(row2, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(row2);
+
+    row1.focus();
+    fireEvent.keyDown(row1, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(row1);
+  });
+
+  // A boundary key resolves to the index already focused -- `loop: false` at
+  // either end, where `step` clamps, and Home at the first item / End at the
+  // last on any list. The widget still owns that keystroke, so it has to be
+  // claimed: uncancelled, it reaches the browser, which scrolls the nearest
+  // scrollable ancestor and drags the whole strip out of view while focus
+  // stays behind on it.
+  //
+  // Only the redundant re-focus is skipped, which is why each case also
+  // asserts where focus ended up: nothing observable is supposed to have
+  // happened beyond the cancellation.
+  //
+  // The last case is the positive control -- a key that does move focus must
+  // be claimed too, or these would pass equally against a handler that
+  // cancelled every key it saw and moved nothing.
+  it("claims a boundary key that moves nothing", () => {
+    const { getByText } = render(<NonLoopingList />);
+    const row1 = getByText("Row 1");
+    const row2 = getByText("Row 2");
+
+    row2.focus();
+    const atEnd = createEvent.keyDown(row2, { key: "ArrowDown" });
+    fireEvent(row2, atEnd);
+    expect(atEnd.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(row2);
+
+    // Reachable a second way, and on a looping list too: Home at the first
+    // item and End at the last also resolve to the index already focused.
+    row1.focus();
+    const homeAtStart = createEvent.keyDown(row1, { key: "Home" });
+    fireEvent(row1, homeAtStart);
+    expect(homeAtStart.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(row1);
+
+    row1.focus();
+    const moves = createEvent.keyDown(row1, { key: "ArrowDown" });
+    fireEvent(row1, moves);
+    expect(moves.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(row2);
   });
 
   it("does not hijack arrow/Home/End keys from a contentEditable field, but still roves from a plain item", () => {

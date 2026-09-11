@@ -55,9 +55,13 @@
   margin-top: 10px;
 }
 
+/* WCAG 1.4.3: white on #0188fb is 3.55:1, against the 4.5:1 normal text needs.
+   #0063c3 is the same DS action blue at 5.88:1 -- the remedy
+   `ContextMenu/index.css` already shipped for the filter menu's own copy of
+   this rule, propagated here rather than re-derived. */
 .condition-rules .button-primary {
-  background: #0188fb;
-  border: 1px solid #0188fb;
+  background: #0063c3;
+  border: 1px solid #0063c3;
   color: #fff;
   margin-right: 10px;
 }
@@ -71,6 +75,18 @@
 .condition-rules .button-basic:focus-visible {
   outline: var(--border_focus_outer, 3px) solid
     var(--color_border_focus_outer, #0063c3);
+}
+
+/* The rule above is flush (no offset), so on a primary button its #0063c3 ring
+   would land on the #0063c3 fill this file now sets: 1.00:1, no visible focus
+   indicator at all. `Toolbar/index.css`'s
+   `.button-basic.button-primary:focus-visible` carries the same remedy for
+   every other consumer, but it ties with the rule above at (0,3,0) and would
+   be decided by which stylesheet the bundler emits last -- so the fix is
+   restated here at (0,4,0), where it wins outright and cannot be flipped by an
+   import reorder. Black on #0063c3 is 3.57:1, which clears 1.4.11. */
+.condition-rules .button-basic.button-primary:focus-visible {
+  outline-color: #000;
 }
 
 .condition-rules {
