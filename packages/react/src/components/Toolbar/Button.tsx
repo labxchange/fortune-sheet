@@ -1,6 +1,7 @@
 import React from "react";
 import SVGIcon from "../SVGIcon";
 import {
+  menuButtonToggleHandlers,
   mouseDownToggleHandlers,
   onActivationKeyDown,
 } from "../../utils/keyboardActivation";
@@ -71,9 +72,23 @@ const Button: React.FC<Props> = ({
   // reader alike. In onMouseDown mode all three handlers come from the shared
   // helper, which owns that consistency (and the target === currentTarget
   // guard) rather than each trigger re-deriving it.
-  const toggleHandlers = onMouseDown
-    ? mouseDownToggleHandlers<HTMLDivElement>(onMouseDown, disabled)
-    : undefined;
+  // `expanded !== undefined` is the same test the aria-haspopup below uses,
+  // and the reason it is the right one here: a trigger only owes the
+  // menu-button open gestures if it told the user it discloses a popup. The
+  // ordinary toolbar buttons (bold, italic, ...) keep the plain helper, or an
+  // arrow key over them would be swallowed for nothing.
+  const buildToggleHandlers = () => {
+    if (!onMouseDown) return undefined;
+    if (expanded === undefined) {
+      return mouseDownToggleHandlers<HTMLDivElement>(onMouseDown, disabled);
+    }
+    return menuButtonToggleHandlers<HTMLDivElement>(
+      onMouseDown,
+      expanded,
+      disabled
+    );
+  };
+  const toggleHandlers = buildToggleHandlers();
   return (
     <div
       className="fortune-toolbar-button fortune-toolbar-item"

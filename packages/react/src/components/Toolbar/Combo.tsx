@@ -11,7 +11,7 @@ import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import {
   onActivationKeyDown,
-  mouseDownToggleHandlers,
+  menuButtonToggleHandlers,
 } from "../../utils/keyboardActivation";
 import SVGIcon from "../SVGIcon";
 import WorkbookContext from "../../context";
@@ -87,8 +87,9 @@ const Combo: React.FC<Props> = ({
    * action and the arrow is the only route to the popup, so it keeps its own
    * tab stop and its own ARIA.
    */
-  const arrowToggle = mouseDownToggleHandlers<HTMLDivElement>(() =>
-    setOpen(!open)
+  const arrowToggle = menuButtonToggleHandlers<HTMLDivElement>(
+    () => setOpen(!open),
+    open
   );
   const arrowProps: React.HTMLAttributes<HTMLDivElement> = ownsPopup
     ? { "aria-hidden": true }
@@ -141,7 +142,7 @@ const Combo: React.FC<Props> = ({
         <div
           className="fortune-toolbar-combo-button"
           {...(ownsPopup
-            ? mouseDownToggleHandlers(() => setOpen(!open))
+            ? menuButtonToggleHandlers(() => setOpen(!open), open)
             : {
                 onClick: disabled ? undefined : onClick,
                 onKeyDown: onActivationKeyDown(disabled),
