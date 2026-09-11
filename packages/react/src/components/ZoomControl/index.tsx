@@ -13,7 +13,7 @@ import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
 import {
   activateOnEnterOrSpace,
-  mouseDownToggleHandlers,
+  menuButtonToggleHandlers,
 } from "../../utils/keyboardActivation";
 import "./index.css";
 
@@ -125,7 +125,10 @@ const ZoomControl: React.FC = () => {
       <div className="fortune-zoom-ratio">
         <div
           className="fortune-zoom-ratio-current fortune-zoom-button"
-          {...mouseDownToggleHandlers(() => setRadioMenuOpen(!radioMenuOpen))}
+          {...menuButtonToggleHandlers(
+            () => setRadioMenuOpen(!radioMenuOpen),
+            radioMenuOpen
+          )}
           tabIndex={0}
           role="button"
           aria-haspopup

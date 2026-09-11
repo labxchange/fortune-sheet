@@ -20,7 +20,7 @@ import { useSheetTabMoveAnnouncement } from "../../hooks/useSheetTabMoveAnnounce
 import { useSheetTabColorAnnouncement } from "../../hooks/useSheetTabColorAnnouncement";
 import {
   activateOnEnterOrSpace,
-  mouseDownToggleHandlers,
+  menuButtonToggleHandlers,
 } from "../../utils/keyboardActivation";
 
 const SheetTab: React.FC = () => {
@@ -147,14 +147,14 @@ const SheetTab: React.FC = () => {
               // Only while open: an `aria-controls` naming an element that is
               // not in the document is itself a defect.
               aria-controls={context.showSheetList ? SHEET_LIST_ID : undefined}
-              {...mouseDownToggleHandlers(() => {
+              {...menuButtonToggleHandlers(() => {
                 setContext((ctx) => {
                   ctx.showSheetList = _.isUndefined(ctx.showSheetList)
                     ? true
                     : !ctx.showSheetList;
                   ctx.sheetTabContextMenu = {};
                 });
-              })}
+              }, !!context.showSheetList)}
             >
               <SVGIcon name="all-sheets" width={16} height={16} />
             </div>

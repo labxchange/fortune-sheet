@@ -287,3 +287,97 @@ export function returnFocusToCell(
 ): void {
   focusAfterCommit(() => cellInput);
 }
+
+/**
+ * As mouseDownToggleHandlers, for a trigger that advertises a popup.
+ *
+ * A trigger carrying `aria-haspopup` promises the APG menu-button contract,
+ * and Down Arrow opening the popup is part of that contract — it is the
+ * gesture a screen reader trains its user to reach for, and the one a
+ * keyboard user tries after Enter. Six triggers here made the promise and
+ * implemented only Enter/Space, so the documented key did nothing at all.
+ *
+ * Claiming the key matters as much as acting on it. The grid's own
+ * `handleGlobalKeyDown` is bound on `.fortune-container`, which wraps both
+ * the toolbar and the sheet tabs, so an unclaimed arrow bubbles out of the
+ * trigger and moves the grid selection instead: the user presses the
+ * documented "open this menu" key and the sheet scrolls under them.
+ *
+ * `isOpen` rather than a bare toggle, because these keys only ever *open*.
+ * Down Arrow on an already-open menu must not close it — by then focus is
+ * inside the popup anyway, put there by `useEscapeToClose`'s `autoFocus`,
+ * and this handler no longer sees the key.
+ *
+ * Deviation, stated rather than hidden: APG gives Up Arrow the same open with
+ * focus on the *last* item. Every caller here opens through that same
+ * `autoFocus`, which takes the first, so Up opens on the first item too. That
+ * is a far smaller gap than the key doing nothing, and closing it properly
+ * belongs with a wider fix to these popups' semantics — they are lists of
+ * `role="button"` inside an unlabelled div, not `role="menu"` with
+ * `menuitem`s, so the pattern is only half-adopted regardless.
+ */
+export function menuButtonToggleHandlers<T extends HTMLElement = HTMLElement>(
+  onToggle: () => void,
+  isOpen: boolean,
+  disabled?: boolean
+): {
+  onMouseDown: (e: React.MouseEvent<T>) => void;
+  onClick: (e: React.MouseEvent<T>) => void;
+  onKeyDown: (e: React.KeyboardEvent<T>) => void;
+} {
+  const base = mouseDownToggleHandlers<T>(onToggle, disabled);
+  return {
+    ...base,
+    /**
+     * The pointer half of the same contract.
+     *
+     * `useEscapeToClose` runs its `autoFocus` from a passive effect, and React
+     * flushes that inside the discrete mousedown — so focus is already on the
+     * popup's first item by the time the browser applies mousedown's *default*
+     * action and focuses the pressed element. That second move is a focusout
+     * from the popup, and `closeOnFocusOut` closes on it.
+     *
+     * It stays invisible wherever the default lands somewhere the widget
+     * recognises: a trigger that is focusable and carries `aria-controls` is
+     * matched by `controlsPopup`, so the focusout reads as "still inside" and
+     * nothing happens. A trigger that is *not* focusable has no such luck —
+     * the browser walks up to the nearest focusable ancestor instead. An
+     * embedder that has one (LabXchange's spreadsheet sim wraps the workbook
+     * in a `tabIndex={-1}` container, as the landing place after a graph is
+     * removed) therefore hands the handler a real node outside the popup, and
+     * the menu closes before it ever paints. This package's own Storybook has
+     * no focusable ancestor, so focus goes nowhere, `relatedTarget` is null,
+     * and the focusout handler returns early — which is why the bug only ever
+     * reproduced in the embedder, and why a merged `Combo` caret (demoted to
+     * `aria-hidden` with no tabindex and no `aria-controls`) was the one shape
+     * that could not survive its own opening press.
+     *
+     * Preventing the default drops that second focus move and leaves
+     * `autoFocus`'s placement standing, which is where APG wants focus anyway.
+     * `click` still fires, so the toggle-shut-on-second-press behaviour that
+     * the mousedown-not-click design exists to protect is untouched.
+     *
+     * Disabled bails first, for the reason `mouseDownToggleHandlers` gives: a
+     * disabled trigger must stay out of the way entirely, and that includes
+     * leaving the default action alone.
+     */
+    onMouseDown: (e) => {
+      if (disabled) return;
+      e.preventDefault();
+      base.onMouseDown(e);
+    },
+    onKeyDown: (e) => {
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") {
+        base.onKeyDown(e);
+        return;
+      }
+      // The same guard shouldActivate applies: a key raised on something
+      // inside the trigger belongs to that thing, not to the trigger.
+      if (e.target !== e.currentTarget) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (disabled || e.repeat || isOpen) return;
+      onToggle();
+    },
+  };
+}
