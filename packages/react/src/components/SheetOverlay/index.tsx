@@ -36,6 +36,7 @@ import {
   getSrSelectionCore,
   api,
   GRID_ROOT_CLASS,
+  moveToEnd,
   normalizeSelection,
   endSelectionModeOnFocusLeave,
 } from "@fortune-sheet/core";
@@ -63,6 +64,7 @@ import {
   buildFocusReturnText,
   useToolbarFocusReturnAnnouncement,
 } from "../../hooks/useToolbarFocusReturnAnnouncement";
+import { useSpreadsheetFocusReturnAnnouncement } from "../../hooks/useSpreadsheetFocusReturnAnnouncement";
 import { useFocusedCellFormulaAnnouncement } from "../../hooks/useFocusedCellFormulaAnnouncement";
 import SVGIcon from "../SVGIcon";
 import DropDownList from "../DataVerification/DropdownList";
@@ -746,6 +748,22 @@ const SheetOverlay: React.FC = () => {
       : `A1. ${info.sheetSrIntro}`
   );
 
+  // Where focus has arrived, for a jump back to the grid. Same problem as the
+  // toolbar return above — arrival moves focus without moving the selection, so
+  // `#sr-selection` renders the text it already held and never fires.
+  //
+  // Location only, deliberately not `buildFocusReturnText`: this arrival lands
+  // on the grid root, whose `aria-describedby` already carries `sheetSrIntro`,
+  // so appending the intro here would have it spoken twice in one breath. The
+  // toolbar return has no such description to lean on, which is why it appends
+  // and this does not. `rangeText` is also what carries a multi-cell
+  // selection's extent — the one thing the landmark cannot say.
+  const spreadsheetFocusReturnAnnouncement =
+    useSpreadsheetFocusReturnAnnouncement(
+      context.spreadsheetFocusReturnCount,
+      !rangeText.includes("NaN") ? `${rangeText} ${computedCellValue}` : "A1"
+    );
+
   /**
    * Focus leaving the grid ends Shift+F8 mode, keeping its ranges painted.
    * See `endSelectionModeOnFocusLeave` for why the flag has to go and why this
@@ -794,6 +812,45 @@ const SheetOverlay: React.FC = () => {
     [context.selectionModeActive, setContext]
   );
 
+  /**
+   * An open edit cannot be left with focus resting on this element.
+   *
+   * The root is now the grid's single entry point — Tab, Ctrl+Alt+S and
+   * `focusSpreadsheet` all land here (see its tabIndex below) — and that is
+   * right for an idle grid: it is what keeps a route from parking a caret in a
+   * cell nobody asked to edit. It is wrong for a grid someone is already
+   * editing. While `luckysheetCellUpdate` is set, focus here is unusable:
+   * printable keys and point-mode arrows both return out of
+   * `handleGlobalKeyDown` before the tail that would park focus on the editor,
+   * so no key pressed in the grid recovers it (WCAG 2.1.1). `focusSpreadsheet`
+   * answers this for its own route; this covers the other two, and anything
+   * else that focuses the landmark.
+   *
+   * `e.target === e.currentTarget` is the whole guard, and it is deliberately
+   * narrow. React's `onFocus` is the delegated `focusin`, so it fires for
+   * descendants too — and focus landing on the select-all corner or a filter
+   * funnel while an edit is open is also a state where typing does nothing, but
+   * that is a control the learner deliberately reached. Stealing focus from it
+   * would be a worse defect than the one this prevents.
+   *
+   * It cannot recurse: the redirect target is a different element, which fails
+   * this guard on its own focus event.
+   */
+  const onGridFocus = useCallback(
+    (e: React.FocusEvent<HTMLElement>) => {
+      if (context.luckysheetCellUpdate.length === 0) return;
+      if (e.target !== e.currentTarget) return;
+      const cellInput = refs.cellInput.current;
+      if (!cellInput) return;
+      // `preventScroll` and the caret for the reasons `focusSpreadsheet` gives:
+      // the editor is parked off-screen when it has no selection to sit on, and
+      // focus without a caret still takes no input.
+      cellInput.focus({ preventScroll: true });
+      moveToEnd(cellInput);
+    },
+    [context.luckysheetCellUpdate, refs.cellInput]
+  );
+
   return (
     <main
       className={GRID_ROOT_CLASS}
@@ -819,6 +876,7 @@ const SheetOverlay: React.FC = () => {
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
       onBlur={onGridBlur}
+      onFocus={onGridFocus}
       /*
        * The grid's single tab stop, and deliberately the *root* rather than
        * anything inside it (WCAG 2.4.3). This used to be -1, which left the
@@ -1351,6 +1409,15 @@ const SheetOverlay: React.FC = () => {
           `srLiveRegionSpelling.test.tsx` holds every region to it. */}
       <div id="sr-toolbarFocusReturn" className="sr-only" role="alert">
         {toolbarFocusReturnAnnouncement}
+      </div>
+      {/* Its own region rather than sharing the toolbar's above: the two are
+          independent events, and one region would let a grid arrival overwrite
+          a toolbar command's announcement (or the reverse) with no way to tell
+          that it had. Nothing is written here while an edit is open — focus
+          lands on the editor in that case, which announces the cell and its
+          text on its own; see `focusSpreadsheet`. */}
+      <div id="sr-spreadsheetFocusReturn" className="sr-only" role="alert">
+        {spreadsheetFocusReturnAnnouncement}
       </div>
       {/* Picking a cell reference during formula entry moves an overlay
           rectangle and rewrites text inside a contenteditable — both invisible
