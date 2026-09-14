@@ -104,6 +104,25 @@ describe("Arrival at the grid is announced", () => {
     expect(spoken(region)).toBe("A. 2 2");
   });
 
+  it("says just the reference for a cell with no value", async () => {
+    // `computedCellValue` is "" for an empty cell, so interpolating it left a
+    // trailing space ("B3 "). Harmless to a screen reader, which trims it, but
+    // the toolbar sibling joins conditionally for this exact reason and the two
+    // regions should describe one cell identically.
+    const { ref, region, cellInput } = setup();
+    await tick();
+    // B1 is outside `celldata`, so it has no displayed value.
+    act(() => {
+      ref.current!.setSelection([{ row: [0, 0], column: [1, 1] }]);
+    });
+    await tick();
+
+    await leaveAndReturn(ref);
+
+    expect(spoken(region)).toBe(cellInput.getAttribute("aria-label"));
+    expect(spoken(region)).not.toMatch(/\s$/);
+  });
+
   it("carries the extent of a multi-cell selection", async () => {
     // The one thing the focus move cannot say: the editor is named for the
     // focus cell alone, so without this a learner returning to a range hears a

@@ -202,6 +202,25 @@ describe("Returning to the grid", () => {
       expect(document.activeElement).toBe(grid);
     });
 
+    it("leaves the document selection alone when the editor refuses focus", async () => {
+      // A browser refuses to focus anything inside a hidden or inert subtree.
+      // Without the landed-focus guard, `moveToEnd` would run anyway and drop
+      // the caret into an editor nobody can see — the same guard
+      // `focusSpreadsheet` applies on its own route.
+      const { cellInput, grid } = setup();
+      await startEditing(cellInput);
+      document.getSelection()?.removeAllRanges();
+      const focusStub = jest
+        .spyOn(cellInput, "focus")
+        .mockImplementation(() => {});
+
+      act(() => grid.focus());
+      await tick();
+      focusStub.mockRestore();
+
+      expect(document.getSelection()?.anchorNode ?? null).toBeNull();
+    });
+
     it("does not recurse", async () => {
       const { cellInput, grid } = setup();
       await startEditing(cellInput);

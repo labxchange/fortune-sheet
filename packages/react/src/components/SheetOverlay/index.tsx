@@ -758,10 +758,19 @@ const SheetOverlay: React.FC = () => {
   // toolbar return has no such description to lean on, which is why it appends
   // and this does not. `rangeText` is also what carries a multi-cell
   // selection's extent — the one thing the landmark cannot say.
+  //
+  // `computedCellValue` is "" for a cell with no displayed value, so it is
+  // joined conditionally rather than interpolated — the same guard
+  // `buildFocusReturnText` applies for the toolbar sibling, so one cell is
+  // described identically by both regions rather than gaining a trailing space
+  // here.
+  const arrivalCellText = computedCellValue
+    ? `${rangeText} ${computedCellValue}`
+    : rangeText;
   const spreadsheetFocusReturnAnnouncement =
     useSpreadsheetFocusReturnAnnouncement(
       context.spreadsheetFocusReturnCount,
-      !rangeText.includes("NaN") ? `${rangeText} ${computedCellValue}` : "A1"
+      !rangeText.includes("NaN") ? arrivalCellText : "A1"
     );
 
   /**
@@ -846,6 +855,12 @@ const SheetOverlay: React.FC = () => {
       // the editor is parked off-screen when it has no selection to sit on, and
       // focus without a caret still takes no input.
       cellInput.focus({ preventScroll: true });
+      // Same landed-focus guard `focusSpreadsheet` applies, so the two
+      // restoration routes read alike. It also earns its keep here: a browser
+      // refuses to focus anything inside a hidden or inert subtree, and
+      // `moveToEnd` would then drop the document's selection into an editor
+      // nobody can see.
+      if (document.activeElement !== cellInput) return;
       moveToEnd(cellInput);
     },
     [context.luckysheetCellUpdate, refs.cellInput]
