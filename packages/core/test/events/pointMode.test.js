@@ -49,6 +49,23 @@ describe("formula point mode", () => {
 
   const editFormula = (text) => editFormulaIn(cellInput, text);
 
+  // Put the caret at the start of the `nth` span whose text is `token` -- that
+  // is, directly after the token before it. Every other helper here leaves the
+  // caret at the end of the formula, which is where *typing* one leaves it;
+  // this is where *editing* one leaves it, and the two are not the same
+  // position to point mode.
+  const caretBefore = (editor, token, nth = 0) => {
+    const span = Array.from(editor.querySelectorAll("span")).filter(
+      (el) => el.textContent === token
+    )[nth];
+    const range = document.createRange();
+    range.setStart(span.firstChild, 0);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  };
+
   const clickCell = (ctx, pageX, pageY, init = {}) => {
     const mouseEvent = new MouseEvent("click", { button: 0, ...init });
     mouseEvent.pageX = pageX;
@@ -226,6 +243,21 @@ describe("formula point mode", () => {
       expect(
         cellInput.querySelectorAll("span.fortune-formula-functionrange-cell")
       ).toHaveLength(2);
+    });
+
+    test("clicking after a two-character operator inserts its reference", () => {
+      const ctx = getContext();
+      editFormula("=IF(A1>=");
+
+      clickCell(ctx, 369, 79); // row 3, column 4 -> E4
+
+      // ">=" is emitted as one span, and israngeseleciton read its last
+      // character with substring(txt.length - 1, 1) -- an end index where a
+      // length was meant, which substring resolves by swapping, giving "".
+      // So no reference could be placed after >= <= <> == or != . Asserted on
+      // the mouse as well as the keyboard because the defect is in the shared
+      // predicate, and a keyboard-only test would under-claim the fix.
+      expect(cellInput.textContent).toBe("=IF(A1>=E4");
     });
   });
 
@@ -415,6 +447,90 @@ describe("formula point mode", () => {
       expect(cellInput.textContent).toBe("=SUM(C2");
       expect(ctx.formulaCache.rangestart).toBe(true);
       expect(picked.defaultPrevented).toBe(true);
+    });
+
+    test("an arrow moves the caret when an operand already follows it", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [3, 1]; // B4, the cell in the bug report
+      editFormula("=(B2-E2)^2/E2");
+      caretBefore(cellInput, "E2", 1); // between the "/" and the second E2
+      const before = cellInput.innerHTML;
+
+      const event = pressArrow(ctx, "ArrowLeft", cellInput);
+
+      // The reported bug: arrowing back through an existing formula to add "$"
+      // signs wrote a reference at every caret position that followed an
+      // operator, giving "=(B2-E2)^2/A4E2" instead of moving the caret. The
+      // character behind the caret says a reference *may* go here; the operand
+      // ahead of it says one is not missing.
+      expect(cellInput.innerHTML).toBe(before);
+      expect(ctx.formulaCache.rangestart).toBeFalsy();
+      expect(event.defaultPrevented).toBe(false);
+
+      // The positive control: same cell, same editor, the same "/" behind the
+      // caret -- only the operand after it is gone. So the decline above is the
+      // forward test doing its job, not point mode failing to run at all.
+      editFormula("=(B2-E2)^2/");
+      const picked = pressArrow(ctx, "ArrowLeft", cellInput);
+
+      expect(cellInput.textContent).toBe("=(B2-E2)^2/A4");
+      expect(ctx.formulaCache.rangestart).toBe(true);
+      expect(picked.defaultPrevented).toBe(true);
+    });
+
+    test("a trailing close paren does not count as an operand", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      editFormula("=SUM(A1,)");
+      caretBefore(cellInput, ")");
+
+      // A missing argument is still missing when the call is already closed,
+      // so the forward test ignores trailing ")" and whitespace. Without that
+      // exception this fix would take the gesture away from every formula
+      // whose parentheses are balanced as it is written.
+      const event = pressArrow(ctx, "ArrowUp", cellInput);
+
+      expect(cellInput.textContent).toBe("=SUM(A1,C2)");
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    test("a pick started with the mouse keeps stepping with the arrows", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      editFormula("=(B2-)*2");
+      caretBefore(cellInput, ")");
+
+      clickCell(ctx, 369, 79); // E4
+      expect(cellInput.textContent).toBe("=(B2-E4)*2");
+      expect(ctx.formulaCache.rangestart).toBe(true);
+
+      // Point mode is running and ")*2" still follows the caret, so the
+      // forward test on its own would decline this arrow. rangestart
+      // short-circuits it, and this is what pins that ordering: ask the
+      // forward test first and a reference picked with the mouse can never
+      // afterwards be adjusted from the keyboard.
+      //
+      // The obvious version of this test -- arrow twice from "=SUM(" -- pins
+      // nothing, because the first pick leaves the caret at the end of the
+      // formula where the forward test passes anyway. It has to be a pick with
+      // an operand after it, which only the mouse can now produce.
+      const event = pressArrow(ctx, "ArrowUp", cellInput);
+
+      expect(cellInput.textContent).toBe("=(B2-E3)*2");
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    test("point mode starts after a two-character operator", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      editFormula("=IF(A1>=");
+
+      const event = pressArrow(ctx, "ArrowUp", cellInput);
+
+      // The keyboard half of the substring() defect covered by the mouse test
+      // above. Fails on master, where ">=" yields "" and the arrow is declined.
+      expect(cellInput.textContent).toBe("=IF(A1>=C2");
+      expect(event.defaultPrevented).toBe(true);
     });
 
     test("arrowing back onto the edited cell is allowed", () => {

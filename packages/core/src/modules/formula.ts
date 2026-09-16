@@ -2624,6 +2624,38 @@ function functionStrChange_range(
   return "";
 }
 
+/**
+ * The text between the caret and the end of whichever formula editor holds it,
+ * or "" when the caret is not in one.
+ *
+ * The mirror of what israngeseleciton reads. israngeseleciton answers "may a
+ * reference go here" from the character *behind* the caret alone, which is the
+ * right question while a formula is being typed left to right and the wrong
+ * one while an existing formula is being edited: there the caret routinely
+ * passes an operator that already has its operand. Callers pair the two to ask
+ * whether a reference is actually *missing*.
+ *
+ * Reads the live DOM selection, like israngeseleciton, so it carries the same
+ * constraint: call it while the event is still being dispatched, before the
+ * browser has moved the caret.
+ */
+export function formulaTextAfterCaret(): string {
+  const sel = window.getSelection();
+  if (sel == null || sel.rangeCount === 0 || sel.anchorNode == null) return "";
+  const el =
+    sel.anchorNode.nodeType === Node.ELEMENT_NODE
+      ? (sel.anchorNode as HTMLElement)
+      : sel.anchorNode.parentElement;
+  const editor = el?.closest(
+    "#luckysheet-rich-text-editor, #luckysheet-functionbox-cell"
+  );
+  if (editor == null) return "";
+  const after = sel.getRangeAt(0).cloneRange();
+  after.collapse(true);
+  after.setEnd(editor, editor.childNodes.length);
+  return after.toString();
+}
+
 export function israngeseleciton(ctx: Context, istooltip?: boolean) {
   if (istooltip == null) {
     istooltip = false;
@@ -2646,10 +2678,10 @@ export function israngeseleciton(ctx: Context, istooltip?: boolean) {
     if (txt.length === 0 && anchor.parentNode.previousSibling) {
       const ahr = anchor.parentNode.previousSibling;
       txt = _.trim(ahr.textContent || "");
-      lasttxt = txt.substring(txt.length - 1, 1);
+      lasttxt = txt.slice(-1);
       ctx.formulaCache.rangeSetValueTo = anchor.parentNode;
     } else {
-      lasttxt = txt.substring(anchorOffset - 1, 1);
+      lasttxt = (anchor.textContent ?? "").charAt(anchorOffset - 1);
       ctx.formulaCache.rangeSetValueTo = anchor.parentNode;
     }
 
@@ -2682,7 +2714,7 @@ export function israngeseleciton(ctx: Context, istooltip?: boolean) {
       ctx.formulaCache.rangeSetValueTo = ahr;
     }
 
-    const lasttxt = txt.substring(txt.length - 1, 1);
+    const lasttxt = txt.slice(-1);
 
     if (
       (istooltip && (lasttxt === "(" || lasttxt === ",")) ||
@@ -2707,7 +2739,7 @@ export function israngeseleciton(ctx: Context, istooltip?: boolean) {
     if (anchor.previousSibling?.textContent == null) return false;
     if (anchor.previousSibling) {
       const txt = _.trim(anchor.previousSibling.textContent);
-      const lasttxt = txt.substring(txt.length - 1, 1);
+      const lasttxt = txt.slice(-1);
 
       ctx.formulaCache.rangeSetValueTo = anchor.previousSibling;
 
