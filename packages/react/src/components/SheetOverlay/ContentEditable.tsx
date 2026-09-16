@@ -64,7 +64,7 @@ const ContentEditable: React.FC<ContentEditableProps> = ({ ...props }) => {
     [root, onChange]
   );
 
-  const { innerRef, onBlur } = props;
+  const { innerRef, onBlur, onFocus } = props;
   let { allowEdit } = props;
   if (_.isNil(allowEdit)) allowEdit = true;
 
@@ -78,6 +78,7 @@ const ContentEditable: React.FC<ContentEditableProps> = ({ ...props }) => {
         "onChange",
         "html",
         "onBlur",
+        "onFocus",
         "autoFocus",
         "allowEdit",
         "initialContent"
@@ -94,6 +95,20 @@ const ContentEditable: React.FC<ContentEditableProps> = ({ ...props }) => {
       // open, which was unreachable before.
       tabIndex={props.tabIndex ?? 0}
       onInput={fnEmitChange}
+      // The baseline the blur test above compares against, recorded on
+      // arrival. `lastHtml` is otherwise written only by `fnEmitChange`, so
+      // between edit sessions it holds the string left by a *previous* one
+      // while the element has since been rewritten programmatically -- the
+      // formula bar mirrors whatever cell is selected, `InputBox` clears
+      // itself -- and neither assignment raises `input`. A blur that typed
+      // nothing then compares unequal and is reported as a change, which is
+      // the one thing the test exists to suppress. Recording the value here
+      // makes "nothing was typed" compare equal, for every entry into the
+      // editor rather than only the first.
+      onFocus={(e) => {
+        lastHtml.current = root.current?.innerHTML ?? "";
+        onFocus?.(e);
+      }}
       onBlur={(e) => {
         fnEmitChange(null, true);
         onBlur?.(e);
