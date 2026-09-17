@@ -2681,7 +2681,16 @@ export function israngeseleciton(ctx: Context, istooltip?: boolean) {
       lasttxt = txt.slice(-1);
       ctx.formulaCache.rangeSetValueTo = anchor.parentNode;
     } else {
-      lasttxt = (anchor.textContent ?? "").charAt(anchorOffset - 1);
+      // A caret *inside* a string literal is not a reference position: the
+      // commas and operators in "yes, high" or "#,##0.00" belong to the text,
+      // not to the formula, and the character behind the caret cannot tell
+      // them apart. Offset 0 -- the boundary before the string -- is a
+      // different branch and keeps its behaviour.
+      lasttxt = parentElement.classList.contains(
+        "luckysheet-formula-text-string"
+      )
+        ? ""
+        : (anchor.textContent ?? "").charAt(anchorOffset - 1);
       ctx.formulaCache.rangeSetValueTo = anchor.parentNode;
     }
 

@@ -66,6 +66,21 @@ describe("formula point mode", () => {
     selection.addRange(range);
   };
 
+  // Put the caret `offset` characters into the span whose text is `token` --
+  // *within* a token rather than at a boundary between two, which is the only
+  // way to reach a position inside a string literal.
+  const caretInside = (editor, token, offset) => {
+    const span = Array.from(editor.querySelectorAll("span")).find(
+      (el) => el.textContent === token
+    );
+    const range = document.createRange();
+    range.setStart(span.firstChild, offset);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  };
+
   const clickCell = (ctx, pageX, pageY, init = {}) => {
     const mouseEvent = new MouseEvent("click", { button: 0, ...init });
     mouseEvent.pageX = pageX;
@@ -259,6 +274,45 @@ describe("formula point mode", () => {
       // predicate, and a keyboard-only test would under-claim the fix.
       expect(cellInput.textContent).toBe("=IF(A1>=E4");
     });
+  });
+
+  test("a caret inside a string literal is not a reference position", () => {
+    const ctx = getContext();
+    editFormula('=TEXT(A1,"#,##0.00")');
+    caretInside(cellInput, '"#,##0.00"', 3); // after the "," in the format
+
+    clickCell(ctx, 369, 79); // row 3, column 4 -> E4
+
+    // The comma belongs to the number format, not to the formula. Reading the
+    // character behind the caret cannot tell those apart, so correcting the
+    // substring(len, 1) index arithmetic -- which used to yield "" for any
+    // token longer than one character, and so declined here by accident --
+    // would otherwise let a click write a reference outside the string:
+    // '=TEXT(A1,"#,##0.00"E4)'. The forward test mostly shields the keyboard,
+    // the next character here being "#", but the mouse has no forward test --
+    // so this is asserted on the click path.
+    expect(cellInput.textContent).toBe('=TEXT(A1,"#,##0.00")');
+    expect(ctx.formulaCache.rangestart).toBeFalsy();
+
+    // Declining is not the same as doing nothing: the click falls past the
+    // formula branch to updateCell, which commits the cell and ends the edit
+    // session. That is the right outcome -- the click selects a cell instead
+    // of corrupting the formula -- and it is why the control below needs a
+    // context of its own rather than reusing this one.
+    expect(ctx.luckysheetCellUpdate).toHaveLength(0);
+
+    // The positive control: the same "," behind the caret and the same click,
+    // with the comma the formula's own rather than text inside a literal. So
+    // the decline above is the string test doing its job, not point mode
+    // failing to run on a TEXT() call.
+    const stillPicks = getContext();
+    editFormula("=TEXT(A1,)");
+    caretBefore(cellInput, ")");
+
+    clickCell(stillPicks, 369, 79);
+
+    expect(cellInput.textContent).toBe("=TEXT(A1,E4)");
+    expect(stillPicks.formulaCache.rangestart).toBe(true);
   });
 
   describe("arrow keys", () => {
