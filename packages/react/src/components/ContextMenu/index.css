@@ -182,28 +182,45 @@
   background-color: #0063c3;
 }
 
+/* Hover only, deliberately. This rule used to swap the fill on :focus-visible
+   as well, which made the focus indicator move the surface it is measured
+   against -- and the ring below is the only thing that then had to hold two
+   contrast figures at once. Keeping the focused fill at #0063c3 is what lets
+   the black ring read 3.57:1 against the control it encloses as well as 21:1
+   against the panel beside it; see the rule below. A focused button is still
+   marked by its ring, which is what 2.4.11 asks for; hover keeps its own
+   feedback. */
 .luckysheet-filter-bycolor-submenu .button-primary:hover,
-.fortune-filter-menu .button-primary:hover,
-.luckysheet-filter-bycolor-submenu .button-primary:focus-visible,
-.fortune-filter-menu .button-primary:focus-visible {
+.fortune-filter-menu .button-primary:hover {
   background: #00509e;
 }
 
-/* These buttons carry `button-basic button-primary`, so the shared black
-   primary ring in `Toolbar/index.css` reaches them -- but the rule above
-   darkens their fill to #00509e *on :focus-visible*, so that ring is drawn
-   flush against #00509e and measures 2.64:1, under 1.4.11's 3:1. White is
-   7.95:1 there. Every other consumer of the shared rule keeps a #0063c3 fill
-   and its 3.57:1 black ring.
+/* Black, the same ring every other primary/OK button in the package draws --
+   `Dialog/index.css` declares it outright and `Toolbar/index.css` supplies it
+   to ChangeColor's and CustomSort's OK buttons.
 
-   Not a regression being fixed so much as an improvement completed: the
-   #0063c3 ring this replaced measured 1.35:1 on the same fill. The genuinely
-   odd thing here is a focus indicator that moves the surface it is measured
-   against; changing that is a bigger conversation than this ticket, and the
-   white ring is correct either way. */
+   This rule was #fff until now, and the button had no visible focus indicator
+   at all (WCAG 2.4.11). The reasoning that put white here said the ring was
+   drawn *flush* against the button's own fill. It is not: the shared rule
+   further up this file gives every control in these two panels
+   `outline-offset: 2px`, so the ring sits clear of the button on
+   `.fortune-context-menu`'s `background: #fff`. White on white is 1.00:1 --
+   painted and invisible. The surface a ring is measured against is the one it
+   actually lands on, and here the offset decides that, not the fill.
+
+   Black holds on both readings an auditor can take, which is the standard
+   `Dialog/index.css` sets for this same button shape: 21:1 against the white
+   panel the ring lands on, and 3.57:1 against the #0063c3 fill it encloses.
+   The second figure is why the rule above no longer darkens the fill on
+   :focus-visible -- on the old #00509e focused fill black is 2.64:1.
+
+   Declared explicitly rather than deleted so the colour is deterministic:
+   without it, `Toolbar/index.css`'s `.button-basic.button-primary:focus-visible`
+   and this file's `.fortune-filter-menu .button-basic:focus-visible` are both
+   0-3-0 and the winner is decided by stylesheet order. */
 .luckysheet-filter-bycolor-submenu .button-basic.button-primary:focus-visible,
 .fortune-filter-menu .button-basic.button-primary:focus-visible {
-  outline-color: #fff;
+  outline-color: #000;
 }
 
 .fortune-filter-menu .button-danger {
