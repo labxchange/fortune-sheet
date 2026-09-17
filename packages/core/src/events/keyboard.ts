@@ -6,6 +6,7 @@ import { Context, getFlowdata } from "../context";
 import { updateCell, cancelNormalSelected, mergeBorder } from "../modules/cell";
 import {
   enterPointModeAt,
+  formulaTextAfterCaret,
   handleFormulaInput,
   israngeseleciton,
 } from "../modules/formula";
@@ -750,23 +751,41 @@ function stepToVisibleIndex(
  * at either call site is what stops Shift+Left selecting text in the cell and
  * writing a reference in the formula bar.
  *
- * This answers only "may a reference go here", not "is there a cell to step
- * to": resolvePointModeStep asks the second question, and a caller that has to
- * cancel the key before applying anything must go through that rather than
- * through this, or it cancels arrows point mode will decline.
+ * This answers only "is a reference missing here", not "is there a cell to
+ * step to": resolvePointModeStep asks the second question, and a caller that
+ * has to cancel the key before applying anything must go through that rather
+ * than through this, or it cancels arrows point mode will decline.
  */
 export function canEnterPointMode(ctx: Context, e: KeyboardEvent) {
   if (e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return false;
   if (ctx.luckysheetCellUpdate.length === 0) return false;
-  // Point mode may only *start* where a reference is allowed to go: directly
-  // after "(", ",", "=", "&" or an operator. Anywhere else the arrows keep
-  // moving the caret, which is what leaves ordinary formula editing alone.
-  // Once it is running the caret sits inside the reference just written, where
-  // that no longer holds — so rangestart short-circuits the test rather than
-  // letting it be re-asked.
+  // Once point mode is running the caret sits inside the reference just
+  // written, where neither test below holds — so rangestart short-circuits
+  // them rather than letting them be re-asked.
+  if (ctx.formulaCache.rangestart) return true;
+  // Point mode may only start where a reference is allowed to go: directly
+  // after "(", ",", "=", "&" or an operator.
   // israngeseleciton is called for its side effect as well: it records
-  // rangeSetValueTo, the node rangeSetValue inserts after.
-  return !!ctx.formulaCache.rangestart || israngeseleciton(ctx);
+  // rangeSetValueTo, the node rangeSetValue inserts after. Calling it before
+  // the test below keeps the decline path identical to the one that has always
+  // existed.
+  if (!israngeseleciton(ctx)) return false;
+  // …but "a reference may go here" is not "a reference is missing here", and
+  // only the second licenses taking the arrow away from the caret. Editing an
+  // existing formula walks the caret past operators that already have their
+  // operand — `=(B2-|$E2)` — and picking there splices a second reference in
+  // beside the first instead of moving the caret, which is a keyboard trap for
+  // anyone revising a formula rather than writing a fresh one.
+  //
+  // The question is about the operand slot the caret sits in, not the whole
+  // tail: a ")" or "," immediately ahead proves the slot is empty wherever the
+  // formula ends, so `=SUM(A1,|)` and `=SUM(A1,|)+1` are both still a missing
+  // argument, while `=(B2-|$E2)` sees the "$" and declines. Anything else ahead
+  // — an operand or an operator — means the slot is taken and the arrow moves
+  // the caret. It stays deliberately conservative about operators, so
+  // `=A1+|*2` declines: one character ahead cannot tell an empty slot from a
+  // unary sign like `=(B2-|-5)`.
+  return /^\s*($|[),])/.test(formulaTextAfterCaret());
 }
 
 /**

@@ -49,6 +49,38 @@ describe("formula point mode", () => {
 
   const editFormula = (text) => editFormulaIn(cellInput, text);
 
+  // Put the caret at the start of the `nth` span whose text is `token` -- that
+  // is, directly after the token before it. Every other helper here leaves the
+  // caret at the end of the formula, which is where *typing* one leaves it;
+  // this is where *editing* one leaves it, and the two are not the same
+  // position to point mode.
+  const caretBefore = (editor, token, nth = 0) => {
+    const span = Array.from(editor.querySelectorAll("span")).filter(
+      (el) => el.textContent === token
+    )[nth];
+    const range = document.createRange();
+    range.setStart(span.firstChild, 0);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  };
+
+  // Put the caret `offset` characters into the span whose text is `token` --
+  // *within* a token rather than at a boundary between two, which is the only
+  // way to reach a position inside a string literal.
+  const caretInside = (editor, token, offset) => {
+    const span = Array.from(editor.querySelectorAll("span")).find(
+      (el) => el.textContent === token
+    );
+    const range = document.createRange();
+    range.setStart(span.firstChild, offset);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  };
+
   const clickCell = (ctx, pageX, pageY, init = {}) => {
     const mouseEvent = new MouseEvent("click", { button: 0, ...init });
     mouseEvent.pageX = pageX;
@@ -227,6 +259,60 @@ describe("formula point mode", () => {
         cellInput.querySelectorAll("span.fortune-formula-functionrange-cell")
       ).toHaveLength(2);
     });
+
+    test("clicking after a two-character operator inserts its reference", () => {
+      const ctx = getContext();
+      editFormula("=IF(A1>=");
+
+      clickCell(ctx, 369, 79); // row 3, column 4 -> E4
+
+      // ">=" is emitted as one span, and israngeseleciton read its last
+      // character with substring(txt.length - 1, 1) -- an end index where a
+      // length was meant, which substring resolves by swapping, giving "".
+      // So no reference could be placed after >= <= <> == or != . Asserted on
+      // the mouse as well as the keyboard because the defect is in the shared
+      // predicate, and a keyboard-only test would under-claim the fix.
+      expect(cellInput.textContent).toBe("=IF(A1>=E4");
+    });
+  });
+
+  test("a caret inside a string literal is not a reference position", () => {
+    const ctx = getContext();
+    editFormula('=TEXT(A1,"#,##0.00")');
+    caretInside(cellInput, '"#,##0.00"', 3); // after the "," in the format
+
+    clickCell(ctx, 369, 79); // row 3, column 4 -> E4
+
+    // The comma belongs to the number format, not to the formula. Reading the
+    // character behind the caret cannot tell those apart, so correcting the
+    // substring(len, 1) index arithmetic -- which used to yield "" for any
+    // token longer than one character, and so declined here by accident --
+    // would otherwise let a click write a reference outside the string:
+    // '=TEXT(A1,"#,##0.00"E4)'. The forward test mostly shields the keyboard,
+    // the next character here being "#", but the mouse has no forward test --
+    // so this is asserted on the click path.
+    expect(cellInput.textContent).toBe('=TEXT(A1,"#,##0.00")');
+    expect(ctx.formulaCache.rangestart).toBeFalsy();
+
+    // Declining is not the same as doing nothing: the click falls past the
+    // formula branch to updateCell, which commits the cell and ends the edit
+    // session. That is the right outcome -- the click selects a cell instead
+    // of corrupting the formula -- and it is why the control below needs a
+    // context of its own rather than reusing this one.
+    expect(ctx.luckysheetCellUpdate).toHaveLength(0);
+
+    // The positive control: the same "," behind the caret and the same click,
+    // with the comma the formula's own rather than text inside a literal. So
+    // the decline above is the string test doing its job, not point mode
+    // failing to run on a TEXT() call.
+    const stillPicks = getContext();
+    editFormula("=TEXT(A1,)");
+    caretBefore(cellInput, ")");
+
+    clickCell(stillPicks, 369, 79);
+
+    expect(cellInput.textContent).toBe("=TEXT(A1,E4)");
+    expect(stillPicks.formulaCache.rangestart).toBe(true);
   });
 
   describe("arrow keys", () => {
@@ -415,6 +501,124 @@ describe("formula point mode", () => {
       expect(cellInput.textContent).toBe("=SUM(C2");
       expect(ctx.formulaCache.rangestart).toBe(true);
       expect(picked.defaultPrevented).toBe(true);
+    });
+
+    test("an arrow moves the caret when an operand already follows it", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [3, 1]; // B4, the cell in the bug report
+      editFormula("=(B2-E2)^2/E2");
+      caretBefore(cellInput, "E2", 1); // between the "/" and the second E2
+      const before = cellInput.innerHTML;
+
+      const event = pressArrow(ctx, "ArrowLeft", cellInput);
+
+      // The reported bug: arrowing back through an existing formula to add "$"
+      // signs wrote a reference at every caret position that followed an
+      // operator, giving "=(B2-E2)^2/A4E2" instead of moving the caret. The
+      // character behind the caret says a reference *may* go here; the operand
+      // ahead of it says one is not missing.
+      expect(cellInput.innerHTML).toBe(before);
+      expect(ctx.formulaCache.rangestart).toBeFalsy();
+      expect(event.defaultPrevented).toBe(false);
+
+      // The positive control: same cell, same editor, the same "/" behind the
+      // caret -- only the operand after it is gone. So the decline above is the
+      // forward test doing its job, not point mode failing to run at all.
+      editFormula("=(B2-E2)^2/");
+      const picked = pressArrow(ctx, "ArrowLeft", cellInput);
+
+      expect(cellInput.textContent).toBe("=(B2-E2)^2/A4");
+      expect(ctx.formulaCache.rangestart).toBe(true);
+      expect(picked.defaultPrevented).toBe(true);
+    });
+
+    test("a trailing close paren does not count as an operand", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      editFormula("=SUM(A1,)");
+      caretBefore(cellInput, ")");
+
+      // A missing argument is still missing when the call is already closed,
+      // so the forward test ignores trailing ")" and whitespace. Without that
+      // exception this fix would take the gesture away from every formula
+      // whose parentheses are balanced as it is written.
+      const event = pressArrow(ctx, "ArrowUp", cellInput);
+
+      expect(cellInput.textContent).toBe("=SUM(A1,C2)");
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    test("a trailing close paren does not count even mid-formula", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      editFormula("=SUM(A1,)+1");
+      caretBefore(cellInput, ")");
+
+      // The slot is empty wherever the formula ends: a ")" ahead proves it even
+      // with "+1" after the call. Testing the whole tail instead of the slot
+      // declined this and made "=SUM(A1,|)" pick only when the ")" was the last
+      // character of the formula.
+      const event = pressArrow(ctx, "ArrowUp", cellInput);
+
+      expect(cellInput.textContent).toBe("=SUM(A1,C2)+1");
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    test("a pick started with the mouse keeps stepping with the arrows", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      editFormula("=(B2-)*2");
+      caretBefore(cellInput, ")");
+
+      clickCell(ctx, 369, 79); // E4
+      expect(cellInput.textContent).toBe("=(B2-E4)*2");
+      expect(ctx.formulaCache.rangestart).toBe(true);
+
+      // Point mode is running, and the pick left the caret inside the
+      // reference just written -- its last character is the digit "4", which
+      // israngeseleciton (the character-behind test) declines. rangestart
+      // short-circuits that, and this is what pins the ordering: ask
+      // israngeseleciton first and a reference picked with the mouse could
+      // never afterwards be adjusted from the keyboard.
+      //
+      // The obvious version of this test -- arrow twice from "=SUM(" -- pins
+      // the same thing, since a picked reference always ends in a digit; this
+      // one adds the ")*2" tail only to show the short-circuit runs before the
+      // forward test too, not just before israngeseleciton.
+      const event = pressArrow(ctx, "ArrowUp", cellInput);
+
+      expect(cellInput.textContent).toBe("=(B2-E3)*2");
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    test("a plain arrow picks into an empty slot the mouse can reach too", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      editFormula("=(B2-)*2");
+      caretBefore(cellInput, ")");
+
+      // The mouse can pick here -- the slot before ")" is empty -- and so must
+      // the keyboard: the forward test asks about the slot the caret sits in,
+      // not the whole tail, so the ")*2" after it is no bar. Baking in the
+      // asymmetry where only the mouse could produce "=(B2-E4)*2" is the wrong
+      // thing for a fork whose programme is keyboard parity.
+      const event = pressArrow(ctx, "ArrowUp", cellInput);
+
+      expect(cellInput.textContent).toBe("=(B2-C2)*2");
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    test("point mode starts after a two-character operator", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      editFormula("=IF(A1>=");
+
+      const event = pressArrow(ctx, "ArrowUp", cellInput);
+
+      // The keyboard half of the substring() defect covered by the mouse test
+      // above. Fails on master, where ">=" yields "" and the arrow is declined.
+      expect(cellInput.textContent).toBe("=IF(A1>=C2");
+      expect(event.defaultPrevented).toBe(true);
     });
 
     test("arrowing back onto the edited cell is allowed", () => {
