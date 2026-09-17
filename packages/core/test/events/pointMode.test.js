@@ -494,6 +494,22 @@ describe("formula point mode", () => {
       expect(event.defaultPrevented).toBe(true);
     });
 
+    test("a trailing close paren does not count even mid-formula", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      editFormula("=SUM(A1,)+1");
+      caretBefore(cellInput, ")");
+
+      // The slot is empty wherever the formula ends: a ")" ahead proves it even
+      // with "+1" after the call. Testing the whole tail instead of the slot
+      // declined this and made "=SUM(A1,|)" pick only when the ")" was the last
+      // character of the formula.
+      const event = pressArrow(ctx, "ArrowUp", cellInput);
+
+      expect(cellInput.textContent).toBe("=SUM(A1,C2)+1");
+      expect(event.defaultPrevented).toBe(true);
+    });
+
     test("a pick started with the mouse keeps stepping with the arrows", () => {
       const ctx = getContext();
       ctx.luckysheetCellUpdate = [2, 2];
@@ -504,19 +520,37 @@ describe("formula point mode", () => {
       expect(cellInput.textContent).toBe("=(B2-E4)*2");
       expect(ctx.formulaCache.rangestart).toBe(true);
 
-      // Point mode is running and ")*2" still follows the caret, so the
-      // forward test on its own would decline this arrow. rangestart
-      // short-circuits it, and this is what pins that ordering: ask the
-      // forward test first and a reference picked with the mouse can never
-      // afterwards be adjusted from the keyboard.
+      // Point mode is running, and the pick left the caret inside the
+      // reference just written -- its last character is the digit "4", which
+      // israngeseleciton (the character-behind test) declines. rangestart
+      // short-circuits that, and this is what pins the ordering: ask
+      // israngeseleciton first and a reference picked with the mouse could
+      // never afterwards be adjusted from the keyboard.
       //
       // The obvious version of this test -- arrow twice from "=SUM(" -- pins
-      // nothing, because the first pick leaves the caret at the end of the
-      // formula where the forward test passes anyway. It has to be a pick with
-      // an operand after it, which only the mouse can now produce.
+      // the same thing, since a picked reference always ends in a digit; this
+      // one adds the ")*2" tail only to show the short-circuit runs before the
+      // forward test too, not just before israngeseleciton.
       const event = pressArrow(ctx, "ArrowUp", cellInput);
 
       expect(cellInput.textContent).toBe("=(B2-E3)*2");
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    test("a plain arrow picks into an empty slot the mouse can reach too", () => {
+      const ctx = getContext();
+      ctx.luckysheetCellUpdate = [2, 2];
+      editFormula("=(B2-)*2");
+      caretBefore(cellInput, ")");
+
+      // The mouse can pick here -- the slot before ")" is empty -- and so must
+      // the keyboard: the forward test asks about the slot the caret sits in,
+      // not the whole tail, so the ")*2" after it is no bar. Baking in the
+      // asymmetry where only the mouse could produce "=(B2-E4)*2" is the wrong
+      // thing for a fork whose programme is keyboard parity.
+      const event = pressArrow(ctx, "ArrowUp", cellInput);
+
+      expect(cellInput.textContent).toBe("=(B2-C2)*2");
       expect(event.defaultPrevented).toBe(true);
     });
 

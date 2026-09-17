@@ -777,8 +777,15 @@ export function canEnterPointMode(ctx: Context, e: KeyboardEvent) {
   // beside the first instead of moving the caret, which is a keyboard trap for
   // anyone revising a formula rather than writing a fresh one.
   //
-  // A trailing ")" does not count: `=SUM(A1,|)` is still a missing argument.
-  return !/[^\s)]/.test(formulaTextAfterCaret());
+  // The question is about the operand slot the caret sits in, not the whole
+  // tail: a ")" or "," immediately ahead proves the slot is empty wherever the
+  // formula ends, so `=SUM(A1,|)` and `=SUM(A1,|)+1` are both still a missing
+  // argument, while `=(B2-|$E2)` sees the "$" and declines. Anything else ahead
+  // — an operand or an operator — means the slot is taken and the arrow moves
+  // the caret. It stays deliberately conservative about operators, so
+  // `=A1+|*2` declines: one character ahead cannot tell an empty slot from a
+  // unary sign like `=(B2-|-5)`.
+  return /^\s*($|[),])/.test(formulaTextAfterCaret());
 }
 
 /**
