@@ -27,11 +27,13 @@
  *    under 2. These span L* 21-47, and no two entries are within deltaE 15 of
  *    each other.
  *
- * 3. Hue is preserved where it can be. Twenty of the 29 sit at their original
- *    hue angle; the rest are rotated as little as the separation floor allows
- *    (at most 22 degrees, on the teals at indices 1, 9, 14 and 20, which the
- *    original palette crowded). Do not "correct" them back toward the ECharts
- *    values -- the rotation is what keeps them apart.
+ * 3. Hue is preserved where it can be. Twenty-three of the 29 stay within 5
+ *    degrees of their original hue angle, 19 of them within 1. The six that
+ *    move - indices 1, 9, 14, 20, 23 and 28, at most 22.3 degrees - are the
+ *    teals, cyans and light blues the ECharts palette crowded together, and
+ *    they are rotated as little as the separation floor allows. Do not
+ *    "correct" them back toward the originals; the rotation is what keeps
+ *    them apart.
  *
  * No entry is exempt, including the four that already passed. Indices 0 and 15
  * were both reds at deltaE 4.9 *in the original palette*, so the separation
