@@ -8,13 +8,21 @@ type ContentEditableProps = Omit<
   initialContent?: string;
   innerRef?: (e: HTMLDivElement | null) => void;
   onChange?: (html: string, isBlur?: boolean) => void;
+  // `onBlur` and `onFocus` are already supplied by `HTMLAttributes`; they are
+  // restated here because both are hand-forwarded rather than spread onto the
+  // element -- see the `_.omit` list below -- and a reader otherwise has to
+  // diff that list against this type to find out.
   onBlur?: (e: React.FocusEvent<HTMLDivElement, Element>) => void;
+  onFocus?: (e: React.FocusEvent<HTMLDivElement, Element>) => void;
   autoFocus?: boolean;
   allowEdit?: boolean;
 };
 
 const ContentEditable: React.FC<ContentEditableProps> = ({ ...props }) => {
-  const lastHtml = useRef("");
+  // Whether the user has typed since focus arrived. Set by `input`, cleared on
+  // every focus and blur -- see fnEmitChange for why this rather than a
+  // remembered copy of the markup.
+  const dirty = useRef(false);
   const root = useRef<HTMLDivElement | null>(null);
   const { autoFocus, initialContent, onChange } = props;
 
@@ -38,28 +46,28 @@ const ContentEditable: React.FC<ContentEditableProps> = ({ ...props }) => {
       if (root.current != null) {
         html = root.current.innerHTML;
       }
-      // The unchanged-markup test applies to the blur path only.
+      // The "did the user actually do anything?" test applies to the blur path
+      // only. Blur fires whether or not anything was typed, and `onChange`
+      // treats an `isBlur` change as a commit-shaped event -- for the formula
+      // bar, one that opens an edit session on the selected cell. The `input`
+      // path needs no such test: it fires for user edits exclusively, and
+      // suppressing anything there drops real keystrokes.
       //
-      // `input` fires for user edits exclusively -- assigning `innerHTML` does
-      // not raise it -- so on that path there is nothing for this test to
-      // suppress, and `lastHtml` is actively wrong for it: the editor is
-      // rewritten programmatically between edit sessions (`InputBox` clears
-      // it, core re-tokenises it), none of which updates the ref. It therefore
-      // still holds the string recorded during a *previous* edit, and typing
-      // the first character of a new one into the cleared editor reproduces it
-      // exactly: every formula begins "=", so the second and every later
-      // formula in a session had its opening keystroke dropped as a no-op --
-      // no tokenised markup, no formula bar mirror, and no span for
-      // `israngeseleciton` to place a reference against, so the arrow keys
-      // could not enter point mode.
-      //
-      // Blur is the path that needs it, because it fires whether or not
-      // anything was typed, and `onChange` treats an `isBlur` change as a
-      // commit-shaped event.
-      if (onChange && (!isBlur || html !== lastHtml.current)) {
+      // The test is a flag raised by `input` rather than a comparison against
+      // the last markup seen, because this element is rewritten
+      // programmatically behind the component's back -- the formula bar mirrors
+      // whatever cell is selected, `InputBox` clears itself -- and assigning
+      // `innerHTML` raises no `input`. Any remembered markup goes stale the
+      // moment one of those writes lands, including a write that lands *while*
+      // the field is focused: `FxEditor`'s mirror effect fires on every
+      // `luckysheet_select_save` change and does not check for focus. A blur
+      // then compares unequal and reports a change nobody made, which is the
+      // one thing this test exists to suppress. A write the component never saw
+      // cannot forge the flag.
+      if (onChange && (!isBlur || dirty.current)) {
         onChange(html || "", isBlur);
       }
-      lastHtml.current = html || "";
+      if (!isBlur) dirty.current = true;
     },
     [root, onChange]
   );
@@ -95,22 +103,15 @@ const ContentEditable: React.FC<ContentEditableProps> = ({ ...props }) => {
       // open, which was unreachable before.
       tabIndex={props.tabIndex ?? 0}
       onInput={fnEmitChange}
-      // The baseline the blur test above compares against, recorded on
-      // arrival. `lastHtml` is otherwise written only by `fnEmitChange`, so
-      // between edit sessions it holds the string left by a *previous* one
-      // while the element has since been rewritten programmatically -- the
-      // formula bar mirrors whatever cell is selected, `InputBox` clears
-      // itself -- and neither assignment raises `input`. A blur that typed
-      // nothing then compares unequal and is reported as a change, which is
-      // the one thing the test exists to suppress. Recording the value here
-      // makes "nothing was typed" compare equal, for every entry into the
-      // editor rather than only the first.
+      // Arriving starts a fresh visit, so "nothing was typed" is measured per
+      // visit rather than once at mount.
       onFocus={(e) => {
-        lastHtml.current = root.current?.innerHTML ?? "";
+        dirty.current = false;
         onFocus?.(e);
       }}
       onBlur={(e) => {
         fnEmitChange(null, true);
+        dirty.current = false;
         onBlur?.(e);
       }}
       contentEditable={allowEdit}

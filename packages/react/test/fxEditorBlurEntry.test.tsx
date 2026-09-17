@@ -15,12 +15,15 @@ import ContentEditable from "../src/components/SheetOverlay/ContentEditable";
  * never changed. Reported as "arrow keys put the cell into edit mode"; the
  * arrows were the symptom and the Tab out of the formula bar was the cause.
  *
- * The blur path is guarded by comparing the markup against `lastHtml`, which is
- * exactly the right test and was reading a stale baseline: `lastHtml` is written
- * only by `fnEmitChange`, while the formula bar's content is assigned directly
- * whenever the selected cell changes, and assigning `innerHTML` raises no
- * `input`. So the ref still held a previous session's string — `""` at mount —
- * and the comparison reported a change nobody made.
+ * The blur path is guarded by a test for whether anything was actually entered,
+ * which is exactly the right question and was being answered by comparing the
+ * field's markup against a remembered copy. That copy was written only by
+ * `fnEmitChange`, while the formula bar's content is assigned directly whenever
+ * the selected cell changes, and assigning `innerHTML` raises no `input`. So the
+ * comparison ran against a previous session's string — `""` at mount — and
+ * reported a change nobody made. The question is now answered by a flag raised
+ * by `input`, which fires for user edits exclusively and so cannot be forged by
+ * a write the component never saw.
  *
  * Edit mode is read off the input box's z-index, the component's own expression
  * of the state (`_.isEmpty(luckysheetCellUpdate) ? -1 : 19`), matching the
@@ -85,11 +88,11 @@ describe("Leaving the formula bar does not start an edit", () => {
   });
 
   it("does not start one after the selection moves to a cell with different content", () => {
-    // The baseline has to be re-taken on every arrival, not seeded once. The
-    // first blur below writes `lastHtml`, and changing cells then rewrites the
-    // formula bar behind its back — which is precisely how the ref went stale
-    // in the first place, so a fix that only covers the first visit re-breaks
-    // here, on the second.
+    // "Nothing was typed" has to be measured per visit, not seeded once at
+    // mount: changing cells rewrites the formula bar behind the component's
+    // back, which is precisely how the old remembered-markup baseline went
+    // stale, so a fix that only covers the first visit re-breaks here, on the
+    // second.
     fireEvent.focus(fxInput());
     fireEvent.blur(fxInput());
     expect(isEditing()).toBe(false);
@@ -98,6 +101,24 @@ describe("Leaving the formula bar does not start an edit", () => {
     expect(fxInput().innerText || fxInput().textContent).toBe(B1);
 
     fireEvent.focus(fxInput());
+    fireEvent.blur(fxInput());
+
+    expect(isEditing()).toBe(false);
+  });
+
+  it("does not start one when the selection moves while the bar is focused", () => {
+    // The rewrite does not have to land *between* two visits to reach this.
+    // `FxEditor`'s mirror effect assigns the field's `innerHTML` on every
+    // `luckysheet_select_save` change and never asks whether the field is
+    // focused, so a selection change *during* a visit re-stales anything
+    // recorded on arrival — a host driving the workbook through `setSelection`
+    // reaches it directly. Nothing was typed, so nothing may commit.
+    fireEvent.focus(fxInput());
+    expect(isEditing()).toBe(false);
+
+    select(1);
+    expect(fxInput().innerText || fxInput().textContent).toBe(B1);
+
     fireEvent.blur(fxInput());
 
     expect(isEditing()).toBe(false);
