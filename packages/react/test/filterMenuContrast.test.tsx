@@ -1,5 +1,7 @@
-import { readFileSync } from "fs";
 import { join } from "path";
+
+import { contrast } from "../../../tests/colour";
+import { readCssRules } from "../../../tests/cssRules";
 
 // jest maps CSS through identity-obj-proxy, so no stylesheet ever loads and a
 // render can prove nothing about colour. The rules are therefore read as text,
@@ -17,96 +19,12 @@ import { join } from "path";
 // customSortA11y.test.tsx:618-660 guards the sibling rule and deliberately
 // asserts the offset and *not* the colour. That is the half that let this ship.
 
-const CSS = readFileSync(
-  join(__dirname, "../src/components/ContextMenu/index.css"),
-  "utf-8"
-);
-
-/** The stylesheet with comments removed, whitespace collapsed.
- *
- * Both steps are load-bearing here. This file's comments quote the selectors
- * they discuss verbatim, so a search over the raw text finds a rule's own
- * explanation before the rule. And prettier breaks these selector lists across
- * lines, so a rule is not findable on one line. */
-const SOURCE = CSS.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\s+/g, " ");
-
-/** Every offset in `SOURCE` at which `selector` appears as a complete selector.
- *
- * Exactness matters: in a collapsed stylesheet the only things that can follow
- * a whole selector are `, ` (another selector in the same list) and ` {` (the
- * block opening). Without that check `.fortune-filter-menu .button-primary`
- * matches inside `.fortune-filter-menu .button-primary:hover` and reads the
- * hover fill as if it were the resting one. The `{` before `}` test is the
- * second half: it keeps a match that somehow landed inside a declaration block
- * from being read as a rule. */
-const selectorSites = (selector: string) => {
-  const sites: number[] = [];
-  for (
-    let at = SOURCE.indexOf(selector);
-    at !== -1;
-    at = SOURCE.indexOf(selector, at + selector.length)
-  ) {
-    const after = SOURCE.slice(at + selector.length, at + selector.length + 2);
-    const open = SOURCE.indexOf("{", at);
-    const close = SOURCE.indexOf("}", at);
-    if ((after === ", " || after === " {") && open > -1 && open < close) {
-      sites.push(at);
-    }
-  }
-  return sites;
-};
-
-/** The declarations of the rule whose selector list contains `selector`. */
-const ruleFor = (selector: string) => {
-  const sites = selectorSites(selector);
-  expect(sites.length).toBeGreaterThan(0);
-  const open = SOURCE.indexOf("{", sites[0]);
-  return SOURCE.slice(open + 1, SOURCE.indexOf("}", open));
-};
-
-/** True when a rule's selector list contains `selector` at all. */
-const hasRuleFor = (selector: string) => selectorSites(selector).length > 0;
-
-/** The hex `property` is declared as, within `rule`.
- *
- * The name is anchored to a declaration boundary; unanchored, asking for
- * `color` returns `background-color`'s value. Same helper, same reason, as
- * searchReplaceContrast.test.tsx. */
-const declaration = (rule: string, property: string) => {
-  const match = rule.match(
-    new RegExp(`(?:^|[\\s;{])${property}:\\s*(#[0-9a-fA-F]{3,6})`)
-  );
-  expect(match).toBeTruthy();
-  return match![1];
-};
-
-const channel = (v: number) => {
-  const c = v / 255;
-  return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-};
-
-const luminance = (hex: string) => {
-  const short = hex.replace("#", "");
-  // Shorthand expanded rather than rejected: this stylesheet writes both forms,
-  // and slicing #fff two characters at a time yields "ff", "f" and "", the last
-  // of which is NaN and poisons every ratio computed from it.
-  const n =
-    short.length === 3
-      ? short
-          .split("")
-          .map((c) => c + c)
-          .join("")
-      : short;
-  const [r, g, b] = [0, 2, 4].map((i) =>
-    channel(parseInt(n.slice(i, i + 2), 16))
-  );
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-};
-
-const contrast = (a: string, b: string) => {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return (hi + 0.05) / (lo + 0.05);
-};
+const {
+  raw: CSS,
+  ruleFor,
+  hasRuleFor,
+  declaration,
+} = readCssRules(join(__dirname, "../src/components/ContextMenu/index.css"));
 
 /** The rule that gives every control in both filter panels its ring. */
 const SHARED_RING = ".fortune-filter-menu .button-basic:focus-visible";
@@ -115,10 +33,29 @@ const PRIMARY_RING =
   ".fortune-filter-menu .button-basic.button-primary:focus-visible";
 /** The primary button's resting fill. */
 const PRIMARY_FILL = ".fortune-filter-menu .button-primary";
+/** The rule that recolours it for the destructive (Clear filter) button. */
+const DANGER_RING =
+  ".fortune-filter-menu .button-basic.button-danger:focus-visible";
+/** The destructive button's resting fill. */
+const DANGER_FILL = ".fortune-filter-menu .button-danger";
 /** The panel both popups are drawn on. */
 const PANEL = ".fortune-context-menu";
 
-describe("the filter popup's primary-button focus ring", () => {
+/** The surface the ring actually lands on, derived rather than assumed: a
+ *  positive offset puts it on the panel behind the button, a negative one
+ *  inside the button's own fill. This is the fact the `#fff` regression was
+ *  reasoned without. */
+const ringSurface = (fill: string) => {
+  const offset = Number(
+    ruleFor(SHARED_RING).match(/outline-offset:\s*(-?[\d.]+)px/)![1]
+  );
+
+  return offset > 0
+    ? declaration(ruleFor(PANEL), "background")
+    : declaration(ruleFor(fill), "background-color");
+};
+
+describe("the filter popup's button focus rings", () => {
   it("parses rules without being fooled by the comments or by a prefix", () => {
     // The two ways this suite could read the wrong thing and still pass.
     // The comment on PRIMARY_RING quotes SHARED_RING's selector verbatim.
@@ -153,44 +90,66 @@ describe("the filter popup's primary-button focus ring", () => {
     expect(ruleFor(SHARED_RING)).toMatch(/outline:/);
   });
 
-  it("contrasts with the surface the ring actually lands on", () => {
-    // The load-bearing assertion. Fails at #fff (1.00:1) -- the reported bug --
-    // and passes at #000 (21:1). The surface is derived from the offset rather
-    // than hard-coded, so flipping the ring inset re-points this check instead
-    // of silently invalidating it.
-    const offset = Number(
-      ruleFor(SHARED_RING).match(/outline-offset:\s*(-?[\d.]+)px/)![1]
+  it.each([
+    ["primary (Confirm)", PRIMARY_RING, PRIMARY_FILL],
+    ["destructive (Clear filter)", DANGER_RING, DANGER_FILL],
+  ])(
+    "the %s ring contrasts with the surface it actually lands on",
+    (_name, ring, fill) => {
+      // The load-bearing assertion. Fails at #fff (1.00:1) -- the reported bug
+      // -- and passes at #000 (21:1). The surface is derived from the offset
+      // rather than hard-coded, so flipping the ring inset re-points this check
+      // instead of silently invalidating it.
+      expect(
+        contrast(declaration(ruleFor(ring), "outline-color"), ringSurface(fill))
+      ).toBeGreaterThanOrEqual(3);
+    }
+  );
+
+  it.each([
+    ["primary (Confirm)", PRIMARY_RING, PRIMARY_FILL],
+    ["destructive (Clear filter)", DANGER_RING, DANGER_FILL],
+  ])(
+    "the %s ring contrasts with the button it encloses as well",
+    (_name, ring, fill) => {
+      // The other reading of 1.4.11, and the one Dialog/index.css sets as the
+      // standard for this same button shape: an indicator should pass whether
+      // it is measured against the control it encloses or the surface beside
+      // it. Black is 3.57:1 on the resting #0063c3 fill and 3.55:1 on #be2a27.
+      expect(
+        contrast(
+          declaration(ruleFor(ring), "outline-color"),
+          declaration(ruleFor(fill), "background-color")
+        )
+      ).toBeGreaterThanOrEqual(3);
+    }
+  );
+
+  it.each([
+    ["primary (Confirm)", PRIMARY_FILL],
+    ["destructive (Clear filter)", DANGER_FILL],
+  ])(
+    "focus does not move the surface the %s ring is measured against",
+    (_name, fill) => {
+      // Each fill darkens on hover only. While they also darkened on
+      // :focus-visible, the enclosing surface at the moment the ring is drawn
+      // was #00509e / #9c211f, where black is 2.64:1 / 2.65:1 -- and the first
+      // of those figures is exactly what argued the Confirm ring to #fff.
+      // Re-adding :focus-visible here must fail, which is why the cases above
+      // read the resting fill.
+      expect(hasRuleFor(`${fill}:hover`)).toBe(true);
+      expect(hasRuleFor(`${fill}:focus-visible`)).toBe(false);
+    }
+  );
+
+  it("leaves the whole row on one standard, not half of one", () => {
+    // Confirm, Cancel and Clear filter sit in the same row. Cancel stays on
+    // the shared blue ring because its fill is the panel colour; the two
+    // filled buttons both override to black. What must not come back is one
+    // filled button on each standard.
+    expect(declaration(ruleFor(PRIMARY_RING), "outline-color")).toBe(
+      declaration(ruleFor(DANGER_RING), "outline-color")
     );
-    const surface =
-      offset > 0
-        ? declaration(ruleFor(PANEL), "background")
-        : declaration(ruleFor(PRIMARY_FILL), "background-color");
-    expect(
-      contrast(declaration(ruleFor(PRIMARY_RING), "outline-color"), surface)
-    ).toBeGreaterThanOrEqual(3);
-  });
-
-  it("contrasts with the button it encloses as well", () => {
-    // The other reading of 1.4.11, and the one Dialog/index.css sets as the
-    // standard for this same button shape: an indicator should pass whether it
-    // is measured against the control it encloses or the surface beside it.
-    // Black is 3.57:1 on the resting #0063c3 fill.
-    expect(
-      contrast(
-        declaration(ruleFor(PRIMARY_RING), "outline-color"),
-        declaration(ruleFor(PRIMARY_FILL), "background-color")
-      )
-    ).toBeGreaterThanOrEqual(3);
-  });
-
-  it("does not let focus move the surface the ring is measured against", () => {
-    // The fill darkens on hover only. While it also darkened on :focus-visible,
-    // the enclosing surface at the moment the ring is drawn was #00509e, where
-    // black is 2.64:1 -- and that figure is exactly what argued the ring to
-    // #fff. Re-adding :focus-visible here must fail, which is why the case
-    // above reads the resting fill.
-    expect(hasRuleFor(`${PRIMARY_FILL}:hover`)).toBe(true);
-    expect(hasRuleFor(`${PRIMARY_FILL}:focus-visible`)).toBe(false);
   });
 
   it("covers the Filter-by-colour submenu, not only the filter popup", () => {

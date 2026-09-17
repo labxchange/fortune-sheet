@@ -230,15 +230,31 @@
   margin-left: 10px;
 }
 
-/* Darkens on hover/focus, matching .button-primary's direction. The DS
-   destructive hover (#ed3431) lightens instead and is only 4.09:1 against its
-   white label — a 1.4.3 failure that keyboard focus would land on every time.
-   #9c211f is 7.92:1 and keeps base -> hover -> active monotonic.
+/* Darkens on hover, matching .button-primary's direction. The DS destructive
+   hover (#ed3431) lightens instead and is only 4.09:1 against its white label
+   — a 1.4.3 failure that keyboard focus would land on every time. #9c211f is
+   7.92:1 and keeps base -> hover -> active monotonic.
    NOTE: this is a deliberate departure from the DS token, pending design
-   sign-off; if #ed3431 is canonical then the DS itself needs the fix. */
-.fortune-filter-menu .button-danger:hover,
-.fortune-filter-menu .button-danger:focus-visible {
+   sign-off; if #ed3431 is canonical then the DS itself needs the fix.
+
+   Hover only, for the same reason as .button-primary above: while this also
+   fired on :focus-visible, the ring was drawn around a #9c211f fill, and a
+   focus indicator that moves the surface it is measured against has to hold
+   two figures at once. */
+.fortune-filter-menu .button-danger:hover {
   background-color: #9c211f;
+}
+
+/* Clear filter sits in the same row as Confirm and Cancel and takes the same
+   treatment. Left on the shared rule it kept a #0063c3 ring, which is 1.01:1
+   against its own #be2a27 fill (1.35:1 against the focused #9c211f) -- the
+   enclosed-control reading, and the exact figure that argued the Confirm ring
+   to white in the first place. Not a live 1.4.11 failure, because the 2px
+   offset means the ring lands on the white panel at 5.88:1 and never abuts the
+   fill; converted anyway so the row is not half one standard and half another.
+   Black is 3.55:1 on #be2a27 and 21:1 on the panel. */
+.fortune-filter-menu .button-basic.button-danger:focus-visible {
+  outline-color: #000;
 }
 
 .fortune-filter-menu .button-danger:active {

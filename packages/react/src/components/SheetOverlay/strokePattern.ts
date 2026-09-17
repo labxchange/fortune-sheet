@@ -10,9 +10,15 @@ import type { CSSProperties } from "react";
  * separating much sooner. Varying the stroke gives the pairing a second channel
  * that survives both.
  *
- * Index 0 is `solid`, so the common one-to-three reference formula renders
- * exactly as it always has - `strokeStyle` returns no `backgroundImage` at all
- * for it, not a gradient that happens to look solid.
+ * Index 0 is `solid`, and solid means unchanged rather than a gradient that
+ * happens to look solid: `strokeStyle` returns no `backgroundImage` at all for
+ * it. That is the single-reference formula only - index 1 is dashed and index 2
+ * is dotted, so a two- or three-reference formula does look different from
+ * before. The trade is deliberate.
+ *
+ * Three patterns rather than more: past dotted the next steps (dash-dot,
+ * long-dash) stop being told apart at a 2px strip, and a shorter cycle keeps
+ * the first reference - the one always on screen - on the unchanged solid.
  */
 export const STROKE_PATTERNS = ["solid", "dashed", "dotted"] as const;
 

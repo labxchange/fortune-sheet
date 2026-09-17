@@ -1,18 +1,21 @@
 import { colors } from "../src";
+import {
+  WHITE,
+  composite,
+  contrastRatio,
+  deltaE,
+  lightness,
+  parseHex,
+} from "../../../tests/colour";
 
 // The colours formula references are highlighted with, checked against the two
 // things that actually render them.
 //
 // This file exists because the palette silently failed for years: it was the
-// ECharts v2 chart palette, and only 6 of its 29 entries reached 4.5:1 on white.
-// The two that did sat at indices 0 and 1, so short formulas looked fine and
-// every reference from the third onwards was unreadable. Nothing caught it,
-// because nothing asserted on it.
-
-type RGB = [number, number, number];
-
-/** The sheet background these are drawn on. */
-const WHITE: RGB = [255, 255, 255];
+// ECharts v2 chart palette, and only 4 of its 29 entries cleared 4.5:1 both
+// solid and as the range box paints them. Those four sat at indices 0, 1, 15
+// and 19, so short formulas looked fine and every reference from the third
+// onwards was unreadable. Nothing caught it, because nothing asserted on it.
 
 /**
  * `.fortune-formula-functionrange-highlight .fortune-copy` in
@@ -25,61 +28,25 @@ const BORDER_STRIP_OPACITY = 0.9;
 const TEXT_CONTRAST_FLOOR = 4.5;
 
 /**
- * deltaE below roughly this and two colours read as the same one. Applied to
- * neighbouring indices, and across the first eight - the references in one
- * formula are consecutive from zero, so those are the entries seen together.
+ * deltaE below roughly this and two colours read as the same one.
+ *
+ * Applied to every pair, not to a window. An earlier revision checked only the
+ * first eight entries, on the reasoning that a formula's references are
+ * consecutive from zero - but formulas are not capped at eight references, and
+ * the window stopped one index short of a real collision (2 vs 8, deltaE 9.1,
+ * both of which also land on the same stroke pattern).
  */
 const DISTINCT_FLOOR = 15;
-const FORMULA_REFERENCES_SEEN_TOGETHER = 8;
 
-function parseHex(hex: string): RGB {
-  const channels = hex.replace("#", "");
-
-  return [0, 2, 4].map((i) => parseInt(channels.slice(i, i + 2), 16)) as RGB;
-}
-
-/** WCAG 2.x linearisation of one 0-255 channel. */
-function linearize(channel: number): number {
-  const c = channel / 255;
-
-  return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-}
-
-function relativeLuminance([r, g, b]: RGB): number {
-  return 0.2126 * linearize(r) + 0.7152 * linearize(g) + 0.0722 * linearize(b);
-}
-
-function contrastRatio(a: RGB, b: RGB): number {
-  const [lighter, darker] = [relativeLuminance(a), relativeLuminance(b)].sort(
-    (x, y) => y - x
-  );
-
-  return (lighter + 0.05) / (darker + 0.05);
-}
-
-/** What the browser paints for `color` at `alpha` over `over`. */
-function composite(color: RGB, alpha: number, over: RGB): RGB {
-  return color.map((c, i) =>
-    Math.round(c * alpha + over[i] * (1 - alpha))
-  ) as RGB;
-}
-
-function toLab([r, g, b]: RGB): [number, number, number] {
-  const [lr, lg, lb] = [linearize(r), linearize(g), linearize(b)];
-  const x = (0.4124 * lr + 0.3576 * lg + 0.1805 * lb) / 0.95047;
-  const y = 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
-  const z = (0.0193 * lr + 0.1192 * lg + 0.9505 * lb) / 1.08883;
-  const f = (t: number) => (t > 0.008856 ? t ** (1 / 3) : 7.787 * t + 16 / 116);
-
-  return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
-}
-
-/** CIE76 colour difference - coarse, but enough to catch two entries collapsing. */
-function deltaE(a: RGB, b: RGB): number {
-  const [la, lb] = [toLab(a), toLab(b)];
-
-  return Math.sqrt(la.reduce((sum, v, i) => sum + (v - lb[i]) ** 2, 0));
-}
+/**
+ * Contrast only ever improves as a colour darkens, so the cheapest way to pass
+ * the gates above is to darken every entry to the lightest L* that clears them
+ * - which pins the palette to the top of the band and leaves hue as the only
+ * channel separating 29 entries. That revision had 35 pairs under the deltaE
+ * floor, two of them under 2. This is the assertion that would have caught it
+ * before review did.
+ */
+const LIGHTNESS_SPREAD_FLOOR = 20;
 
 describe("formula reference highlight colours", () => {
   it("are all well-formed six-digit hexes", () => {
@@ -110,26 +77,9 @@ describe("formula reference highlight colours", () => {
     }
   );
 
-  it("keeps neighbouring indices distinguishable", () => {
-    const tooClose = colors
-      .slice(0, -1)
-      .map((hex, i) => ({
-        pair: `${i}->${i + 1}`,
-        difference: deltaE(parseHex(hex), parseHex(colors[i + 1])),
-      }))
-      .filter(({ difference }) => difference < DISTINCT_FLOOR);
-
-    expect(tooClose).toEqual([]);
-  });
-
-  it("keeps the references of one formula distinguishable from each other", () => {
-    // Darkening the palette alone collapsed indices 2 and 7 - both originally
-    // yellow - to deltaE 1.5. They only ever appear together in a formula this
-    // long, which is exactly why it would not have been noticed by hand.
-    const head = colors.slice(0, FORMULA_REFERENCES_SEEN_TOGETHER);
-
-    const pairs = head.flatMap((hex, i) =>
-      head.slice(i + 1).map((other, j) => ({
+  it("keeps every pair in the palette distinguishable, not just a window", () => {
+    const pairs = colors.flatMap((hex, i) =>
+      colors.slice(i + 1).map((other, j) => ({
         pair: `${i} vs ${i + j + 1}`,
         difference: deltaE(parseHex(hex), parseHex(other)),
       }))
@@ -138,5 +88,21 @@ describe("formula reference highlight colours", () => {
     expect(
       pairs.filter(({ difference }) => difference < DISTINCT_FLOOR)
     ).toEqual([]);
+  });
+
+  it("spreads lightness across the band instead of pinning it to the ceiling", () => {
+    const levels = colors.map((hex) => lightness(parseHex(hex)));
+
+    expect(Math.max(...levels) - Math.min(...levels)).toBeGreaterThanOrEqual(
+      LIGHTNESS_SPREAD_FLOOR
+    );
+  });
+
+  it("sanity-checks the colour maths against known values", () => {
+    // A silently wrong helper would pass everything above.
+    expect(contrastRatio(parseHex("#000000"), WHITE)).toBeCloseTo(21, 1);
+    expect(contrastRatio(WHITE, WHITE)).toBeCloseTo(1, 5);
+    expect(deltaE(parseHex("#000000"), parseHex("#000000"))).toBeCloseTo(0, 5);
+    expect(composite(parseHex("#000000"), 0.5, WHITE)).toEqual([128, 128, 128]);
   });
 });
