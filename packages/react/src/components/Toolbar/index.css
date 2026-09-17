@@ -452,10 +452,16 @@
    .button-basic ring above is #0063c3, which is now the primary fill, so on a
    primary button it would be 1.00:1. Black is 3.57:1 on that fill.
 
-   That figure is for the consumers whose fill is #0063c3, which is all of them
-   bar one: the filter menu's primaries swap to #00509e on :focus-visible,
-   where black is 2.64:1, and ContextMenu/index.css overrides them to a white
-   ring in the same file that sets that fill.
+   That figure holds for every consumer, because every consumer's focused fill
+   is #0063c3. The filter menu's primaries used to be the exception -- they
+   swapped to #00509e on :focus-visible, where black is 2.64:1, and
+   ContextMenu/index.css overrode them to a white ring in the same file that
+   set that fill. The white ring was the bug: the shared filter-panel rule
+   gives those buttons outline-offset: 2px, so it landed on the white panel at
+   1.00:1, not on the fill it was reasoned against. The swap is gone, and the
+   white with it. ContextMenu/index.css still carries an override, but it
+   declares this same black -- to break the 0-3-0 source-order tie with this
+   rule, not to change the colour.
 
    Colour only -- no outline-offset here. Several .button-basic consumers sit
    in containers that clip an outset ring, which is why CustomSort, CustomColor
