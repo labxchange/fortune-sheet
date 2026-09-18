@@ -42,6 +42,8 @@ import {
 } from "@fortune-sheet/core";
 import _ from "lodash";
 import WorkbookContext, { SetContextOptions } from "../../context";
+import { strokeStyle } from "./strokePattern";
+import type { StrokeEdge } from "./strokePattern";
 import ColumnHeader from "./ColumnHeader";
 import RowHeader from "./RowHeader";
 import InputBox from "./InputBox";
@@ -987,14 +989,16 @@ const SheetOverlay: React.FC = () => {
                 className="fortune-selection-highlight fortune-formula-functionrange-highlight"
                 style={_.omit(v, "backgroundColor")}
               >
-                {["top", "right", "bottom", "left"].map((d) => (
-                  <div
-                    key={d}
-                    data-type={d}
-                    className={`fortune-selection-copy-${d} fortune-copy`}
-                    style={{ backgroundColor }}
-                  />
-                ))}
+                {(["top", "right", "bottom", "left"] as StrokeEdge[]).map(
+                  (d) => (
+                    <div
+                      key={d}
+                      data-type={d}
+                      className={`fortune-selection-copy-${d} fortune-copy`}
+                      style={strokeStyle(rangeIndex, backgroundColor, d)}
+                    />
+                  )
+                )}
                 <div
                   className="fortune-selection-copy-hc"
                   style={{ backgroundColor }}

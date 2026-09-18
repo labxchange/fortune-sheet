@@ -1,86 +1,30 @@
-import { readFileSync } from "fs";
 import { join } from "path";
+
+import { contrast } from "../../../tests/colour";
+import { readCssRules } from "../../../tests/cssRules";
 
 // jest maps CSS through identity-obj-proxy, so no stylesheet ever loads and a
 // render can prove nothing about colour. The ratio is therefore computed from
 // the stylesheet read as text — the same approach dialogCloseButton.test.tsx
 // takes for the shared close button.
 //
+// The parser and the colour maths are shared; see `tests/cssRules.ts` for why
+// comments are stripped and selectors matched at a boundary. That strictness
+// retired the second rule-reading helper this file used to carry: the selector
+// for the selected option's focus ring is broken across three lines by
+// prettier *and* is prefixed by the base rule's own selector, and the shared
+// reader handles both.
+//
 // Not covered here: the third bullet of this ticket, the close (X) button's
 // focus indicator. That control is `.fortune-modal-dialog-icon-close`, shared
 // from Dialog, and it is fixed on the sibling branch rather than duplicated
 // here.
 
-const CSS = readFileSync(
-  join(__dirname, "../src/components/SearchReplace/index.css"),
-  "utf-8"
-);
-
-const channel = (v: number) => {
-  const c = v / 255;
-  return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-};
-
-const luminance = (hex: string) => {
-  const short = hex.replace("#", "");
-  // Shorthand expanded rather than rejected: the stylesheet writes both forms,
-  // and slicing two characters at a time out of #fff reads "ff", "f" and "",
-  // the last of which is NaN and poisons every ratio computed from it.
-  const n =
-    short.length === 3
-      ? short
-          .split("")
-          .map((c) => c + c)
-          .join("")
-      : short;
-  const [r, g, b] = [0, 2, 4].map((i) =>
-    channel(parseInt(n.slice(i, i + 2), 16))
-  );
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-};
-
-const contrast = (a: string, b: string) => {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return (hi + 0.05) / (lo + 0.05);
-};
-
-/** The declarations of the top-level rule declaring `selector`.
- *
- * Anchored to the start of a line, so it takes the base rule rather than the
- * indented copy of the same selector inside the forced-colors block below it
- * — and cannot be fooled by a selector named in a comment. */
-const ruleFor = (selector: string) => {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const at = CSS.search(new RegExp(`^${escaped}\\s*\\{`, "m"));
-  expect(at).toBeGreaterThan(-1);
-  return CSS.slice(at, CSS.indexOf("}", at));
-};
-
-/** The hex value `property` is declared as, within `rule`.
- *
- * The property name is anchored to a declaration boundary, or it matches as a
- * substring: `declaration(rule, "color")` on a rule carrying both would find
- * `background-color:` first and return the wrong colour — silently, and in the
- * direction that is awkward rather than dangerous: a rule's background
- * compared against itself is 1:1, so the ratio assertion fails rather than
- * passing, and the next person to add a case debugs the wrong thing. */
-const declaration = (rule: string, property: string) => {
-  const match = rule.match(
-    new RegExp(`(?:^|[\\s;{])${property}:\\s*(#[0-9a-fA-F]{3,6})`)
-  );
-  expect(match).toBeTruthy();
-  return match![1];
-};
-
-/** The declarations of a rule, found in the stylesheet with its whitespace
- * collapsed — a selector long enough for prettier to break across lines is not
- * findable by `ruleFor`, which matches a selector sitting on one line. */
-const flatRuleFor = (selector: string) => {
-  const flat = CSS.replace(/\s+/g, " ");
-  const at = flat.indexOf(`${selector} {`);
-  expect(at).toBeGreaterThan(-1);
-  return flat.slice(at, flat.indexOf("}", at));
-};
+const {
+  raw: CSS,
+  ruleFor,
+  declaration,
+} = readCssRules(join(__dirname, "../src/components/SearchReplace/index.css"));
 
 const SELECTED_OPTION =
   '#fortune-search-replace #searchAllbox .boxItem[aria-selected="true"]';
@@ -177,7 +121,7 @@ describe("Find and Replace colour contrast", () => {
     // Which is why it is overridden: it is invisible on that fill.
     expect(contrast(token![1], fill)).toBeLessThan(3);
 
-    const override = flatRuleFor(`${SELECTED_OPTION}:focus-visible`);
+    const override = ruleFor(`${SELECTED_OPTION}:focus-visible`);
     const ring = declaration(override, "outline-color");
     expect(contrast(ring, fill)).toBeGreaterThanOrEqual(3);
   });
