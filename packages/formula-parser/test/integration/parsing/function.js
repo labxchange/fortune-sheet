@@ -42,4 +42,23 @@ describe(".parse() custom function", () => {
       result: 6,
     });
   });
+
+  it("should tolerate whitespace between a function name and its '('", () => {
+    parser.setFunction("ADD_5", (params) => params[0] + 5);
+
+    // A space before the parenthesis must not turn the function name into an
+    // unresolved variable — standard spreadsheets accept this variation.
+    expect(parser.parse("SUM (4, ADD_5(1))")).toMatchObject({
+      error: null,
+      result: 10,
+    });
+    expect(parser.parse("SUM  (1, 2, 3)")).toMatchObject({
+      error: null,
+      result: 6,
+    });
+    expect(parser.parse("IF ( 1 , SUM(1, 2) , 9 )")).toMatchObject({
+      error: null,
+      result: 3,
+    });
+  });
 });
