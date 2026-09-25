@@ -1,5 +1,6 @@
 import _ from "lodash";
 import React, { useCallback, useContext, useEffect, useRef } from "react";
+import { flushSync } from "react-dom";
 import {
   acceptFormulaSuggestion,
   announceEditorInput,
@@ -102,14 +103,18 @@ const FormulaSearch: React.FC<FormulaSearchProps> = ({
       // an editor the first invocation has already written to, which appends a
       // second bracket -- `=AVERAGEIF((` from one click.
       const nextText = formulaTextAfterAccept(editor.innerText, name);
-      setContext((draftCtx) => {
-        acceptFormulaSuggestion(
-          draftCtx,
-          mirrorRef.current,
-          editor,
-          name,
-          nextText
-        );
+      // Flushed so the editor holds the accepted text before it is announced;
+      // see the matching `flushSync` in `InputBox`.
+      flushSync(() => {
+        setContext((draftCtx) => {
+          acceptFormulaSuggestion(
+            draftCtx,
+            mirrorRef.current,
+            editor,
+            name,
+            nextText
+          );
+        });
       });
       // The pointer route needs this as much as the keyboard one: the click
       // itself tells a host nothing about what the text became. Cleared here
