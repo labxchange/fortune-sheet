@@ -30,6 +30,7 @@ import React, {
   useLayoutEffect,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
 import _ from "lodash";
 import WorkbookContext from "../../context";
 import ContentEditable from "./ContentEditable";
@@ -201,17 +202,26 @@ const InputBox: React.FC = () => {
       // recipe it would be re-derived on every invocation React makes of it,
       // and the second pass would append a second bracket.
       const nextText = formulaTextAfterAccept(editor.innerText, name);
-      setContext((draftCtx) => {
-        acceptFormulaSuggestion(
-          draftCtx,
-          refs.fxInput.current,
-          editor,
-          name,
-          nextText
-        );
+      // Flushed, because the recipe is what writes the editor and `setContext`
+      // is a `useState` updater: React runs it at once only while the workbook
+      // has no other update pending, and otherwise defers it to the next
+      // render. Deferred, the announcement below went out carrying the
+      // fragment the accept replaced (`=AVER`), and nothing corrected it
+      // afterwards -- a host validating the in-progress formula never saw
+      // `=AVERAGE(`.
+      flushSync(() => {
+        setContext((draftCtx) => {
+          acceptFormulaSuggestion(
+            draftCtx,
+            refs.fxInput.current,
+            editor,
+            name,
+            nextText
+          );
+        });
       });
-      // After the edit, so a host reading the editor from the event sees the
-      // accepted text rather than the fragment it replaced.
+      // After the flushed edit, so a host reading the editor from the event
+      // sees the accepted text rather than the fragment it replaced.
       //
       // Cleared here rather than by the handler that reads it: `dispatchEvent`
       // is synchronous, so `onChange` has already run by the time this line

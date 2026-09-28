@@ -1,5 +1,5 @@
 import React from "react";
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, act } from "@testing-library/react";
 import Workbook from "../src/components/Workbook";
 
 // Counts the typing pipeline, so an accept can be asserted NOT to re-enter it.
@@ -134,5 +134,91 @@ describe("formula suggestions: which editor each parent accepts into", () => {
     expect(document.activeElement).toBe(cell);
     expect(cell.innerText).toBe("=AVERAGE(");
     expect(fx.innerText).toBe("=AVERAGE(");
+  });
+
+  // The accept writes the editor inside a `setContext` recipe, and `setContext`
+  // is a `useState` updater: React runs it at once only while the workbook has
+  // no other update pending, and otherwise defers it to the next render. The
+  // tests above never have one pending, because each `fireEvent` is flushed in
+  // its own `act`. A browser usually does — here the highlight a hover queues —
+  // and the announcement then went out carrying the fragment it replaced
+  // (`=AVER`), with nothing afterwards to correct it. A spreadsheet simulation
+  // validating the in-progress formula against that event never saw
+  // `=AVERAGE(`. Each case below queues an update in the same `act` as the
+  // accept, so the recipe cannot have run unless the accept flushes it.
+  describe("announcing an accept while another update is pending", () => {
+    const recordInputs = (run: () => void) => {
+      const seen: { fx: string; cell: string }[] = [];
+      const fx = document.querySelector<HTMLElement>(
+        "#luckysheet-functionbox-cell"
+      )!;
+      const cell = document.querySelector<HTMLElement>(
+        "#luckysheet-rich-text-editor"
+      )!;
+      // Bubble phase on `document`, where a host listens.
+      const record = () =>
+        seen.push({ fx: fx.innerText, cell: cell.innerText });
+      document.addEventListener("input", record);
+      run();
+      document.removeEventListener("input", record);
+      return seen;
+    };
+
+    const byName = (name: string) =>
+      options().find((o) => o.dataset.func === name)!;
+
+    it("carries the accepted text on a pointer accept", () => {
+      const { cell } = setup();
+
+      cell.focus();
+      type(cell, "=AVER");
+
+      const seen = recordInputs(() => {
+        act(() => {
+          fireEvent.mouseEnter(byName("AVERAGEA"));
+          fireEvent.mouseDown(byName("AVERAGE"));
+        });
+      });
+
+      expect(seen).toEqual([{ fx: "=AVERAGE(", cell: "=AVERAGE(" }]);
+    });
+
+    it("carries the accepted text on a keyboard accept", () => {
+      const { cell } = setup();
+
+      cell.focus();
+      type(cell, "=AVER");
+
+      const seen = recordInputs(() => {
+        act(() => {
+          fireEvent.mouseEnter(byName("AVERAGEA"));
+          fireEvent.keyDown(cell, { key: "Enter", code: "Enter", keyCode: 13 });
+        });
+      });
+
+      // Whichever entry Enter took, the announcement must carry what the
+      // editor holds once the accept is done — never the typed prefix.
+      expect(seen).toHaveLength(1);
+      expect(seen[0].cell).toMatch(/^=AVERAGE\w*\($/);
+      expect(seen[0]).toEqual({ fx: cell.innerText, cell: cell.innerText });
+    });
+
+    it("carries the accepted text when the bar's own list is used", () => {
+      const { fx } = setup();
+
+      fireEvent.pointerDown(fx);
+      fireEvent.focus(fx);
+      fx.focus();
+      type(fx, "=AVER");
+
+      const seen = recordInputs(() => {
+        act(() => {
+          fireEvent.mouseEnter(byName("AVERAGEA"));
+          fireEvent.mouseDown(byName("AVERAGE"));
+        });
+      });
+
+      expect(seen).toEqual([{ fx: "=AVERAGE(", cell: "=AVERAGE(" }]);
+    });
   });
 });
