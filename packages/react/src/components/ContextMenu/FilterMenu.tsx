@@ -1105,6 +1105,12 @@ const FilterMenu: React.FC = () => {
         // aria-expanded + aria-controls on the trigger is the canonical
         // disclosure pattern. aria-haspopup is omitted for the same reason:
         // "true" is defined as equivalent to "menu".
+        //
+        // Its own non-focusable chrome (the colour-group titles, the padding)
+        // escapes focus to an embedder's wrapper the same way the main container
+        // does; both are kept open by the mousedown guard in `useEscapeToClose`,
+        // which counts this sibling submenu as inside via the main menu's
+        // `withinRefs: [subMenuRef]`.
         <div
           ref={subMenuRef}
           id={BY_COLOR_SUBMENU_ID}
