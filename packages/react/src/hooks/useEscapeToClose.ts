@@ -7,17 +7,17 @@ const DEFAULT_FOCUSABLE_SELECTOR =
 
 // Anything a mousedown can legitimately move focus to inside a popup: native
 // focusables, plus the ARIA widgets this package builds out of divs
-// (role="button" menu rows, role="checkbox" colour swatches). `[tabindex="-1"]`
-// is excluded on purpose — it is click-focusable but, where it matters, it is
-// *inside* the popup (the one-colour tip), so it never triggers the escape the
-// focus-out guard protects against; treating it as a real control would wrongly
-// leave the default alone on an embedder's own `tabIndex={-1}` wrapper.
+// (role="button" menu rows, role="checkbox" colour rows). `[tabindex]` is
+// unqualified because `tabindex="-1"` is click-focusable too, and roving items
+// depend on it: `ColorPicker`'s inactive swatches are `-1` and move the tab stop
+// in their `onFocus`. An embedder's own `tabIndex={-1}` wrapper matching here is
+// harmless — it is outside the popup, so `keepFocusInside` still cancels.
 //
 // A `disabled` native control is the one hole this cannot close: Chrome fires no
 // `mousedown` on it at all, so the press never reaches the guard and focus still
 // escapes to the wrapper. Use `aria-disabled` inside a `closeOnFocusOut` popup.
 const CLICK_FOCUSABLE_SELECTOR =
-  'input, button, select, textarea, a[href], [contenteditable="true"], [role="button"], [role="checkbox"], [tabindex]:not([tabindex="-1"])';
+  'input, button, select, textarea, a[href], [contenteditable="true"], [role="button"], [role="checkbox"], [tabindex]';
 
 // Shared across every useEscapeToClose instance: when popups are nested
 // (e.g. a color submenu open inside a toolbar combo), each has its own

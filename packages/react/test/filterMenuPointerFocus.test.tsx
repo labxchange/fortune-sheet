@@ -208,4 +208,39 @@ describe("filter menu pointer focus", () => {
 
     expect(event.defaultPrevented).toBe(false);
   });
+
+  // The guard is shared by every closeOnFocusOut popup, so it must also leave
+  // roving items alone: ColorPicker's inactive swatches are tabIndex=-1 and move
+  // the tab stop in their onFocus. Cancelling the press left the tab stop on the
+  // previous swatch while the popup stayed open.
+  it("leaves the default alone on an inactive swatch in the sheet-tab colour menu", async () => {
+    render(
+      <div tabIndex={-1} data-testid="embedder">
+        <Workbook lang="en" data={data} />
+      </div>
+    );
+    const sheetOptions = screen.getByRole("button", { name: "Sheet options" });
+    act(() => {
+      sheetOptions.focus();
+      fireEvent.keyDown(sheetOptions, { key: "Enter" });
+    });
+    const colorRow = screen
+      .getByText("Change color")
+      .closest('[role="button"]') as HTMLElement;
+    act(() => {
+      colorRow.focus();
+      fireEvent.keyDown(colorRow, { key: "Enter" });
+    });
+    const swatch = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>(
+        '[role="option"][tabindex="-1"]'
+      );
+      expect(el).not.toBeNull();
+      return el!;
+    });
+
+    const event = pressMouse(swatch);
+
+    expect(event.defaultPrevented).toBe(false);
+  });
 });
