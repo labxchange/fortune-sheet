@@ -31,11 +31,7 @@ import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useRovingFocus } from "../../hooks/useRovingFocus";
 import { markAsRepeat } from "../../utils/liveRegion";
-import {
-  focusAfterCommit,
-  keepPopupFocusOnMouseDown,
-  onActivate,
-} from "../../utils/keyboardActivation";
+import { focusAfterCommit, onActivate } from "../../utils/keyboardActivation";
 import { announce } from "../../hooks/useContextMenuAnnouncements";
 import { FILTER_MENU_ID } from "../../utils/filterDom";
 
@@ -747,11 +743,6 @@ const FilterMenu: React.FC = () => {
         id={FILTER_MENU_ID}
         ref={containerRef}
         style={{ left: filterContextMenu.x, top: filterContextMenu.y }}
-        // A press on this menu's own non-focusable chrome — a value's text, the
-        // count beside it, a divider — must not let the browser's default focus
-        // escape to an embedder's focusable wrapper and trip closeOnFocusOut.
-        // Real controls inside keep their default. See keepPopupFocusOnMouseDown.
-        onMouseDown={keepPopupFocusOnMouseDown}
       >
         {settings.filterContextMenu?.map((name, i) => {
           if (name === "|") {
@@ -1115,14 +1106,11 @@ const FilterMenu: React.FC = () => {
         // disclosure pattern. aria-haspopup is omitted for the same reason:
         // "true" is defined as equivalent to "menu".
         //
-        // onMouseDown is focus management, not an interaction: this renders as a
-        // sibling of the main container, so its own non-focusable chrome (the
-        // colour-group titles, the padding) is not covered by the container's
-        // guard and would escape focus the same way (see
-        // keepPopupFocusOnMouseDown). role="group" only makes it a *known*
-        // non-interactive element; every colour row and button inside stays
-        // independently operable, so no keyboard user is locked out.
-        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+        // Its own non-focusable chrome (the colour-group titles, the padding)
+        // escapes focus to an embedder's wrapper the same way the main container
+        // does; both are kept open by the mousedown guard in `useEscapeToClose`,
+        // which counts this sibling submenu as inside via the main menu's
+        // `withinRefs: [subMenuRef]`.
         <div
           ref={subMenuRef}
           id={BY_COLOR_SUBMENU_ID}
@@ -1130,7 +1118,6 @@ const FilterMenu: React.FC = () => {
           aria-label={filter.filterByColor}
           className="luckysheet-filter-bycolor-submenu"
           style={subMenuPos}
-          onMouseDown={keepPopupFocusOnMouseDown}
           onMouseEnter={() => {
             mouseHoverSubMenu.current = true;
           }}

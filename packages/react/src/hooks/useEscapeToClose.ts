@@ -5,6 +5,20 @@ import { focusAfterCommit } from "../utils/keyboardActivation";
 const DEFAULT_FOCUSABLE_SELECTOR =
   '[role="button"]:not([aria-disabled="true"]), [tabindex="0"]:not([aria-disabled="true"])';
 
+// Anything a mousedown can legitimately move focus to inside a popup: native
+// focusables, plus the ARIA widgets this package builds out of divs
+// (role="button" menu rows, role="checkbox" colour swatches). `[tabindex="-1"]`
+// is excluded on purpose — it is click-focusable but, where it matters, it is
+// *inside* the popup (the one-colour tip), so it never triggers the escape the
+// focus-out guard protects against; treating it as a real control would wrongly
+// leave the default alone on an embedder's own `tabIndex={-1}` wrapper.
+//
+// A `disabled` native control is the one hole this cannot close: Chrome fires no
+// `mousedown` on it at all, so the press never reaches the guard and focus still
+// escapes to the wrapper. Use `aria-disabled` inside a `closeOnFocusOut` popup.
+const CLICK_FOCUSABLE_SELECTOR =
+  'input, button, select, textarea, a[href], [contenteditable="true"], [role="button"], [role="checkbox"], [tabindex]:not([tabindex="-1"])';
+
 // Shared across every useEscapeToClose instance: when popups are nested
 // (e.g. a color submenu open inside a toolbar combo), each has its own
 // document-level listener, and stopPropagation() on one does not stop a
@@ -76,10 +90,12 @@ export type UseEscapeToCloseOptions = {
  *
  * The name is now narrower than the job: this owns Escape, the autofocus on
  * open and the focus-restore on close, and — behind `closeOnFocusOut` — whether
- * the popup survives focus leaving it. Those belong together because they are
- * one question, "is focus still in this popup", asked at four moments; the
- * nested-popup rule in particular has to be answered identically by Escape and
- * by focus-out, and `openInstanceStack` above already exists to answer it once.
+ * the popup survives focus leaving it, by either a Tab out (focus-out) or a
+ * pointer press on its own non-focusable chrome (the mousedown guard). Those
+ * belong together because they are one question, "is focus still in this popup",
+ * asked at five moments; the nested-popup rule in particular has to be answered
+ * identically by Escape and by focus-out, and `openInstanceStack` above already
+ * exists to answer it once.
  *
  * One deliberate exception to that "identically": `focusInsideContainer` below,
  * which gates the restore-on-close, asks the narrow `containerRef.contains()`
@@ -242,14 +258,60 @@ export function useEscapeToClose({
       if (!target || target === next || target.contains(next)) return;
       focusAfterCommit(() => focusOutTargetRef.current?.());
     };
+    /**
+     * Keep focus inside on a pointer press, the other half of `closeOnFocusOut`.
+     *
+     * Same root cause as `menuButtonToggleHandlers`' `onMouseDown`, one layer in.
+     * A press on the popup's own non-focusable chrome — a filter value's text,
+     * the count beside it, a divider, the padding between rows — has no focusable
+     * target, so the browser's mousedown default walks up to the nearest
+     * focusable ancestor. In this package's own Storybook that is nothing, focus
+     * goes nowhere, and `handleFocusOut` returns early on the null
+     * `relatedTarget`; inside an embedder that wraps the workbook in a
+     * `tabIndex={-1}` container (LabXchange's spreadsheet sim) it is that wrapper,
+     * *outside* the popup, and `closeOnFocusOut` dismisses the popup out from
+     * under the press. So it reproduced only in the embedder, and only by pointer.
+     *
+     * Cancelling the default drops that focus move, so focus stays on whatever
+     * inside the popup already held it (`autoFocus` put it on the first control).
+     * A press whose nearest focusable ancestor is itself inside the popup — a
+     * checkbox, the search box, a button, a colour row — keeps its default, so it
+     * focuses and a caret lands as usual. `click` still fires either way.
+     *
+     * Bound here rather than per container because the hazard belongs to
+     * `closeOnFocusOut`, not to any one popup: every opt-in with the same chrome,
+     * in the same wrapper, needs it. `isWithinPopupContent` (not `isWithinPopup`)
+     * so the trigger's own press keeps its default, and so a sibling submenu
+     * named in `withinRefs` is covered by the same listener.
+     */
+    const keepFocusInside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (!isWithinPopupContent(target, containerRef, withinRefsRef.current)) {
+        return;
+      }
+      const focusable =
+        target.nodeType === 1
+          ? (target as Element).closest<HTMLElement>(CLICK_FOCUSABLE_SELECTOR)
+          : null;
+      if (
+        !focusable ||
+        !isWithinPopupContent(focusable, containerRef, withinRefsRef.current)
+      ) {
+        e.preventDefault();
+      }
+    };
     if (closeOnFocusOut) {
       document.addEventListener("focusout", handleFocusOut);
+      // Capture: run before any element's own mousedown (DropdownList stops its
+      // propagation), and before the browser applies the default focus move.
+      document.addEventListener("mousedown", keepFocusInside, true);
     }
 
     return () => {
       document.removeEventListener("focusin", handleFocusIn);
       document.removeEventListener("keydown", handleKeyDown, true);
       document.removeEventListener("focusout", handleFocusOut);
+      document.removeEventListener("mousedown", keepFocusInside, true);
       const index = openInstanceStack.indexOf(instanceId);
       if (index !== -1) openInstanceStack.splice(index, 1);
       // Only rescue focus if the user hasn't already deliberately moved it

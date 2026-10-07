@@ -18,10 +18,14 @@ import Workbook from "../src/components/Workbook";
 // goes nowhere and the handler returns early on the null relatedTarget — which
 // is why it reproduced only in the embedder.
 //
-// jsdom implements neither focus-on-mousedown nor layout, so — as in
-// menuButtonPointerFocus — these assert the property that removes the stray
-// focus move at its source: the container claims the mousedown default on its
-// own chrome, and leaves it alone on the real controls inside it.
+// The guard lives in useEscapeToClose, attached whenever closeOnFocusOut is on,
+// so every popup with the same chrome gets it; this exercises it end to end
+// through the filter menu and its sibling colour submenu (one listener covers
+// both via the menu's withinRefs). Each press checks two things: that the
+// mousedown default is claimed on chrome and left alone on real controls, and —
+// rendering the workbook inside the sim's tabIndex=-1 wrapper and emulating the
+// browser's uncancelled-mousedown default by hand (jsdom implements neither
+// focus-on-mousedown nor layout) — that the popup actually survives the press.
 
 const text = (v: string) => ({ v, m: v, ct: { fa: "General", t: "s" } });
 
@@ -65,7 +69,13 @@ const submenu = () => document.getElementById(SUBMENU_ID);
 
 /** Opens the filter dropdown for column A from the keyboard. */
 const openFilterMenu = async (sheet: unknown[] = data) => {
-  render(<Workbook lang="en" data={sheet} />);
+  // The tabIndex=-1 wrapper is the sim's topology: it is what the browser's
+  // uncancelled-mousedown default would hand focus to, so the bug can reproduce.
+  render(
+    <div tabIndex={-1} data-testid="embedder">
+      <Workbook lang="en" data={sheet} />
+    </div>
+  );
   await waitFor(() => expect(funnels().length).toBeGreaterThan(0));
   const [first] = funnels();
   act(() => {
@@ -95,6 +105,29 @@ const pressMouse = (el: HTMLElement) => {
   return event;
 };
 
+/**
+ * Emulate what a real browser does with an *uncancelled* mousedown on a popup's
+ * non-focusable chrome: the default focuses the nearest focusable ancestor — the
+ * embedder's tabIndex=-1 wrapper — firing a focusout off whatever control inside
+ * the popup held focus. jsdom delivers neither (see `tabTo` in
+ * popupFocusOutDismissal), so when the guard did *not* cancel, do both by hand,
+ * exactly as the browser would. With the guard in place this is a no-op and the
+ * popup survives; drop the guard and the focusout fires, closeOnFocusOut
+ * dismisses the popup, and the following stay-open assertion fails.
+ */
+const emulateUncancelledEscape = (event: Event, within: HTMLElement) => {
+  if (event.defaultPrevented) return;
+  const embedder = screen.getByTestId("embedder");
+  const held =
+    document.activeElement && within.contains(document.activeElement)
+      ? (document.activeElement as HTMLElement)
+      : within;
+  act(() => {
+    embedder.focus();
+    fireEvent.focusOut(held, { relatedTarget: embedder });
+  });
+};
+
 describe("filter menu pointer focus", () => {
   it("claims the default when a value's text is pressed, and stays open", async () => {
     await openFilterMenu();
@@ -112,7 +145,8 @@ describe("filter menu pointer focus", () => {
     const event = pressMouse(valueText);
 
     expect(event.defaultPrevented).toBe(true);
-    expect(filterMenu()).not.toBeNull();
+    emulateUncancelledEscape(event, menu);
+    await waitFor(() => expect(filterMenu()).not.toBeNull());
   });
 
   it("leaves the default alone on a value checkbox", async () => {
@@ -150,16 +184,19 @@ describe("filter menu pointer focus", () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
-  // The colour submenu renders as a sibling of the main container, so it carries
-  // its own copy of the guard.
-  it("claims the default on the colour submenu's own chrome", async () => {
+  // The colour submenu renders as a sibling of the main container; the menu's
+  // single guard listener covers it through `withinRefs: [subMenuRef]`.
+  it("claims the default on the colour submenu's own chrome, and stays open", async () => {
     await openColorSubmenu();
-    const title = submenu()!.querySelector<HTMLElement>(".title")!;
+    const sub = submenu()!;
+    const title = sub.querySelector<HTMLElement>(".title")!;
     expect(title.textContent).toBeTruthy();
 
     const event = pressMouse(title);
 
     expect(event.defaultPrevented).toBe(true);
+    emulateUncancelledEscape(event, sub);
+    await waitFor(() => expect(filterMenu()).not.toBeNull());
     expect(submenu()).not.toBeNull();
   });
 
